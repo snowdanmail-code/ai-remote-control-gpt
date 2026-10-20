@@ -21,10 +21,37 @@ jobs:
     timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+      - name: Restore only PRIOR signing identity from protected secrets
+        shell: bash
+        env:
+          EXISTING_APK_KEYSTORE_B64: ${{ secrets.EXISTING_APK_KEYSTORE_B64 }}
+          EXISTING_APK_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          EXISTING_APK_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          EXISTING_APK_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$EXISTING_APK_KEYSTORE_B64" || { echo 'BLOCKED: prior signing keystore missing'; exit 1; }
+          test -n "$EXISTING_APK_STORE_PASSWORD" || { echo 'BLOCKED: signing store password missing'; exit 1; }
+          test -n "$EXISTING_APK_KEY_ALIAS" || { echo 'BLOCKED: signing alias missing'; exit 1; }
+          test -n "$EXISTING_APK_KEY_PASSWORD" || { echo 'BLOCKED: signing key password missing'; exit 1; }
+          umask 077
+          printf '%s' "$EXISTING_APK_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/previous-install.keystore"
+          chmod 600 "$RUNNER_TEMP/previous-install.keystore"
+          KEY_INFO="$(keytool -list -v -keystore "$RUNNER_TEMP/previous-install.keystore" -alias "$EXISTING_APK_KEY_ALIAS" -storepass:env EXISTING_APK_STORE_PASSWORD)"
+          grep -q 'Entry type: PrivateKeyEntry' <<< "$KEY_INFO" || { echo 'BLOCKED: not a private signing key'; exit 1; }
+          CERT="$(grep -m1 -E '^[[:space:]]*SHA256:' <<< "$KEY_INFO" | sed -E 's/^[[:space:]]*SHA256:[[:space:]]*//' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          EXPECTED='511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c'
+          test "$CERT" = "$EXPECTED" || { echo 'BLOCKED: prior signing certificate mismatch'; exit 1; }
+          echo "AI_REMOTE_SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/previous-install.keystore" >> "$GITHUB_ENV"
+          mkdir -p artifacts
+          printf '{"status":"ORIGINAL_PRIVATE_KEY_VERIFIED","signer_sha256":"%s","new_signing_key_generated":false}\n' "$CERT" > artifacts/T042-signing-identity.json
+          echo 'Existing signing identity verified; no new key generated.'
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -49,32 +76,13 @@ jobs:
         run: bash tools/run_jvm_tests.sh
       - name: Android unit tests and instrumentation compilation
         working-directory: android
+        env:
+          AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          AI_REMOTE_SIGNING_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
         run: |
           gradle --no-daemon :app:testDebugUnitTest
           gradle --no-daemon :app:compileDebugAndroidTestKotlin
-      - name: Restore only PRIOR signing identity from protected secrets
-        shell: bash
-        env:
-          EXISTING_APK_KEYSTORE_B64: ${{ secrets.EXISTING_APK_KEYSTORE_B64 }}
-          EXISTING_APK_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
-          EXISTING_APK_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
-          EXISTING_APK_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          test -n "$EXISTING_APK_KEYSTORE_B64" || { echo 'BLOCKED: prior signing keystore missing'; exit 1; }
-          test -n "$EXISTING_APK_STORE_PASSWORD" || { echo 'BLOCKED: signing store password missing'; exit 1; }
-          test -n "$EXISTING_APK_KEY_ALIAS" || { echo 'BLOCKED: signing alias missing'; exit 1; }
-          test -n "$EXISTING_APK_KEY_PASSWORD" || { echo 'BLOCKED: signing key password missing'; exit 1; }
-          umask 077
-          printf '%s' "$EXISTING_APK_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/previous-install.keystore"
-          chmod 600 "$RUNNER_TEMP/previous-install.keystore"
-          KEY_INFO="$(keytool -list -v -keystore "$RUNNER_TEMP/previous-install.keystore" -alias "$EXISTING_APK_KEY_ALIAS" -storepass:env EXISTING_APK_STORE_PASSWORD)"
-          grep -q 'Entry type: PrivateKeyEntry' <<< "$KEY_INFO" || { echo 'BLOCKED: not a private signing key'; exit 1; }
-          CERT="$(grep -m1 -E '^[[:space:]]*SHA256:' <<< "$KEY_INFO" | sed -E 's/^[[:space:]]*SHA256:[[:space:]]*//' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-          EXPECTED='511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c'
-          test "$CERT" = "$EXPECTED" || { echo 'BLOCKED: prior signing certificate mismatch'; exit 1; }
-          echo "AI_REMOTE_SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/previous-install.keystore" >> "$GITHUB_ENV"
-          echo 'Existing signing identity verified; no new key generated.'
       - name: Build instrumentation pair with ORIGINAL signer before installation
         working-directory: android
         env:
@@ -180,6 +188,7 @@ jobs:
           path: |
             android/app/build/test-results/testDebugUnitTest/*.xml
             android/app/build/outputs/androidTest-results/connected/**/*.xml
+            artifacts/T042-signing-identity.json
             artifacts/T042-test-apk-identity.json
             artifacts/T042-android-execution-proof.json
             artifacts/T042-upgrade-verification.json
