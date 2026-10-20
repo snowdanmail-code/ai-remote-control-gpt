@@ -34,7 +34,20 @@ def command(args):
     return result.stdout + result.stderr
 
 
-def inspect(apk, aapt, apksigner):
+def parse_package(dump, require_version=True):
+    m = PACKAGE_RE.search(dump)
+    if m:
+        return {'package': m.group(1), 'version_code': int(m.group(2)), 'version_name': m.group(3)}
+    # Instrumentation APKs do not need app update-version metadata. Only their
+    # package identity may use this path; release/target inspection stays strict.
+    if not require_version:
+        m = re.search(r"^package: name='([^']+)'(?: |$)", dump, re.M)
+        if m:
+            return {'package': m.group(1), 'version_code': None, 'version_name': None}
+    raise ValueError('aapt did not report package/version metadata')
+
+
+def inspect(apk, aapt, apksigner, require_version=True):
     if not apk.is_file() or apk.stat().st_size < 512:
         raise ValueError("missing/empty APK")
     with zipfile.ZipFile(apk) as z:
@@ -43,16 +56,13 @@ def inspect(apk, aapt, apksigner):
         if not any(n == 'classes.dex' or re.fullmatch(r'classes\d+\.dex', n) for n in z.namelist()):
             raise ValueError('APK missing DEX bytecode')
     dump = command([aapt, 'dump', 'badging', str(apk)])
-    m = PACKAGE_RE.search(dump)
-    if not m:
-        raise ValueError('aapt did not report package/version metadata')
+    metadata = parse_package(dump, require_version=require_version)
     sig = command([apksigner, 'verify', '--verbose', '--print-certs', str(apk)])
     match = CERT_RE.findall(sig)
     if len(match) != 1:
         raise ValueError('expected exactly one signer certificate')
     cert = normalize_fingerprint(match[0])
-    return {'package': m.group(1), 'version_code': int(m.group(2)),
-            'version_name': m.group(3), 'signer_sha256': cert,
+    return {**metadata, 'signer_sha256': cert,
             'apk_sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
             'size_bytes': apk.stat().st_size}
 
