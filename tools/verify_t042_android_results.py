@@ -7,6 +7,11 @@ import sys
 import xml.etree.ElementTree as ET
 
 REQUIRED={
+ 'com.example.airemote.AndroidOAuthTlsTransportTest':{
+  'actualHttpsGetThenTokenPostSendsOneCode','untrustedAndroidTlsSendsNoCodeAndDoesNotRetry',
+  'dnsAtConnectionCreationIsBoundedBeforeBody','networkLossBeforePostDoesNotRetry',
+  'androidReadTimeoutAfterPostDoesNotReplay','server503AndPostDisconnectNeverReplayCode',
+  'mockTokenEndpointRejectsWrongRedirectAndPkce'},
  'com.example.airemote.AndroidOAuthBrowserTest':{
   'browserOwnsCustomTabAndReturnsSyntheticLoopbackCallback',
   'malformedStateAndNonLoopbackCallbacksAreRejected',

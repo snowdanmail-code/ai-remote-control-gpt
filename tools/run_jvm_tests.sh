@@ -9,7 +9,7 @@ mapfile -t sources < <(find android/app/src/main/java/com/example/airemote -maxd
   if ! grep -Eq '^import (android\.|androidx\.|org\.json|com\.google\.mlkit)' "$f"; then echo "$f"; fi
 done)
 mapfile -t scenarios < <(find tools -maxdepth 1 -name '*Scenarios.kt' -print | sort)
-kotlinc "${sources[@]}" "${scenarios[@]}" -d .build-jvm/scenarios.jar
+kotlinc -J-Xmx2g "${sources[@]}" "${scenarios[@]}" -d .build-jvm/scenarios.jar
 classes=(
 CardConsensusScenariosKt
 CardStageBridgeScenarios

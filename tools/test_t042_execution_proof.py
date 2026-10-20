@@ -31,7 +31,7 @@ class T042TestApkSignerTests(unittest.TestCase):
 
 class T042AndroidExecutionProofTests(unittest.TestCase):
     def suite(self):
-        s=ET.Element('testsuite',tests='9',failures='0',errors='0',skipped='0')
+        s=ET.Element('testsuite',tests=str(sum(map(len,REQUIRED.values()))),failures='0',errors='0',skipped='0')
         for c,names in REQUIRED.items():
             for n in sorted(names):ET.SubElement(s,'testcase',classname=c,name=n)
         return s
@@ -39,7 +39,7 @@ class T042AndroidExecutionProofTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             ET.ElementTree(s).write(Path(d)/'TEST-fixture.xml')
             return verify_reports(d)
-    def test_nine_mandatory_executed_tests_required(self):self.assertEqual(9,self.run_report(self.suite())['mandatory_tests'])
+    def test_sixteen_mandatory_executed_tests_required(self):self.assertEqual(16,self.run_report(self.suite())['mandatory_tests'])
     def test_missing_report_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):verify_reports(d)
