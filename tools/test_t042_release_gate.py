@@ -50,7 +50,9 @@ class T042ProtectedReleaseGateTests(unittest.TestCase):
             with self.assertRaises(ValueError):stage(p,m)
     def test_manual_only_not_auto_upload(self):
         self.assertIn('workflow_dispatch:',self.w)
-        self.assertIn("if: ${{ inputs.promote_t042 == true }}",self.w)
+        self.assertIn("if: ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true }}",self.w)
+        self.assertIn('if: ${{ !inputs.samsung_prototype }}',self.w)
+        self.assertIn('Stage explicitly experimental Samsung prototype (runtime NOT_RUN)',self.w)
         self.assertIn('environment: android-signing',self.w)
         self.assertIn('if: always()',self.w)
 if __name__=='__main__':unittest.main()

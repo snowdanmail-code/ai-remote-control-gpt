@@ -45,8 +45,8 @@ class TableHandBindingGuardSourceTest(unittest.TestCase):
     def test_workflow_is_manual_and_versioned(self):
         s=(BASE/'.github/workflows/android.yml').read_text()
         self.assertIn('workflow_dispatch:',s)
-        self.assertRegex(s, r'AI-Remote-Control-GPT-v2\.14\.\d+-[A-Z-]+-debug\.apk')
-        self.assertRegex(s, r'ai-remote-control-v2\.14\.\d+-[a-z-]+-debug')
+        self.assertIn('AI-Remote-Control-GPT-T042-Samsung-Prototype.apk',s)
+        self.assertIn('ai-remote-control-t042-samsung-prototype',s)
         self.assertNotIn('v2.14.13-WINDOW-ORIGIN',s)
 
     def test_no_external_dispatched_action_in_identity_module(self):

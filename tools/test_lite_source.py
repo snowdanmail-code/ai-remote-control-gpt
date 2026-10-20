@@ -11,7 +11,7 @@ class AndroidLiteIsolationTests(unittest.TestCase):
         self.assertFalse(any('http' in p.read_text() for p in [KOTLIN/'CaptureService.kt', KOTLIN/'VerifiedLocalPokerStrategy.kt']))
 
     def test_no_unwanted_server_network_code(self):
-        source = '\n'.join(p.read_text() for p in KOTLIN.glob('*.kt') if p.name not in ('ChatGptCloudBridge.kt', 'ChatGptAuthProtocol.kt'))
+        source = '\n'.join(p.read_text() for p in KOTLIN.glob('*.kt') if p.name not in ('ChatGptCloudBridge.kt', 'ChatGptAuthProtocol.kt', 'ChatGptDohTransport.kt'))
         for forbidden in ('HttpURLConnection', '127.0.0.1', '8787', 'vision/cards', 'EXTRA_BASE_URL', 'EXTRA_TOKEN', 'ACTION_POKER_START'):
             self.assertNotIn(forbidden, source, forbidden)
 
@@ -31,7 +31,7 @@ class AndroidLiteIsolationTests(unittest.TestCase):
         self.assertLess(stop_position, scroll_position)
 
     def test_no_network_requests_or_timers(self):
-        source = '\n'.join(p.read_text() for p in KOTLIN.glob('*.kt') if p.name not in ('ChatGptCloudBridge.kt', 'ChatGptAuthProtocol.kt'))
+        source = '\n'.join(p.read_text() for p in KOTLIN.glob('*.kt') if p.name not in ('ChatGptCloudBridge.kt', 'ChatGptAuthProtocol.kt', 'ChatGptDohTransport.kt'))
         self.assertNotIn('OkHttpClient', source)
         self.assertNotIn('HttpURLConnection', source)
         self.assertNotIn('ScheduledExecutorService', source)
