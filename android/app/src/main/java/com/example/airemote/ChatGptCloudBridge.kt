@@ -298,8 +298,16 @@ object ChatGptCloudBridge {
             } finally { conn.disconnect() }
         } catch (e: Exception) {
             val kind = ChatGptTransportDiagnostics.problem(e)
-            if (kind == ChatGptCloudProblem.DNS_FAILURE) "DNS_FAILURE"
-            else "HTTPS_${kind.name}"
+            if (kind == ChatGptCloudProblem.DNS_FAILURE) {
+                try {
+                    // Public unauthenticated GET only: no OAuth codes, tokens or
+                    // private identifiers ever sent to a DNS provider.
+                    val reply = ChatGptDohTransport.call("https://$host$path", "GET")
+                    "DNS_OK HTTPS_REACHABLE HTTP_${reply.status} SECURE_DNS_FALLBACK"
+                } catch (_: Exception) {
+                    "DNS_FAILURE SECURE_DNS_FALLBACK_UNAVAILABLE"
+                }
+            } else "HTTPS_${kind.name}"
         }
     }
 
