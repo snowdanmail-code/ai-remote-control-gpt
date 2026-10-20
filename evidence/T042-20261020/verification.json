@@ -1,0 +1,35 @@
+{
+  "status": "BLOCKED",
+  "stage": "GITHUB_UNIT_CI_COMPLETE",
+  "source_commit": "82307a6198ffd5ad4363053ded0c341bb3254462",
+  "repository": "snowdanmail-code/ai-remote-control-gpt",
+  "run_id": 39501499775,
+  "job_id": 118899851545,
+  "python": {
+    "status": "PASS",
+    "tests": 319
+  },
+  "jvm": {
+    "status": "PASS",
+    "entrypoints": 46
+  },
+  "gradle": {
+    "status": "PASS",
+    "commands": [
+      ":app:testDebugUnitTest",
+      ":app:compileDebugAndroidTestKotlin"
+    ]
+  },
+  "instrumentation": {
+    "status": "NOT_RUN",
+    "required_methods": 16,
+    "compilation": "PASS"
+  },
+  "apk_created": false,
+  "apk_published": false,
+  "signing_secrets_configured": false,
+  "samsung_oauth": "NOT_RUN",
+  "production_main_files_unchanged": 67,
+  "new_apk_signing_key_generated": false,
+  "new_builds_requested": false
+}
