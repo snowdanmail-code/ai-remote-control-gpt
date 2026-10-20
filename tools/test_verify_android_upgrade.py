@@ -13,6 +13,14 @@ CERT = '12ab'*16
 
 
 class AndroidUpgradeGateTest(unittest.TestCase):
+    def test_instrumentation_may_omit_update_version(self):
+        dump="package: name='com.example.airemote.dev.test' versionCode='' versionName=''"
+        self.assertEqual('com.example.airemote.dev.test',gate.parse_package(dump,require_version=False)['package'])
+        with self.assertRaises(ValueError):gate.parse_package(dump)
+
+    def test_instrumentation_still_requires_aapt_package_identity(self):
+        with self.assertRaises(ValueError):gate.parse_package('no package metadata',require_version=False)
+
     def setUp(self):
         self.baseline = {'package': 'com.example.airemote.dev', 'signer_sha256': CERT, 'version_code': 70}
         self.candidate = {'package': 'com.example.airemote.dev', 'signer_sha256': CERT,
