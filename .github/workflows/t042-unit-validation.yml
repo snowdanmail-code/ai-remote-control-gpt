@@ -2,7 +2,7 @@ name: T042 source and Android unit validation
 
 on:
   push:
-    branches: [main, t042-checkpoint]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -37,6 +37,8 @@ jobs:
           curl --fail --location --retry 2 --output "$RUNNER_TEMP/kotlin.zip" https://github.com/JetBrains/kotlin/releases/download/v1.9.24/kotlin-compiler-1.9.24.zip
           unzip -q "$RUNNER_TEMP/kotlin.zip" -d "$RUNNER_TEMP/t042-kotlin"
           echo "$RUNNER_TEMP/t042-kotlin/kotlinc/bin" >> "$GITHUB_PATH"
+      - name: Install Python image-test dependency
+        run: python3 -m pip install 'Pillow==11.3.0'
       - name: Python tests
         shell: bash
         run: |
