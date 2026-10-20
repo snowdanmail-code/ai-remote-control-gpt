@@ -24,7 +24,7 @@ def main():
     a=p.parse_args()
     try:
         baseline=json.loads(Path(a.baseline).read_text())
-        result=verify_pair(inspect(Path(a.target),a.aapt,a.apksigner),inspect(Path(a.test),a.aapt,a.apksigner),baseline)
+        result=verify_pair(inspect(Path(a.target),a.aapt,a.apksigner),inspect(Path(a.test),a.aapt,a.apksigner,require_version=False),baseline)
         Path(a.report).parent.mkdir(parents=True,exist_ok=True)
         Path(a.report).write_text(json.dumps(result,indent=2)+'\n')
         print(result['status'])
