@@ -1,0 +1,30 @@
+{
+  "version": "2.14.25",
+  "base_version": "2.14.24",
+  "release_type": "source_only",
+  "feature": "read-only action-transition plausibility diagnostic; never a gameplay or opponent-history authorization",
+  "local_tests": {
+    "kotlin_jvm_suite": "passed",
+    "kotlin_new_seat_transition_checks": 34,
+    "kotlin_previous_seat_visual_checks": 44,
+    "kotlin_poker_math_checks": 839,
+    "python_unit_tests": 197,
+    "android_gradle_tests": "not_run",
+    "android_junit_added_not_run": 4
+  },
+  "validated": {
+    "prior_archive_sha256_unchanged": true,
+    "source_archive_sha256": "provided_in_companion_file",
+    "independent_table_hand_id": "not_connected",
+    "state_snapshot_source": "missing",
+    "real_1win_accuracy": "unmeasured",
+    "automated_gestures": "blocked",
+    "apk_built": false
+  },
+  "limitations": [
+    "three-snapshot input supplied only by synthetic tests",
+    "no authenticated player identity or independent 1win state source",
+    "no on-device tests",
+    "android SDK/Gradle not available"
+  ]
+}

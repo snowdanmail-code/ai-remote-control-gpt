@@ -1,0 +1,322 @@
+--- a/tools/run_chatgpt_oauth_tests.sh
++++ b/tools/run_chatgpt_oauth_tests.sh
+@@ -4,6 +4,7 @@
+ command -v kotlinc >/dev/null
+ command -v kotlin >/dev/null
+ mkdir -p .build-jvm
+-kotlinc android/app/src/main/java/com/example/airemote/ChatGptAuthProtocol.kt tools/ChatGptAuthScenarios.kt -d .build-jvm/chatgpt-auth.jar
++kotlinc android/app/src/main/java/com/example/airemote/ChatGptAuthProtocol.kt android/app/src/main/java/com/example/airemote/ChatGptCloudDiagnostics.kt tools/ChatGptAuthScenarios.kt tools/ChatGptCloudDiagnosticScenarios.kt -d .build-jvm/chatgpt-auth.jar
+ kotlin -classpath .build-jvm/chatgpt-auth.jar com.example.airemote.ChatGptAuthScenarios
+-python -m unittest tools.test_chatgpt_cloud_source -v
++kotlin -classpath .build-jvm/chatgpt-auth.jar com.example.airemote.ChatGptCloudDiagnosticScenarios
++python -m unittest tools.test_chatgpt_cloud_source tools.test_chatgpt_connection_diagnostics_source -v
+--- a/tools/run_jvm_tests.sh
++++ b/tools/run_jvm_tests.sh
+@@ -36,6 +36,7 @@
+ com.example.airemote.DispatchAdmissionScenarios
+ com.example.airemote.AutonomyEndToEndScenarios
+ com.example.airemote.ChatGptAuthScenarios
++com.example.airemote.ChatGptCloudDiagnosticScenarios
+ com.example.airemote.RecordedSurfaceScenarios
+ com.example.airemote.OpponentGateIntegrationScenarios
+ com.example.airemote.AutomaticOcrEvidenceScenariosKt
+--- a/tools/test_verified_dispatch_admission_source.py
++++ b/tools/test_verified_dispatch_admission_source.py
+@@ -13,5 +13,5 @@
+   self.assertIn('current = null',guard)
+   self.assertIn('trustedExternalBinding',guard)
+  def test_metadata(self):
+-  self.assertIn('versionName = "2.14.35-',(R/'android/app/build.gradle.kts').read_text())
++  self.assertIn('versionName = "2.14.36-',(R/'android/app/build.gradle.kts').read_text())
+ if __name__=='__main__':unittest.main()
+--- a/android/app/build.gradle.kts
++++ b/android/app/build.gradle.kts
+@@ -10,8 +10,8 @@
+         applicationId = "com.example.airemote"
+         minSdk = 29
+         targetSdk = 35
+-        versionCode = 69
+-        versionName = "2.14.35-chatgpt-cloud-auth"
++        versionCode = 70
++        versionName = "2.14.36-chatgpt-connection-diagnostics"
+     }
+     buildTypes {
+         // Debug APK is separately installable; never replace the working older release.
+--- a/android/app/src/main/java/com/example/airemote/ChatGptCloudBridge.kt
++++ b/android/app/src/main/java/com/example/airemote/ChatGptCloudBridge.kt
+@@ -42,10 +42,31 @@
+     private val inProgress = AtomicBoolean(false)
+     private val networkMutex = Any() // rotating refresh tokens must never race
+     @Volatile private var activeServer: ServerSocket? = null
++    @Volatile private var lastLoginDiagnostic = "Вход пока не выполнялся"
++    @Volatile private var lastCloudDiagnostic = "Проверка облачной модели пока не запускалась"
++
++    private class CloudHttpError(val httpCode: Int) : IllegalStateException()
++    private class CloudProblemError(val problem: ChatGptCloudProblem) : IllegalStateException()
++
++    fun statusDetail(context: Context): String =
++        "${connectionLabel(context)}\nАвторизация: $lastLoginDiagnostic\nМодель: $lastCloudDiagnostic"
++
++    private fun describe(ex: Exception, step: ChatGptCloudStep): String {
++        val code = when (ex) {
++            is CloudProblemError -> ex.problem
++            is java.net.SocketTimeoutException -> ChatGptCloudProblem.TIMEOUT
++            is java.net.UnknownHostException, is java.net.ConnectException -> ChatGptCloudProblem.NETWORK
++            is java.security.GeneralSecurityException, is SecurityException -> ChatGptCloudProblem.BAD_IDENTITY
++            else -> ChatGptCloudProblem.OTHER
++        }
++        return ChatGptCloudDiagnostics.description(step, code, (ex as? CloudHttpError)?.httpCode)
++    }
+ 
+     fun connected(context: Context): Boolean = readRecord(context) != null
+     fun connectionLabel(context: Context): String {
+-        val record = readRecord(context) ?: return "ChatGPT: не подключён"
++        val record = readRecord(context) ?: return if (inProgress.get())
++            "ChatGPT: вход ещё выполняется, ожидайте подтверждения в приложении"
++            else "ChatGPT: подтверждённого сеанса нет"
+         val scope = record.optString("scope", "")
+         val enabled = ChatGptAuthProtocol.scopeAllowsInference(scope)
+         val name = record.optString("email", "учётная запись подтверждена")
+@@ -65,6 +86,8 @@
+     fun startSignIn(activity: Activity, report: (String) -> Unit) {
+         if (!inProgress.compareAndSet(false, true)) { report("Вход уже выполняется"); return }
+         Thread({
++            var phase = ChatGptCloudStep.BROWSER
++            lastLoginDiagnostic = "Ожидание входа через браузер"
+             try {
+                 ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+                     activeServer = server
+@@ -81,6 +104,7 @@
+                             report("В браузере ChatGPT подтвердите вход и использование подписки. Ожидаю возврата…")
+                         } catch (_: Exception) { report("Не удалось открыть системный браузер") ; try { server.close() } catch (_:Exception) {} }
+                     }
++                    phase = ChatGptCloudStep.CALLBACK
+                     server.soTimeout = 180_000
+                     val path = server.accept().use { socket ->
+                         socket.soTimeout = 4500
+@@ -97,20 +121,27 @@
+                             if (line.isEmpty()) break
+                         }
+                         val callbackPath = first.substring(4, first.length - 9)
+-                        val html = "<html><meta charset='UTF-8'><body><h3>Вход передан приложению.</h3>Вернитесь в AI Remote Control GPT.</body></html>"
++                        val html = "<html><meta charset='UTF-8'><body><h3>Ответ браузера получен.</h3>Это ещё не подтверждение входа. Вернитесь в AI Remote Control GPT и дождитесь результата обмена токенов.</body></html>"
+                         val bytes = html.toByteArray(Charsets.UTF_8)
+                         val headers = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nCache-Control: no-store\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n"
+                         socket.getOutputStream().write(headers.toByteArray(Charsets.US_ASCII)); socket.getOutputStream().write(bytes)
+                         callbackPath
+                     }
+-                    val returned = ChatGptAuthProtocol.validateCallback(path, redirect, state, issued)
++                    val returned = try { ChatGptAuthProtocol.validateCallback(path, redirect, state, issued) }
++                        catch (_: Exception) { throw CloudProblemError(ChatGptCloudProblem.BAD_CALLBACK) }
++                    activity.runOnUiThread { report("Браузер вернул код. Проверяю обмен токенов…") }
++                    phase = ChatGptCloudStep.TOKEN
+                     val exchange = postForm(ChatGptAuthProtocol.TOKEN, listOf(
+                         "grant_type" to "authorization_code", "client_id" to returned.issuedClientId,
+                         "code" to returned.code, "code_verifier" to verifier,
+                         "redirect_uri" to redirect, "resource" to ChatGptAuthProtocol.RESOURCE
+                     ))
+-                    val idToken = exchange.getString("id_token")
+-                    val claims = verifyIdToken(idToken, returned.issuedClientId, nonce)
++                    val idToken = exchange.optString("id_token")
++                    if (idToken.isBlank() || exchange.optString("access_token").isBlank())
++                        throw CloudProblemError(ChatGptCloudProblem.BAD_TOKEN_RESPONSE)
++                    phase = ChatGptCloudStep.IDENTITY
++                    val claims = try { verifyIdToken(idToken, returned.issuedClientId, nonce) }
++                        catch (_: Exception) { throw CloudProblemError(ChatGptCloudProblem.BAD_IDENTITY) }
+                     if (old != null && old.optString("client_id") == returned.issuedClientId) {
+                         require(old.optString("sub") == claims.getString("sub")) { "Account identity mismatch" }
+                     }
+@@ -124,28 +155,23 @@
+                         put("scope", exchange.optString("scope", ""))
+                         put("expires_at_ms", System.currentTimeMillis() + 1000L * exchange.optLong("expires_in", 3600L))
+                     }
+-                    require(saveRecord(activity, record)) { "Could not securely save credentials" }
++                    phase = ChatGptCloudStep.STORE
++                    if (!saveRecord(activity, record)) throw CloudProblemError(ChatGptCloudProblem.BAD_STORAGE)
+                     val usable = ChatGptAuthProtocol.scopeAllowsInference(record.optString("scope"))
++                    lastLoginDiagnostic = if (usable) "AUTH_OK: токены сохранены, доступ к модели разрешён"
++                        else "AUTH_SCOPE_MISSING: вход выполнен без разрешения использовать модель"
+                     activity.runOnUiThread { report(if (usable)
+                         "ChatGPT подключён. Доступ к облачному ИИ разрешён. Проверьте тестовый запрос."
+                         else "ChatGPT: личность подтверждена, но разрешение на использование модели не предоставлено.") }
+                 }
+-            } catch (_: java.net.SocketTimeoutException) {
+-                activity.runOnUiThread { report("Время входа истекло. Повторите авторизацию.") }
+             } catch (ex: Exception) {
+-                activity.runOnUiThread { report("Вход не завершён: ${safeError(ex)}") }
++                val message = describe(ex, phase)
++                lastLoginDiagnostic = message
++                activity.runOnUiThread { report("Вход не завершён: $message") }
+             } finally { activeServer = null; inProgress.set(false) }
+         }, "chatgpt-login").start()
+     }
+ 
+-    private fun safeError(ex: Exception): String = when (ex) {
+-        is java.net.UnknownHostException -> "нет подключения к сети"
+-        is java.net.SocketTimeoutException -> "превышено время ожидания"
+-        is SecurityException -> "проверка подписи или прав доступа не пройдена"
+-        else -> if (ex.message?.matches(Regex("(?:Responses )?HTTP_\\d{3}")) == true)
+-            "сервер вернул ${ex.message}"
+-        else "проверьте сеть, разрешения и настройки ChatGPT (${ex.javaClass.simpleName})"
+-    }
+ 
+     /** Only HTTPS, bounded response, no redirects to another credential destination. */
+     private fun request(url: String, method: String, bearer: String? = null,
+@@ -157,7 +183,7 @@
+         conn.requestMethod = method
+         conn.connectTimeout = 12_000
+         conn.readTimeout = 35_000
+-        conn.setRequestProperty("Accept", "application/json")
++        conn.setRequestProperty("Accept", if (url.endsWith("/v1/responses")) "text/event-stream" else "application/json")
+         if (bearer != null) conn.setRequestProperty("Authorization", "Bearer $bearer")
+         if (contentType != null) conn.setRequestProperty("Content-Type", contentType)
+         if (body != null) {
+@@ -181,7 +207,7 @@
+ 
+     private fun readBody(c: HttpURLConnection): String {
+         val status = c.responseCode
+-        if (status !in 200..299) throw IllegalStateException("HTTP_$status")
++        if (status !in 200..299) throw CloudHttpError(status)
+         c.inputStream.use { input ->
+             val b = ByteArray(16384)
+             val out = java.io.ByteArrayOutputStream()
+@@ -266,24 +292,26 @@
+ 
+     /** Serialized token refresh; never reuse rotating refresh credentials. */
+     private fun validAccessToken(context: Context): String = synchronized(networkMutex) {
+-        val saved = readRecord(context) ?: error("Not signed in")
+-        require(ChatGptAuthProtocol.scopeAllowsInference(saved.optString("scope"))) { "Consent to plan usage required" }
++        val saved = readRecord(context) ?: throw CloudProblemError(ChatGptCloudProblem.NO_SESSION)
++        if (!ChatGptAuthProtocol.scopeAllowsInference(saved.optString("scope")))
++            throw CloudProblemError(ChatGptCloudProblem.MISSING_PERMISSION)
+         if (saved.getLong("expires_at_ms") > System.currentTimeMillis() + 120_000) {
+             return@synchronized saved.getString("access_token")
+         }
+         val refresh = saved.optString("refresh_token")
+-        require(refresh.isNotBlank()) { "Session expired. Sign in again" }
++        if (refresh.isBlank()) throw CloudProblemError(ChatGptCloudProblem.NO_REFRESH_TOKEN)
+         val updated = postForm(ChatGptAuthProtocol.TOKEN, listOf(
+             "grant_type" to "refresh_token", "client_id" to saved.getString("client_id"),
+             "refresh_token" to refresh, "resource" to ChatGptAuthProtocol.RESOURCE
+         ))
+         val replacement = updated.optString("refresh_token")
+-        require(replacement.isNotBlank()) { "No refresh token returned" }
++        if (replacement.isBlank() || updated.optString("access_token").isBlank())
++            throw CloudProblemError(ChatGptCloudProblem.BAD_REFRESH_RESPONSE)
+         saved.put("access_token", updated.getString("access_token"))
+             .put("refresh_token", replacement)
+             .put("scope", updated.optString("scope", saved.optString("scope")))
+             .put("expires_at_ms", System.currentTimeMillis() + updated.optLong("expires_in", 3600) * 1000L)
+-        require(saveRecord(context, saved))
++        if (!saveRecord(context, saved)) throw CloudProblemError(ChatGptCloudProblem.BAD_STORAGE)
+         saved.getString("access_token")
+     }
+ 
+@@ -297,11 +325,15 @@
+     /** Manual cloud advisor test. Never provides a LiveCommand or verified game observation. */
+     fun askPrompt(context: Context, prompt: String, report: (String) -> Unit) {
+         if (prompt.isBlank() || prompt.length > 1600) { report("Введите запрос до 1600 символов"); return }
++        if (inProgress.get()) { report("AUTH_IN_PROGRESS: дождитесь завершения входа в приложении и повторите проверку."); return }
+         Thread({
++            var phase = ChatGptCloudStep.SESSION
++            lastCloudDiagnostic = "Проверяется сохранённый сеанс"
+             try {
+                 val bearer = validAccessToken(context)
++                phase = ChatGptCloudStep.MODELS
+                 val models = getJson("https://api.openai.com/v1/models", bearer).optJSONArray("models")
+-                    ?: error("No models catalog")
++                    ?: throw CloudProblemError(ChatGptCloudProblem.NO_MODELS_ARRAY)
+                 var slug: String? = null
+                 for (i in 0 until models.length()) {
+                     val m = models.getJSONObject(i)
+@@ -309,7 +341,8 @@
+                         slug = m.getString("slug"); break
+                     }
+                 }
+-                require(!slug.isNullOrBlank()) { "No models available for this account" }
++                if (slug.isNullOrBlank()) throw CloudProblemError(ChatGptCloudProblem.NO_VISIBLE_MODEL)
++                phase = ChatGptCloudStep.RESPONSES
+                 val input = JSONArray().put(JSONObject().put("role", "user").put("content",
+                     prompt))
+                 val body = JSONObject().put("model", slug).put("store", false).put("stream", true).put("input", input)
+@@ -318,7 +351,7 @@
+                 val answer = StringBuilder()
+                 var completed = false
+                 try {
+-                    if (c.responseCode !in 200..299) error("Responses HTTP_${c.responseCode}")
++                    if (c.responseCode !in 200..299) throw CloudHttpError(c.responseCode)
+                     c.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                         var consumed = 0
+                         while (true) {
+@@ -347,14 +380,19 @@
+                                         }
+                                     }
+                                 }
+-                                "response.failed", "error" -> error("Cloud inference failed")
++                                "response.failed", "error" -> throw CloudProblemError(ChatGptCloudProblem.INFERENCE_FAILED)
+                             }
+                         }
+                     }
+                 } finally { c.disconnect() }
+-                require(completed) { "Stream ended without response.completed" }
++                if (!completed) throw CloudProblemError(ChatGptCloudProblem.INCOMPLETE_STREAM)
++                lastCloudDiagnostic = "CLOUD_OK: подтверждён ответ модели"
+                 report("Облачный ИИ подключён · модель $slug · ответ: ${answer.toString().take(1500)}")
+-            } catch (ex: Exception) { report("Проверка облачного ИИ не пройдена: ${safeError(ex)}") }
++            } catch (ex: Exception) {
++                val message = describe(ex, phase)
++                lastCloudDiagnostic = message
++                report("Проверка облачного ИИ не пройдена: $message")
++            }
+         }, "chatgpt-test").start()
+     }
+ 
+--- a/android/app/src/main/java/com/example/airemote/MainActivity.kt
++++ b/android/app/src/main/java/com/example/airemote/MainActivity.kt
+@@ -90,7 +90,7 @@
+         fun button(text: String, action: () -> Unit) {
+             content.addView(Button(this).apply { this.text = text; setOnClickListener { action() } })
+         }
+-        label("AI Remote Control v2.14.35 — Android + ChatGPT")
++        label("AI Remote Control v2.14.36 — Android + ChatGPT")
+         label("Захват и OCR локально. Windows-сервер и его настройки удалены. " +
+             "Локальная стратегия сохранена. Подключение ChatGPT работает через OAuth в системном браузере. " +
+             "Исполнитель Android-касаний доступен после разрешения оператора, проверки игрового состояния и кнопок.")
+@@ -129,7 +129,7 @@
+             }
+         }
+         button("СОСТОЯНИЕ CHATGPT") {
+-            cloudStatus.text = ChatGptCloudBridge.connectionLabel(this@MainActivity)
++            cloudStatus.text = ChatGptCloudBridge.statusDetail(this@MainActivity)
+         }
+         button("ВЫЙТИ ИЗ CHATGPT") {
+             cloudStatus.text = "Отзываю сеанс…"
+@@ -223,7 +223,7 @@
+             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                 addCategory(Intent.CATEGORY_OPENABLE)
+                 type = "application/json"
+-                putExtra(Intent.EXTRA_TITLE, "incident-report-v2.14.35.json")
++                putExtra(Intent.EXTRA_TITLE, "incident-report-v2.14.36.json")
+             }
+             @Suppress("DEPRECATION")
+             startActivityForResult(intent, incidentExportRequest)
+--- a/.github/workflows/android.yml
++++ b/.github/workflows/android.yml
+@@ -31,13 +31,13 @@
+         run: |
+           test -s android/app/build/outputs/apk/debug/app-debug.apk
+           mkdir -p artifacts
+-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-v2.14.35-CHATGPT-CLOUD-debug.apk
++          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-v2.14.36-CHATGPT-DIAGNOSTICS-debug.apk
+           cd artifacts
+-          sha256sum AI-Remote-Control-GPT-v2.14.35-CHATGPT-CLOUD-debug.apk > AI-Remote-Control-GPT-v2.14.35-CHATGPT-CLOUD-debug.apk.sha256
+-          cat AI-Remote-Control-GPT-v2.14.35-CHATGPT-CLOUD-debug.apk.sha256
++          sha256sum AI-Remote-Control-GPT-v2.14.36-CHATGPT-DIAGNOSTICS-debug.apk > AI-Remote-Control-GPT-v2.14.36-CHATGPT-DIAGNOSTICS-debug.apk.sha256
++          cat AI-Remote-Control-GPT-v2.14.36-CHATGPT-DIAGNOSTICS-debug.apk.sha256
+       - uses: actions/upload-artifact@v4
+         with:
+-          name: ai-remote-control-v2.14.35-chatgpt-cloud-debug
++          name: ai-remote-control-v2.14.36-chatgpt-diagnostics-debug
+           path: artifacts/*
+           retention-days: 14
+           if-no-files-found: error

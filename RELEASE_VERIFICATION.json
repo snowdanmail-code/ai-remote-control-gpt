@@ -1,0 +1,7 @@
+{
+  "version": "v2.14.34",
+  "derived_from": "v2.14.33",
+  "checks": "Dispatch admission, independent identity, two-frame effect verification, 241 Python checks and 89 new JVM assertions",
+  "apk_built": false,
+  "live_game_verified": false
+}

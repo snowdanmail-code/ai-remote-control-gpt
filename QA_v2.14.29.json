@@ -1,0 +1,23 @@
+{
+  "project": "AI Remote Control GPT",
+  "version": "2.14.29",
+  "artifact": "source archive, not APK",
+  "primary_change": "explicit operator authorization path for existing Android Accessibility gesture transport",
+  "kotlin_jvm_suite": "PASS (tools/run_jvm_tests.sh)",
+  "kotlin_new_authorization_scenarios": 14,
+  "python_unittest_total": 222,
+  "python_unittest_failed": 0,
+  "android_gradle_tests": "NOT RUN - Android SDK/Gradle unavailable in working environment",
+  "android_apk": "NOT BUILT",
+  "on_device_1win_taps": "NOT VERIFIED",
+  "live_verified_game_state_source": "NOT IMPLEMENTED",
+  "safeguards": [
+    "existing STOP retained and revokes session permission",
+    "operator approval binds last observed external package",
+    "stale observed package rejected",
+    "system and own packages rejected",
+    "no synthetic hand or turn identifiers",
+    "no raw OCR promoted to authorization",
+    "one action per verified turn and post-action verification remain required"
+  ]
+}

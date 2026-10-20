@@ -1,0 +1,44 @@
+{
+  "version": "2.14.19",
+  "baseline_archive": "AI-Remote-Control-GPT-v2.14.18-Atomic-Frame-Publication-Sources.zip",
+  "baseline_sha256": "4569c2939e5dccd5b94e69d3c3c0fdc0e9120b4eab29cf7f1ddfbfc7c28e4b87",
+  "artifact_type": "source archive; NOT APK",
+  "changes": [
+    "autonomous once-armed turn-based action state machine",
+    "no blind retries; strict acknowledgement from a newer independent frame",
+    "Android adapter into existing Accessibility gesture path, guard, STOP",
+    "same-package window-generation check immediately before gesture",
+    "confirmed bet amount required for BET/RAISE",
+    "operator readiness UI; CI version updated"
+  ],
+  "tests": {
+    "kotlin_jvm": {
+      "passed": 528,
+      "failed": 0,
+      "new_checks": 18,
+      "command": "bash tools/run_jvm_tests.sh"
+    },
+    "python": {
+      "passed": 145,
+      "failed": 0,
+      "new_tests": 15,
+      "command": "python3 -m unittest discover -s tools -p 'test_*.py' -q"
+    },
+    "android_gradle": {
+      "run": false,
+      "reason": "Android SDK and Gradle not available locally"
+    },
+    "device": {
+      "run": false
+    }
+  },
+  "remaining_blockers": [
+    "No verified 1win table/hand/turn producer",
+    "No connected real strategy/ChatGPT model",
+    "No independently validated platform automation permission",
+    "No verified amount-selection gestures/confirmation for BET/RAISE",
+    "No full Android build or device tests"
+  ],
+  "real_actions_enabled": false,
+  "apk_built": false
+}

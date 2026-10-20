@@ -1,0 +1,22 @@
+{
+  "version": "2.14.6-onphone-live-learning",
+  "status": "sources_only_not_apk",
+  "verified": {
+    "post_hand_learning_jvm_scenarios": 30,
+    "live_action_guard_jvm_scenarios": 18,
+    "python_sql_and_structure_tests": 50,
+    "android_store_kotlin_typecheck_with_local_stubs": true
+  },
+  "not_verified": [
+    "Android Gradle compilation",
+    "installable APK",
+    "verified hand-end event extraction from live 1win",
+    "opponent identification on real device",
+    "automatic in-game taps",
+    "official ChatGPT Plus application authorization",
+    "on-device end-to-end learning"
+  ],
+  "architecture": "one_Android_phone_offline_learning_plus_cloud_ChatGPT_if_authorized",
+  "no_poker_simulator": true,
+  "previous_versions_preserved": true
+}

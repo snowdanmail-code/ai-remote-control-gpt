@@ -1,0 +1,18 @@
+{
+  "version": "2.14.27",
+  "source_only": true,
+  "apk_built": false,
+  "android_integration_tested": false,
+  "real_1win_actions_tested": false,
+  "all_kotlin_scenarios_passed": true,
+  "python_unittest_passed": 210,
+  "kotlin_new_recorded_surface_scenarios": 9,
+  "recorded_video_samples": {
+    "samples": 32,
+    "correct": 32,
+    "blockingMisses": 0,
+    "unnecessaryBlocks": 0
+  },
+  "calibration_status": "review_only_no_android_package_or_capture_dimensions",
+  "notes": "Not a blind holdout or general accuracy measurement; no images/player names included."
+}

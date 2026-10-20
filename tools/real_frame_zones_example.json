@@ -1,0 +1,8 @@
+{
+  "note": "Replace the example pixel coordinates with MANUALLY MEASURED authentic frame coordinates. Do not import this file directly.",
+  "zones": [
+    {"role": "SEAT_ACTION", "seatIndex": 0, "boundsPixels": [50, 150, 350, 300]},
+    {"role": "SEAT_ACTION", "seatIndex": 1, "boundsPixels": [650, 150, 1000, 300]},
+    {"role": "POT", "boundsPixels": [375, 900, 705, 1100]}
+  ]
+}

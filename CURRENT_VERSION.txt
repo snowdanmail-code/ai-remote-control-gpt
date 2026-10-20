@@ -1,0 +1,3 @@
+AI Remote Control GPT v2.14.41 — in-app secure ChatGPT authorization (source-only)
+Android debug package: com.example.airemote.dev; versionCode 75.
+No APK created.

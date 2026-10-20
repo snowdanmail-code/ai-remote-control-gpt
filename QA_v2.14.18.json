@@ -1,0 +1,44 @@
+{
+  "version": "2.14.18",
+  "baseline_archive": "AI-Remote-Control-GPT-v2.14.17-Table-Hand-Identity-Guard-Sources.zip",
+  "baseline_sha256": "aa406c3983545e4d49b2520298335c0ba85539fea99f2257728f3339c26fcfc3",
+  "artifact_type": "source code ZIP; NOT an APK",
+  "changes": [
+    "atomic FrameStore commits for JPEG and card/turn evidence guarded by capture epoch and window identity",
+    "window origin observation serialized with STOP and visual evidence invalidation",
+    "new MediaProjection capture activation requires same start epoch and durable STOP not active",
+    "notification STOP clears frame immediately instead of waiting for service destruction",
+    "capture service cannot automatically rearm interaction guard",
+    "updated manual CI artifact version and regression tests"
+  ],
+  "tests": {
+    "kotlin_jvm": {
+      "passed": 510,
+      "failed": 0,
+      "new_checks": 30,
+      "command": "bash tools/run_jvm_tests.sh"
+    },
+    "python": {
+      "passed": 130,
+      "failed": 0,
+      "new_tests": 10,
+      "command": "python3 -m unittest discover -s tools -p 'test_*.py' -q"
+    },
+    "android_gradle": {
+      "run": false,
+      "reason": "Android SDK/Gradle not available in local runtime"
+    },
+    "device": {
+      "run": false
+    }
+  },
+  "limitations": [
+    "No verified independent tableId/handId producer",
+    "No real-device OCR or Android lifecycle validation",
+    "APK not built",
+    "Third-party gameplay actions disabled",
+    "No validated integration to ChatGPT strategy"
+  ],
+  "external_actions_enabled": false,
+  "apk_built": false
+}

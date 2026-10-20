@@ -1,0 +1,20 @@
+{
+  "version": "2.14.11-integrated-safety",
+  "artifact_type": "Android source ZIP; NOT APK",
+  "android_apk_created": false,
+  "android_sdk_gradle_tests_run": false,
+  "simulator_created": false,
+  "real_game_gestures_performed": false,
+  "kotlin_pure_modules_compiled": 14,
+  "kotlin_jvm_scenarios_passed": 321,
+  "python_unittests_passed": 89,
+  "android_junit_added_not_run": 5,
+  "known_blocks": [
+    "source/table identity not verified",
+    "exact button labels/bets timer not verified",
+    "live hand completion event not connected",
+    "ChatGPT access not integrated",
+    "platform automation permission unverified",
+    "whole Android build and device tests not executed"
+  ]
+}

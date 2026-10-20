@@ -1,0 +1,727 @@
+﻿2026-10-20T21:30:00.3654906Z Current runner version: '2.337.0'
+2026-10-20T21:30:00.3691419Z ##[group]Runner Image Provisioner
+2026-10-20T21:30:00.3693188Z Hosted Compute Agent
+2026-10-20T21:30:00.3694452Z Version: 20261015.610
+2026-10-20T21:30:00.3695646Z Commit: 267fdb4e8bbec4ab5ea31367f3a00d5c480c7656
+2026-10-20T21:30:00.3697254Z Build Date: 2026-10-14T17:06:54Z
+2026-10-20T21:30:00.3698574Z Worker ID: {fa294436-c255-4a90-88ec-f26a9cf7b6f0}
+2026-10-20T21:30:00.3699863Z Region: westus
+2026-10-20T21:30:00.3701058Z Cloud: Azure
+2026-10-20T21:30:00.3702090Z ##[endgroup]
+2026-10-20T21:30:00.3704931Z ##[group]Operating System
+2026-10-20T21:30:00.3706048Z Ubuntu
+2026-10-20T21:30:00.3706934Z 24.04.5
+2026-10-20T21:30:00.3707910Z LTS
+2026-10-20T21:30:00.3708806Z ##[endgroup]
+2026-10-20T21:30:00.3709925Z ##[group]Runner Image
+2026-10-20T21:30:00.3711026Z Image: ubuntu-24.04
+2026-10-20T21:30:00.3712180Z Version: 20261018.339.1
+2026-10-20T21:30:00.3715011Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261018.339/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-20T21:30:00.3718090Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261018.339
+2026-10-20T21:30:00.3719911Z ##[endgroup]
+2026-10-20T21:30:00.3721743Z ##[group]GITHUB_TOKEN Permissions
+2026-10-20T21:30:00.3724960Z Contents: read
+2026-10-20T21:30:00.3726056Z Metadata: read
+2026-10-20T21:30:00.3727221Z ##[endgroup]
+2026-10-20T21:30:00.3730414Z Secret source: Actions
+2026-10-20T21:30:00.3732190Z Cache mode: write
+2026-10-20T21:30:00.3733820Z Prepare workflow directory
+2026-10-20T21:30:00.4416666Z Prepare all required actions
+2026-10-20T21:30:00.4492334Z Getting action download info
+2026-10-20T21:30:00.9430176Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-20T21:30:01.0357366Z Download action repository 'actions/setup-java@v4' (SHA:cf277c60eb25467037889841efdb72551f06f6c3)
+2026-10-20T21:30:01.5654102Z Download action repository 'android-actions/setup-android@v3' (SHA:9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407)
+2026-10-20T21:30:01.9059899Z Download action repository 'gradle/actions@v4' (SHA:ed408507eac070d1f99cc633dbcf757c94c7933a)
+2026-10-20T21:30:03.2191333Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-20T21:30:03.4519570Z Complete job name: unit-validation
+2026-10-20T21:30:03.5435382Z ##[group]Run actions/checkout@v4
+2026-10-20T21:30:03.5436135Z with:
+2026-10-20T21:30:03.5436412Z   persist-credentials: false
+2026-10-20T21:30:03.5436770Z   repository: snowdanmail-code/ai-remote-control-gpt
+2026-10-20T21:30:03.5439573Z   token: ***
+2026-10-20T21:30:03.5439832Z   ssh-strict: true
+2026-10-20T21:30:03.5440083Z   ssh-user: git
+2026-10-20T21:30:03.5440321Z   clean: true
+2026-10-20T21:30:03.5440578Z   sparse-checkout-cone-mode: true
+2026-10-20T21:30:03.5440888Z   fetch-depth: 1
+2026-10-20T21:30:03.5441141Z   fetch-tags: false
+2026-10-20T21:30:03.5441406Z   show-progress: true
+2026-10-20T21:30:03.5441679Z   lfs: false
+2026-10-20T21:30:03.5441932Z   submodules: false
+2026-10-20T21:30:03.5442195Z   set-safe-directory: true
+2026-10-20T21:30:03.5442495Z   allow-unsafe-pr-checkout: false
+2026-10-20T21:30:03.5443351Z ##[endgroup]
+2026-10-20T21:30:03.6733447Z Syncing repository: snowdanmail-code/ai-remote-control-gpt
+2026-10-20T21:30:03.6736165Z ##[group]Getting Git version info
+2026-10-20T21:30:03.6737148Z Working directory is '/home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt'
+2026-10-20T21:30:03.6738572Z [command]/usr/bin/git version
+2026-10-20T21:30:03.6846337Z git version 2.55.0
+2026-10-20T21:30:03.6964697Z ##[endgroup]
+2026-10-20T21:30:03.6973489Z Temporarily overriding HOME='/home/runner/work/_temp/604d9a18-2d67-4fb6-92e7-dd3489686748' before making global git config changes
+2026-10-20T21:30:03.6975309Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-20T21:30:03.6976974Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt
+2026-10-20T21:30:03.7035426Z Deleting the contents of '/home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt'
+2026-10-20T21:30:03.7066698Z ##[group]Initializing the repository
+2026-10-20T21:30:03.7073927Z [command]/usr/bin/git init /home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt
+2026-10-20T21:30:03.7186047Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-20T21:30:03.7191255Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-20T21:30:03.7214851Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-20T21:30:03.7215995Z hint: call:
+2026-10-20T21:30:03.7216709Z hint:
+2026-10-20T21:30:03.7217641Z hint: 	git config --global init.defaultBranch <name>
+2026-10-20T21:30:03.7218645Z hint:
+2026-10-20T21:30:03.7219517Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-20T21:30:03.7220727Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-20T21:30:03.7221691Z hint:
+2026-10-20T21:30:03.7222274Z hint: 	git branch -m <name>
+2026-10-20T21:30:03.7223255Z hint:
+2026-10-20T21:30:03.7224203Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-20T21:30:03.7225763Z Initialized empty Git repository in /home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt/.git/
+2026-10-20T21:30:03.7229108Z [command]/usr/bin/git remote add origin https://github.com/snowdanmail-code/ai-remote-control-gpt
+2026-10-20T21:30:03.7290091Z ##[endgroup]
+2026-10-20T21:30:03.7291338Z ##[group]Disabling automatic garbage collection
+2026-10-20T21:30:03.7313976Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-20T21:30:03.7380337Z ##[endgroup]
+2026-10-20T21:30:03.7381326Z ##[group]Setting up auth
+2026-10-20T21:30:03.7382397Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T21:30:03.7427872Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-20T21:30:03.7994959Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-20T21:30:03.8106200Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-20T21:30:03.8406101Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-20T21:30:03.8491990Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-20T21:30:03.8894201Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-20T21:30:03.8959704Z ##[endgroup]
+2026-10-20T21:30:03.8961090Z ##[group]Fetching the repository
+2026-10-20T21:30:03.8973836Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +56aba397798c732909270e0eb6e94e55b1c2cd8f:refs/remotes/pull/1/merge
+2026-10-20T21:30:04.5149654Z From https://github.com/snowdanmail-code/ai-remote-control-gpt
+2026-10-20T21:30:04.5150695Z  * [new ref]         56aba397798c732909270e0eb6e94e55b1c2cd8f -> pull/1/merge
+2026-10-20T21:30:04.5152803Z ##[endgroup]
+2026-10-20T21:30:04.5153794Z ##[group]Determining the checkout info
+2026-10-20T21:30:04.5154503Z ##[endgroup]
+2026-10-20T21:30:04.5154921Z [command]/usr/bin/git sparse-checkout disable
+2026-10-20T21:30:04.5222243Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-20T21:30:04.5269693Z ##[group]Checking out the ref
+2026-10-20T21:30:04.5275428Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1/merge
+2026-10-20T21:30:04.5610420Z Note: switching to 'refs/remotes/pull/1/merge'.
+2026-10-20T21:30:04.5610924Z 
+2026-10-20T21:30:04.5611472Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-20T21:30:04.5612697Z changes and commit them, and you can discard any commits you make in this
+2026-10-20T21:30:04.5618287Z state without impacting any branches by switching back to a branch.
+2026-10-20T21:30:04.5619204Z 
+2026-10-20T21:30:04.5619948Z If you want to create a new branch to retain commits you create, you may
+2026-10-20T21:30:04.5621121Z do so (now or later) by using -c with the switch command. Example:
+2026-10-20T21:30:04.5621897Z 
+2026-10-20T21:30:04.5622375Z   git switch -c <new-branch-name>
+2026-10-20T21:30:04.5623308Z 
+2026-10-20T21:30:04.5623738Z Or undo this operation with:
+2026-10-20T21:30:04.5624262Z 
+2026-10-20T21:30:04.5624665Z   git switch -
+2026-10-20T21:30:04.5625124Z 
+2026-10-20T21:30:04.5625740Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-20T21:30:04.5626588Z 
+2026-10-20T21:30:04.5627504Z HEAD is now at 56aba39 Merge 2efca139a3ec2659eda28945434af66022420371 into a646565390f3e8593c68793cfb04e9f37f79ece6
+2026-10-20T21:30:04.5631058Z ##[endgroup]
+2026-10-20T21:30:04.5685652Z [command]/usr/bin/git log -1 --format=%H
+2026-10-20T21:30:04.5733939Z 56aba397798c732909270e0eb6e94e55b1c2cd8f
+2026-10-20T21:30:04.5736574Z ##[group]Removing auth
+2026-10-20T21:30:04.5740015Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T21:30:04.5786828Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-20T21:30:04.6078162Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-20T21:30:04.6105557Z http.https://github.com/.extraheader
+2026-10-20T21:30:04.6134759Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-20T21:30:04.6254053Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-20T21:30:04.6693881Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-20T21:30:04.6724768Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-20T21:30:04.7156257Z ##[endgroup]
+2026-10-20T21:30:04.7453762Z ##[group]Run actions/setup-java@v4
+2026-10-20T21:30:04.7454075Z with:
+2026-10-20T21:30:04.7454273Z   distribution: temurin
+2026-10-20T21:30:04.7454497Z   java-version: 17
+2026-10-20T21:30:04.7454716Z   java-package: jdk
+2026-10-20T21:30:04.7454923Z   check-latest: false
+2026-10-20T21:30:04.7455134Z   server-id: github
+2026-10-20T21:30:04.7455345Z   server-username: GITHUB_ACTOR
+2026-10-20T21:30:04.7455594Z   server-password: GITHUB_TOKEN
+2026-10-20T21:30:04.7455851Z   overwrite-settings: true
+2026-10-20T21:30:04.7456089Z   job-status: success
+2026-10-20T21:30:04.7458678Z   token: ***
+2026-10-20T21:30:04.7458882Z ##[endgroup]
+2026-10-20T21:30:04.9502136Z ##[warning]setup-java v4 is deprecated and will no longer receive updates. Please migrate to actions/setup-java@v5.
+2026-10-20T21:30:04.9510236Z ##[group]Installed distributions
+2026-10-20T21:30:04.9833128Z (node:2208) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-20T21:30:04.9835314Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-20T21:30:04.9843371Z Resolved Java 17.0.20+1 from tool-cache
+2026-10-20T21:30:04.9844225Z Setting Java 17.0.20+1 as the default
+2026-10-20T21:30:04.9853893Z Creating toolchains.xml for JDK version 17 from temurin
+2026-10-20T21:30:04.9925572Z Writing to /home/runner/.m2/toolchains.xml
+2026-10-20T21:30:04.9926461Z 
+2026-10-20T21:30:04.9928991Z Java configuration:
+2026-10-20T21:30:04.9929470Z   Distribution: temurin
+2026-10-20T21:30:04.9929925Z   Version: 17.0.20+1
+2026-10-20T21:30:04.9930945Z   Path: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:04.9931485Z 
+2026-10-20T21:30:04.9932041Z ##[endgroup]
+2026-10-20T21:30:04.9976310Z Creating settings.xml with server-id: github
+2026-10-20T21:30:05.0024808Z Writing to /home/runner/.m2/settings.xml
+2026-10-20T21:30:05.0328753Z ##[group]Run android-actions/setup-android@v3
+2026-10-20T21:30:05.0329324Z with:
+2026-10-20T21:30:05.0329685Z   packages: platform-tools
+2026-10-20T21:30:05.0330190Z   log-accepted-android-sdk-licenses: false
+2026-10-20T21:30:05.0330683Z   cmdline-tools-version: 12266719
+2026-10-20T21:30:05.0331141Z   accept-android-sdk-licenses: true
+2026-10-20T21:30:05.0331619Z env:
+2026-10-20T21:30:05.0332185Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:05.0333251Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:05.0333963Z ##[endgroup]
+2026-10-20T21:30:05.1868030Z Found preinstalled sdkmanager in /usr/local/lib/android/sdk/cmdline-tools/latest with following source.properties:
+2026-10-20T21:30:05.1873681Z Pkg.Revision=12.0
+2026-10-20T21:30:05.1874592Z Pkg.Path=cmdline-tools;12.0
+2026-10-20T21:30:05.1876372Z Pkg.Desc=Android SDK Command-line Tools
+2026-10-20T21:30:05.1877162Z 
+2026-10-20T21:30:05.1877852Z Wrong version in preinstalled sdkmanager
+2026-10-20T21:30:05.1881369Z Downloading commandline tools from https://dl.google.com/android/repository/commandlinetools-linux-12266719_latest.zip
+2026-10-20T21:30:06.4492096Z [command]/usr/bin/unzip -o -q /home/runner/work/_temp/311410b3-f552-4740-8d87-1b2e7a26e9c8
+2026-10-20T21:30:07.2743221Z Accepting Android SDK licenses
+2026-10-20T21:30:20.8190616Z [command]/usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager platform-tools
+2026-10-20T21:30:22.0248990Z Loading package information...                                                  
+2026-10-20T21:30:22.1667067Z Loading local repository...                                                     
+2026-10-20T21:30:22.1683925Z [                                       ] 3% Loading local repository...        
+2026-10-20T21:30:22.1784327Z [                                       ] 3% Fetch remote repository...         
+2026-10-20T21:30:22.6934264Z [=                                      ] 3% Fetch remote repository...         
+2026-10-20T21:30:22.7754196Z [=                                      ] 4% Fetch remote repository...         
+2026-10-20T21:30:22.8235411Z [=                                      ] 5% Fetch remote repository...         
+2026-10-20T21:30:22.8794209Z [==                                     ] 5% Fetch remote repository...         
+2026-10-20T21:30:22.9677418Z [==                                     ] 6% Fetch remote repository...         
+2026-10-20T21:30:23.1044047Z [==                                     ] 7% Fetch remote repository...         
+2026-10-20T21:30:23.1063771Z [==                                     ] 7% Computing updates...               
+2026-10-20T21:30:23.1244326Z [===                                    ] 8% Computing updates...               
+2026-10-20T21:30:23.1304283Z [===                                    ] 10% Computing updates...              
+2026-10-20T21:30:23.1319258Z [=======================================] 100% Computing updates...             
+2026-10-20T21:30:23.1319774Z 
+2026-10-20T21:30:23.1834197Z ##[group]Run sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+2026-10-20T21:30:23.1834835Z [36;1msdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'[0m
+2026-10-20T21:30:23.2003452Z shell: /usr/bin/bash -e {0}
+2026-10-20T21:30:23.2003754Z env:
+2026-10-20T21:30:23.2004083Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:23.2004668Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:23.2005117Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-10-20T21:30:23.2005431Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-10-20T21:30:23.2005726Z ##[endgroup]
+2026-10-20T21:30:24.5421951Z Loading package information...                                                  
+2026-10-20T21:30:24.6920900Z Loading local repository...                                                     
+2026-10-20T21:30:24.6922023Z [                                       ] 3% Loading local repository...        
+2026-10-20T21:30:24.6972694Z [                                       ] 3% Fetch remote repository...         
+2026-10-20T21:30:25.3506878Z [=                                      ] 3% Fetch remote repository...         
+2026-10-20T21:30:25.4334519Z [=                                      ] 4% Fetch remote repository...         
+2026-10-20T21:30:25.4734507Z [=                                      ] 5% Fetch remote repository...         
+2026-10-20T21:30:25.5522157Z [==                                     ] 5% Fetch remote repository...         
+2026-10-20T21:30:25.6590612Z [==                                     ] 6% Fetch remote repository...         
+2026-10-20T21:30:25.8222729Z [==                                     ] 7% Fetch remote repository...         
+2026-10-20T21:30:25.8249193Z [==                                     ] 7% Computing updates...               
+2026-10-20T21:30:25.8320438Z [===                                    ] 8% Computing updates...               
+2026-10-20T21:30:25.8324206Z [===                                    ] 10% Computing updates...              
+2026-10-20T21:30:25.8325089Z [=======================================] 100% Computing updates...             
+2026-10-20T21:30:25.8325539Z 
+2026-10-20T21:30:25.8785365Z ##[group]Run gradle/actions/setup-gradle@v4
+2026-10-20T21:30:25.8785688Z with:
+2026-10-20T21:30:25.8785886Z   gradle-version: 8.9
+2026-10-20T21:30:25.8786112Z   cache-disabled: false
+2026-10-20T21:30:25.8786337Z   cache-read-only: true
+2026-10-20T21:30:25.8786551Z   cache-write-only: false
+2026-10-20T21:30:25.8786790Z   cache-overwrite-existing: false
+2026-10-20T21:30:25.8787049Z   cache-cleanup: on-success
+2026-10-20T21:30:25.8787332Z   gradle-home-cache-includes: caches
+notifications
+
+2026-10-20T21:30:25.8787667Z   add-job-summary: always
+2026-10-20T21:30:25.8787916Z   add-job-summary-as-pr-comment: never
+2026-10-20T21:30:25.8788197Z   dependency-graph: disabled
+2026-10-20T21:30:25.8788501Z   dependency-graph-report-dir: dependency-graph-reports
+2026-10-20T21:30:25.8788869Z   dependency-graph-continue-on-failure: true
+2026-10-20T21:30:25.8789164Z   build-scan-publish: false
+2026-10-20T21:30:25.8789402Z   validate-wrappers: true
+2026-10-20T21:30:25.8789686Z   allow-snapshot-wrappers: false
+2026-10-20T21:30:25.8789957Z   gradle-home-cache-strict-match: false
+2026-10-20T21:30:25.8790229Z   workflow-job-context: null
+2026-10-20T21:30:25.8793009Z   github-token: ***
+2026-10-20T21:30:25.8793222Z env:
+2026-10-20T21:30:25.8793510Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:25.8794005Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:25.8794398Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-10-20T21:30:25.8794700Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-10-20T21:30:25.8794980Z ##[endgroup]
+2026-10-20T21:30:26.3931775Z Merged default JDK locations into /home/runner/.m2/toolchains.xml
+2026-10-20T21:30:26.3969297Z ##[group]Restore Gradle state from cache
+2026-10-20T21:30:26.6576622Z Gradle User Home cache not found. Will initialize empty.
+2026-10-20T21:30:26.6579325Z ##[endgroup]
+2026-10-20T21:30:26.6734101Z ##[group]All Gradle Wrapper jars are valid
+2026-10-20T21:30:26.6735564Z 
+2026-10-20T21:30:26.6736557Z ##[endgroup]
+2026-10-20T21:30:26.7150568Z ##[group]Provision Gradle 8.9
+2026-10-20T21:30:47.4176190Z Gradle distribution 8.9 not found in cache. Will download.
+2026-10-20T21:30:48.4496314Z Downloaded https://services.gradle.org/distributions/gradle-8.9-bin.zip to /home/runner/work/_temp/.gradle-actions/gradle-installations/downloads/gradle-8.9-bin.zip (size 136114148)
+2026-10-20T21:30:48.4521517Z [command]/usr/bin/unzip -o -q /home/runner/work/_temp/.gradle-actions/gradle-installations/downloads/gradle-8.9-bin.zip
+2026-10-20T21:30:49.4246592Z Extracted Gradle 8.9 to /home/runner/work/_temp/.gradle-actions/gradle-installations/installs/gradle-8.9
+2026-10-20T21:30:49.4248937Z Provisioned Gradle executable /home/runner/work/_temp/.gradle-actions/gradle-installations/installs/gradle-8.9/bin/gradle
+2026-10-20T21:30:49.4251385Z ##[endgroup]
+2026-10-20T21:30:49.4417868Z ##[group]Run set -euo pipefail
+2026-10-20T21:30:49.4418448Z [36;1mset -euo pipefail[0m
+2026-10-20T21:30:49.4419777Z [36;1mcurl --fail --location --retry 2 --output "$RUNNER_TEMP/kotlin.zip" https://github.com/JetBrains/kotlin/releases/download/v1.9.24/kotlin-compiler-1.9.24.zip[0m
+2026-10-20T21:30:49.4421299Z [36;1munzip -q "$RUNNER_TEMP/kotlin.zip" -d "$RUNNER_TEMP/t042-kotlin"[0m
+2026-10-20T21:30:49.4422170Z [36;1mecho "$RUNNER_TEMP/t042-kotlin/kotlinc/bin" >> "$GITHUB_PATH"[0m
+2026-10-20T21:30:49.4477515Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-20T21:30:49.4477854Z env:
+2026-10-20T21:30:49.4478173Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:49.4478660Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:49.4479079Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-10-20T21:30:49.4479373Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-10-20T21:30:49.4479720Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-10-20T21:30:49.4480021Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-10-20T21:30:49.4480305Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-10-20T21:30:49.4480593Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-10-20T21:30:49.4481024Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-10-20T21:30:49.4481499Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-10-20T21:30:49.4481810Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-10-20T21:30:49.4482063Z ##[endgroup]
+2026-10-20T21:30:49.4643244Z   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2026-10-20T21:30:49.4644952Z                                  Dload  Upload   Total   Spent    Left  Speed
+2026-10-20T21:30:49.4645370Z 
+2026-10-20T21:30:49.6554406Z   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2026-10-20T21:30:49.6555797Z   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2026-10-20T21:30:50.0854782Z 
+2026-10-20T21:30:50.9945570Z  34 86.8M   34 30.0M    0     0  48.2M      0  0:00:01 --:--:--  0:00:01 48.2M
+2026-10-20T21:30:50.9947091Z 100 86.8M  100 86.8M    0     0  56.7M      0  0:00:01  0:00:01 --:--:-- 62.5M
+2026-10-20T21:30:51.6364430Z ##[group]Run set -euo pipefail
+2026-10-20T21:30:51.6364982Z [36;1mset -euo pipefail[0m
+2026-10-20T21:30:51.6365422Z [36;1mmkdir -p artifacts[0m
+2026-10-20T21:30:51.6366223Z [36;1mpython3 -m unittest discover -s tools -p 'test_*.py' -v 2>&1 | tee artifacts/python-tests.log[0m
+2026-10-20T21:30:51.6441709Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-20T21:30:51.6442068Z env:
+2026-10-20T21:30:51.6442381Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:51.6443230Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:51.6443678Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-10-20T21:30:51.6443976Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-10-20T21:30:51.6444295Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-10-20T21:30:51.6444599Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-10-20T21:30:51.6444884Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-10-20T21:30:51.6445210Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-10-20T21:30:51.6445643Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-10-20T21:30:51.6446133Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-10-20T21:30:51.6446457Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-10-20T21:30:51.6446723Z ##[endgroup]
+2026-10-20T21:30:51.8311052Z test_action_control_source (unittest.loader._FailedTest.test_action_control_source) ... ERROR
+2026-10-20T21:30:51.8314734Z test_capture_mark_active_is_epoch_scoped (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_capture_mark_active_is_epoch_scoped) ... ok
+2026-10-20T21:30:51.8317971Z test_no_table_or_game_rights_in_atomic_store (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_no_table_or_game_rights_in_atomic_store) ... ok
+2026-10-20T21:30:51.8320935Z test_notification_stop_clears_immediately (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_notification_stop_clears_immediately) ... ok
+2026-10-20T21:30:51.8324191Z test_origin_and_stop_use_same_lock (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_origin_and_stop_use_same_lock) ... ok
+2026-10-20T21:30:51.8327089Z test_origin_checks_epoch_and_activity (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_origin_checks_epoch_and_activity) ... ok
+2026-10-20T21:30:51.8330087Z test_predicate_rechecks_stop_visibility_and_root (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_predicate_rechecks_stop_visibility_and_root) ... ok
+2026-10-20T21:30:51.8333326Z test_rearm_only_from_operator_not_capture (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_rearm_only_from_operator_not_capture) ... ok
+2026-10-20T21:30:51.8336393Z test_reject_invalid_origin_and_erase_data (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_reject_invalid_origin_and_erase_data) ... ok
+2026-10-20T21:30:51.8339557Z test_service_uses_atomic_publication_for_cards_and_jpeg (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_service_uses_atomic_publication_for_cards_and_jpeg) ... ok
+2026-10-20T21:30:51.8342489Z test_version_runner_and_manual_ci (test_atomic_frame_publication_source.AtomicFramePublicationSourceTest.test_version_runner_and_manual_ci) ... ok
+2026-10-20T21:30:51.8345342Z test_no_gesture_callback_as_success (test_authenticated_effect_source.VerifyEffectSource.test_no_gesture_callback_as_success) ... ok
+2026-10-20T21:30:51.8347373Z test_version (test_authenticated_effect_source.VerifyEffectSource.test_version) ... ok
+2026-10-20T21:30:51.8352435Z test_capture_consumes_committed_frame (test_automatic_ocr_integration_source.BackgroundOcrIntegrationTest.test_capture_consumes_committed_frame) ... ok
+2026-10-20T21:30:51.8355327Z test_no_second_concurrent_recognition (test_automatic_ocr_integration_source.BackgroundOcrIntegrationTest.test_no_second_concurrent_recognition) ... ok
+2026-10-20T21:30:51.8358334Z test_observation_not_permission (test_automatic_ocr_integration_source.BackgroundOcrIntegrationTest.test_observation_not_permission) ... ok
+2026-10-20T21:30:51.8361138Z test_overtime_and_changed_window_must_fail (test_automatic_ocr_integration_source.BackgroundOcrIntegrationTest.test_overtime_and_changed_window_must_fail) ... ok
+2026-10-20T21:30:51.8364343Z test_stages_from_fresh_verified_sequence_only (test_automatic_ocr_integration_source.BackgroundOcrIntegrationTest.test_stages_from_fresh_verified_sequence_only) ... ok
+2026-10-20T21:30:51.8366985Z test_stop_clears_cached_data (test_automatic_ocr_integration_source.BackgroundOcrIntegrationTest.test_stop_clears_cached_data) ... ok
+2026-10-20T21:30:51.8369411Z test_accessibility_interrupt_stops_auto (test_autonomous_loop_source.TestAutonomousBridge.test_accessibility_interrupt_stops_auto) ... ok
+2026-10-20T21:30:51.8371577Z test_all_poker_decisions (test_autonomous_loop_source.TestAutonomousBridge.test_all_poker_decisions) ... ok
+2026-10-20T21:30:51.8373863Z test_android_bound_to_same_frame (test_autonomous_loop_source.TestAutonomousBridge.test_android_bound_to_same_frame) ... ok
+2026-10-20T21:30:51.8376369Z test_android_broker_uses_real_guarded_dispatch (test_autonomous_loop_source.TestAutonomousBridge.test_android_broker_uses_real_guarded_dispatch) ... ok
+2026-10-20T21:30:51.8378757Z test_capture_does_not_directly_tap (test_autonomous_loop_source.TestAutonomousBridge.test_capture_does_not_directly_tap) ... ok
+2026-10-20T21:30:51.8381194Z test_capture_stop_stops_auto (test_autonomous_loop_source.TestAutonomousBridge.test_capture_stop_stops_auto) ... ok
+2026-10-20T21:30:51.8383467Z test_durable_stop_stops_auto (test_autonomous_loop_source.TestAutonomousBridge.test_durable_stop_stops_auto) ... ok
+2026-10-20T21:30:51.8385500Z test_no_automatic_retry (test_autonomous_loop_source.TestAutonomousBridge.test_no_automatic_retry) ... ok
+2026-10-20T21:30:51.8387485Z test_no_disabled_gate_bypass (test_autonomous_loop_source.TestAutonomousBridge.test_no_disabled_gate_bypass) ... ok
+2026-10-20T21:30:51.8389617Z test_no_external_api_assumptions (test_autonomous_loop_source.TestAutonomousBridge.test_no_external_api_assumptions) ... ok
+2026-10-20T21:30:51.8391857Z test_operator_diagnostic (test_autonomous_loop_source.TestAutonomousBridge.test_operator_diagnostic) ... ok
+2026-10-20T21:30:51.8402121Z test_pending_verification (test_autonomous_loop_source.TestAutonomousBridge.test_pending_verification) ... ok
+2026-10-20T21:30:51.8404295Z test_required_timer (test_autonomous_loop_source.TestAutonomousBridge.test_required_timer) ... ok
+2026-10-20T21:30:51.8406277Z test_strategy_unconfigured (test_autonomous_loop_source.TestAutonomousBridge.test_strategy_unconfigured) ... ok
+2026-10-20T21:30:51.8408448Z test_window_generation_bound_at_os_dispatch (test_autonomous_loop_source.TestAutonomousBridge.test_window_generation_bound_at_os_dispatch) ... ok
+2026-10-20T21:30:51.8411009Z test_service_reserves_and_releases_gate (test_capture_lifecycle_source.CaptureLifecycleSourceTests.test_service_reserves_and_releases_gate) ... ok
+2026-10-20T21:30:51.8413624Z test_stopping_state_denies_restart (test_capture_lifecycle_source.CaptureLifecycleSourceTests.test_stopping_state_denies_restart) ... ok
+2026-10-20T21:30:51.8415907Z test_ui_refuses_concurrent_request (test_capture_lifecycle_source.CaptureLifecycleSourceTests.test_ui_refuses_concurrent_request) ... ok
+2026-10-20T21:30:51.8418187Z test_brand_and_system_padding (test_card_vision_source.CardVisionIntegrationChecks.test_brand_and_system_padding) ... ok
+2026-10-20T21:30:51.8420182Z test_card_cache_reset_on_stop (test_card_vision_source.CardVisionIntegrationChecks.test_card_cache_reset_on_stop) ... ok
+2026-10-20T21:30:51.8422551Z test_cards_behind_visibility_and_stop (test_card_vision_source.CardVisionIntegrationChecks.test_cards_behind_visibility_and_stop) ... ok
+2026-10-20T21:30:51.8424920Z test_no_remote_access (test_card_vision_source.CardVisionIntegrationChecks.test_no_remote_access) ... ok
+2026-10-20T21:30:51.8427243Z test_pixel_reader_pure_kotlin (test_card_vision_source.CardVisionIntegrationChecks.test_pixel_reader_pure_kotlin) ... ok
+2026-10-20T21:30:51.8429487Z test_service_does_not_upload (test_card_vision_source.CardVisionIntegrationChecks.test_service_does_not_upload) ... ok
+2026-10-20T21:30:51.8431573Z test_source_not_asserted_by_detector (test_card_vision_source.CardVisionIntegrationChecks.test_source_not_asserted_by_detector) ... ok
+2026-10-20T21:30:51.8433964Z test_two_frame_consent (test_card_vision_source.CardVisionIntegrationChecks.test_two_frame_consent) ... ok
+2026-10-20T21:30:51.8436088Z test_version_monotonic (test_card_vision_source.CardVisionIntegrationChecks.test_version_monotonic) ... ok
+2026-10-20T21:30:51.8438354Z test_android_permissions_and_no_backup (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_android_permissions_and_no_backup) ... ok
+2026-10-20T21:30:51.8440983Z test_callback_binds_to_loopback_and_state (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_callback_binds_to_loopback_and_state) ... ok
+2026-10-20T21:30:51.8443789Z test_cloud_does_not_tap_or_publish_ocr (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_cloud_does_not_tap_or_publish_ocr) ... ok
+2026-10-20T21:30:51.8446407Z test_cloud_uses_preview_supported_responses (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_cloud_uses_preview_supported_responses) ... ok
+2026-10-20T21:30:51.8449419Z test_no_hardcoded_api_key_or_password_field (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_no_hardcoded_api_key_or_password_field) ... ok
+2026-10-20T21:30:51.8452103Z test_protocol_uses_official_endpoints_and_pkce (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_protocol_uses_official_endpoints_and_pkce) ... ok
+2026-10-20T21:30:51.8454865Z test_tokens_encrypted_and_not_in_url (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_tokens_encrypted_and_not_in_url) ... ok
+2026-10-20T21:30:51.8457086Z test_ui_has_login_test_logout (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_ui_has_login_test_logout) ... ok
+2026-10-20T21:30:51.8459535Z test_validate_signed_identity (test_chatgpt_cloud_source.ChatGptCloudIntegrationSource.test_validate_signed_identity) ... ok
+2026-10-20T21:30:51.8462153Z test_callback_page_no_false_success (test_chatgpt_connection_diagnostics_source.CloudConnectionDiagnosticWiring.test_callback_page_no_false_success) ... ok
+2026-10-20T21:30:51.8470901Z test_does_not_modify_gesture_code (test_chatgpt_connection_diagnostics_source.CloudConnectionDiagnosticWiring.test_does_not_modify_gesture_code) ... ok
+2026-10-20T21:30:51.8474149Z test_in_progress_prevents_premature_cloud_request (test_chatgpt_connection_diagnostics_source.CloudConnectionDiagnosticWiring.test_in_progress_prevents_premature_cloud_request) ... ok
+2026-10-20T21:30:51.8477043Z test_no_credentials_in_diagnostics (test_chatgpt_connection_diagnostics_source.CloudConnectionDiagnosticWiring.test_no_credentials_in_diagnostics) ... ok
+2026-10-20T21:30:51.8479688Z test_specific_stages_and_http (test_chatgpt_connection_diagnostics_source.CloudConnectionDiagnosticWiring.test_specific_stages_and_http) ... ok
+2026-10-20T21:30:51.8482274Z test_status_diagnostics_visible (test_chatgpt_connection_diagnostics_source.CloudConnectionDiagnosticWiring.test_status_diagnostics_visible) ... ok
+2026-10-20T21:30:51.8485119Z test_claim_validation_remains_strict (test_chatgpt_identity_network_21440.IdentityNetworkRegression.test_claim_validation_remains_strict) ... ok
+2026-10-20T21:30:51.8487624Z test_compatibility_version_increment (test_chatgpt_identity_network_21440.IdentityNetworkRegression.test_compatibility_version_increment) ... ok
+2026-10-20T21:30:51.8490506Z test_jwks_network_exceptions_not_mapped_to_bad_identity (test_chatgpt_identity_network_21440.IdentityNetworkRegression.test_jwks_network_exceptions_not_mapped_to_bad_identity) ... ok
+2026-10-20T21:30:51.8493356Z test_no_additional_buttons (test_chatgpt_identity_network_21440.IdentityNetworkRegression.test_no_additional_buttons) ... ok
+2026-10-20T21:30:51.8496124Z test_no_oauth_replay_on_dns_failure (test_chatgpt_identity_network_21440.IdentityNetworkRegression.test_no_oauth_replay_on_dns_failure) ... ok
+2026-10-20T21:30:51.8498889Z test_valid_id_token_header_does_not_require_typ (test_chatgpt_identity_network_21440.IdentityNetworkRegression.test_valid_id_token_header_does_not_require_typ) ... ok
+2026-10-20T21:30:51.8501722Z test_workflow_yaml_no_blank_env_step (test_chatgpt_identity_network_21440.IdentityNetworkRegression.test_workflow_yaml_no_blank_env_step) ... ok
+2026-10-20T21:30:51.8504375Z test_diagnostic_button_without_oauth (test_chatgpt_transport_source.TransportSourceContracts.test_diagnostic_button_without_oauth) ... ok
+2026-10-20T21:30:51.8507040Z test_keep_android_internet_and_tls_verification (test_chatgpt_transport_source.TransportSourceContracts.test_keep_android_internet_and_tls_verification) ... ok
+2026-10-20T21:30:51.8509599Z test_managed_reauth_registration (test_chatgpt_transport_source.TransportSourceContracts.test_managed_reauth_registration) ... ok
+2026-10-20T21:30:51.8511814Z test_no_credentials_in_probe (test_chatgpt_transport_source.TransportSourceContracts.test_no_credentials_in_probe) ... ok
+2026-10-20T21:30:51.8534602Z test_debug_version_updated (test_delayed_dispatch_source.TestDelayedDispatch.test_debug_version_updated) ... ok
+2026-10-20T21:30:51.8536740Z test_observation_source_kept (test_delayed_dispatch_source.TestDelayedDispatch.test_observation_source_kept) ... ok
+2026-10-20T21:30:51.8539154Z test_preflight_called_twice (test_delayed_dispatch_source.TestDelayedDispatch.test_preflight_called_twice) ... ok
+2026-10-20T21:30:51.8541161Z test_pure_guard_exists (test_delayed_dispatch_source.TestDelayedDispatch.test_pure_guard_exists) ... ok
+2026-10-20T21:30:51.8543494Z test_requires_active_capture_epoch (test_delayed_dispatch_source.TestDelayedDispatch.test_requires_active_capture_epoch) ... ok
+2026-10-20T21:30:51.8545899Z test_requires_fresh_root_not_fallback (test_delayed_dispatch_source.TestDelayedDispatch.test_requires_fresh_root_not_fallback) ... ok
+2026-10-20T21:30:51.8548361Z test_stop_overlay_area_cannot_receive_game_tap (test_delayed_dispatch_source.TestDelayedDispatch.test_stop_overlay_area_cannot_receive_game_tap) ... ok
+2026-10-20T21:30:51.8550842Z test_activity_visibility_transitions (test_foreground_gate_source.ForegroundCaptureIntegrationTests.test_activity_visibility_transitions) ... ok
+2026-10-20T21:30:51.8553742Z test_capture_rejects_self_ui_and_stale_session (test_foreground_gate_source.ForegroundCaptureIntegrationTests.test_capture_rejects_self_ui_and_stale_session) ... ok
+2026-10-20T21:30:51.8556778Z test_frame_health_not_published_without_frame (test_foreground_gate_source.ForegroundCaptureIntegrationTests.test_frame_health_not_published_without_frame) ... ok
+2026-10-20T21:30:51.8559478Z test_insets_include_display_cutout (test_foreground_gate_source.ForegroundCaptureIntegrationTests.test_insets_include_display_cutout) ... ok
+2026-10-20T21:30:51.8562229Z test_status_does_not_claim_known_game_origin (test_foreground_gate_source.ForegroundCaptureIntegrationTests.test_status_does_not_claim_known_game_origin) ... ok
+2026-10-20T21:30:51.8565358Z test_coordinates_not_inferred_from_ocr_order (test_frame_text_evidence_source.OcrEvidenceIntegrationSourceTest.test_coordinates_not_inferred_from_ocr_order) ... ok
+2026-10-20T21:30:51.8568151Z test_numeric_fail_closed_for_duplicates (test_frame_text_evidence_source.OcrEvidenceIntegrationSourceTest.test_numeric_fail_closed_for_duplicates) ... ok
+2026-10-20T21:30:51.8571031Z test_ocr_published_only_for_same_frame_and_epoch (test_frame_text_evidence_source.OcrEvidenceIntegrationSourceTest.test_ocr_published_only_for_same_frame_and_epoch) ... ok
+2026-10-20T21:30:51.8574165Z test_offline_ocr_supplies_positioned_lines (test_frame_text_evidence_source.OcrEvidenceIntegrationSourceTest.test_offline_ocr_supplies_positioned_lines) ... ok
+2026-10-20T21:30:51.8577371Z test_read_only_diagnostic_cannot_turn_into_permission (test_frame_text_evidence_source.OcrEvidenceIntegrationSourceTest.test_read_only_diagnostic_cannot_turn_into_permission) ... ok
+2026-10-20T21:30:51.8580189Z test_version_is_unique_and_forward (test_frame_text_evidence_source.OcrEvidenceIntegrationSourceTest.test_version_is_unique_and_forward) ... ok
+2026-10-20T21:30:51.8582735Z test_no_added_network_or_game_actions (test_hand_state_integration.HandTrackerIntegrationChecks.test_no_added_network_or_game_actions) ... ok
+2026-10-20T21:30:51.8585451Z test_no_unverified_frame_claims (test_hand_state_integration.HandTrackerIntegrationChecks.test_no_unverified_frame_claims) ... ok
+2026-10-20T21:30:51.8588010Z test_real_tracker_module_in_android_sources (test_hand_state_integration.HandTrackerIntegrationChecks.test_real_tracker_module_in_android_sources) ... ok
+2026-10-20T21:30:51.8590667Z test_stop_and_capture_end_invalidate_context (test_hand_state_integration.HandTrackerIntegrationChecks.test_stop_and_capture_end_invalidate_context) ... ok
+2026-10-20T21:30:51.8593711Z test_ui_uses_tracker_as_unconfirmed_until_connected (test_hand_state_integration.HandTrackerIntegrationChecks.test_ui_uses_tracker_as_unconfirmed_until_connected) ... ok
+2026-10-20T21:30:51.8596446Z test_capture_consumes_actual_turn_signal (test_hero_turn_lifecycle_source.HeroTurnLifecycleSourceTests.test_capture_consumes_actual_turn_signal) ... ok
+2026-10-20T21:30:51.8598886Z test_core_is_pure_and_read_only (test_hero_turn_lifecycle_source.HeroTurnLifecycleSourceTests.test_core_is_pure_and_read_only) ... ok
+2026-10-20T21:30:51.8601649Z test_stop_occlusion_clear_visual_episode (test_hero_turn_lifecycle_source.HeroTurnLifecycleSourceTests.test_stop_occlusion_clear_visual_episode) ... ok
+2026-10-20T21:30:51.8604605Z test_ui_is_diagnostic_not_autonomous_permission (test_hero_turn_lifecycle_source.HeroTurnLifecycleSourceTests.test_ui_is_diagnostic_not_autonomous_permission) ... ok
+2026-10-20T21:30:51.8607023Z test_version_and_build_name (test_hero_turn_lifecycle_source.HeroTurnLifecycleSourceTests.test_version_and_build_name) ... ok
+2026-10-20T21:30:51.8609115Z test_browser_owned_in_app_tab (test_in_app_authorization_21441.InAppAuthContracts.test_browser_owned_in_app_tab) ... ok
+2026-10-20T21:30:51.8611191Z test_incremental_update_and_stop (test_in_app_authorization_21441.InAppAuthContracts.test_incremental_update_and_stop) ... ok
+2026-10-20T21:30:51.8613661Z test_inference_proves_account_connection (test_in_app_authorization_21441.InAppAuthContracts.test_inference_proves_account_connection) ... ok
+2026-10-20T21:30:51.8616065Z test_login_error_not_hidden_by_no_session (test_in_app_authorization_21441.InAppAuthContracts.test_login_error_not_hidden_by_no_session) ... ok
+2026-10-20T21:30:51.8618161Z test_mfa_wait_and_security (test_in_app_authorization_21441.InAppAuthContracts.test_mfa_wait_and_security) ... ok
+2026-10-20T21:30:51.8620633Z test_network_bound_fallback_only_before_grant_transmission (test_in_app_authorization_21441.InAppAuthContracts.test_network_bound_fallback_only_before_grant_transmission) ... ok
+2026-10-20T21:30:51.8623438Z test_capture_errors_recorded (test_incident_android_wiring.AndroidIncidentWiringTest.test_capture_errors_recorded) ... ok
+2026-10-20T21:30:51.8625647Z test_deadline_check_after_model (test_incident_android_wiring.AndroidIncidentWiringTest.test_deadline_check_after_model) ... ok
+2026-10-20T21:30:51.8627864Z test_export_is_user_initiated (test_incident_android_wiring.AndroidIncidentWiringTest.test_export_is_user_initiated) ... ok
+2026-10-20T21:30:51.8630054Z test_no_network_permission (test_incident_android_wiring.AndroidIncidentWiringTest.test_no_network_permission) ... ok
+2026-10-20T21:30:51.8631898Z test_ocr_wired (test_incident_android_wiring.AndroidIncidentWiringTest.test_ocr_wired) ... ok
+2026-10-20T21:30:51.8634187Z test_only_os_dispatch_is_dispatched (test_incident_android_wiring.AndroidIncidentWiringTest.test_only_os_dispatch_is_dispatched) ... ok
+2026-10-20T21:30:51.8636370Z test_recorder_is_local (test_incident_android_wiring.AndroidIncidentWiringTest.test_recorder_is_local) ... ok
+2026-10-20T21:30:51.8639089Z test_stop_is_nonblocking_even_with_slow_strategy (test_incident_android_wiring.AndroidIncidentWiringTest.test_stop_is_nonblocking_even_with_slow_strategy) ... ok
+2026-10-20T21:30:51.8641398Z test_stop_recorded (test_incident_android_wiring.AndroidIncidentWiringTest.test_stop_recorded) ... ok
+2026-10-20T21:30:51.8643326Z test_action_counts (test_incident_report.IncidentReportTest.test_action_counts) ... ok
+2026-10-20T21:30:51.8644980Z test_bad_events (test_incident_report.IncidentReportTest.test_bad_events) ... ok
+2026-10-20T21:30:51.8646477Z test_bad_schema (test_incident_report.IncidentReportTest.test_bad_schema) ... ok
+2026-10-20T21:30:51.8648236Z test_empty_does_not_claim_success (test_incident_report.IncidentReportTest.test_empty_does_not_claim_success) ... ok
+2026-10-20T21:30:51.8650085Z test_incident_priority (test_incident_report.IncidentReportTest.test_incident_priority) ... ok
+2026-10-20T21:30:51.8651625Z test_max_size (test_incident_report.IncidentReportTest.test_max_size) ... ok
+2026-10-20T21:30:51.8653680Z test_p95_nearest_rank_for_two_samples (test_incident_report.IncidentReportTest.test_p95_nearest_rank_for_two_samples) ... ok
+2026-10-20T21:30:51.8655490Z test_redaction (test_incident_report.IncidentReportTest.test_redaction) ... ok
+2026-10-20T21:30:51.8657425Z test_accessibility_interrupt_disarms (test_integrity_bundle.IntegrityBundleChecks.test_accessibility_interrupt_disarms) ... ok
+2026-10-20T21:30:51.8660084Z test_capture_links_stage_bridge_without_inventing_source (test_integrity_bundle.IntegrityBundleChecks.test_capture_links_stage_bridge_without_inventing_source) ... ok
+2026-10-20T21:30:51.8662605Z test_no_apk_from_bundle (test_integrity_bundle.IntegrityBundleChecks.test_no_apk_from_bundle) ... ok
+2026-10-20T21:30:51.8664892Z test_operator_stopping_resets_bridge (test_integrity_bundle.IntegrityBundleChecks.test_operator_stopping_resets_bridge) ... ok
+2026-10-20T21:30:51.8667169Z test_readiness_blocks_unverified_sources (test_integrity_bundle.IntegrityBundleChecks.test_readiness_blocks_unverified_sources) ... ok
+2026-10-20T21:30:51.8669551Z test_actual_capture_ocr_still_present (test_lite_source.AndroidLiteIsolationTests.test_actual_capture_ocr_still_present) ... ok
+2026-10-20T21:30:51.8671656Z test_branding_above_stop_but_not_scroll_area (test_lite_source.AndroidLiteIsolationTests.test_branding_above_stop_but_not_scroll_area) ... ok
+2026-10-20T21:30:51.8673594Z test_future_login_not_faked (test_lite_source.AndroidLiteIsolationTests.test_future_login_not_faked) ... ok
+2026-10-20T21:30:51.8675194Z test_no_network_permission (test_lite_source.AndroidLiteIsolationTests.test_no_network_permission) ... ok
+2026-10-20T21:30:51.8679103Z test_no_network_requests_or_timers (test_lite_source.AndroidLiteIsolationTests.test_no_network_requests_or_timers) ... ok
+2026-10-20T21:30:51.8711438Z test_no_unwanted_server_network_code (test_lite_source.AndroidLiteIsolationTests.test_no_unwanted_server_network_code) ... ok
+2026-10-20T21:30:51.8714482Z test_only_operator_accessibility_service_in_apk (test_lite_source.AndroidLiteIsolationTests.test_only_operator_accessibility_service_in_apk) ... ok
+2026-10-20T21:30:51.8716785Z test_stop_gate_persisted (test_lite_source.AndroidLiteIsolationTests.test_stop_gate_persisted) ... ok
+2026-10-20T21:30:51.8718778Z test_stop_not_obscured_by_status_bar (test_lite_source.AndroidLiteIsolationTests.test_stop_not_obscured_by_status_bar) ... ok
+2026-10-20T21:30:51.8720815Z test_ui_has_no_obsolete_settings (test_lite_source.AndroidLiteIsolationTests.test_ui_has_no_obsolete_settings) ... ok
+2026-10-20T21:30:51.8727266Z test_attribution (test_live_gesture_android_source.TestLiveAndroidTransport.test_attribution) ... ok
+2026-10-20T21:30:51.8729695Z test_capture_requires_stopped_gate_but_does_not_rearm (test_live_gesture_android_source.TestLiveAndroidTransport.test_capture_requires_stopped_gate_but_does_not_rearm) ... ok
+2026-10-20T21:30:51.8732438Z test_durable_stop_just_before_dispatch (test_live_gesture_android_source.TestLiveAndroidTransport.test_durable_stop_just_before_dispatch) ... ok
+2026-10-20T21:30:51.8735434Z test_explicit_platform_permission (test_live_gesture_android_source.TestLiveAndroidTransport.test_explicit_platform_permission) ... ok
+2026-10-20T21:30:51.8737331Z test_insets (test_live_gesture_android_source.TestLiveAndroidTransport.test_insets) ... ok
+2026-10-20T21:30:51.8739576Z test_internal_gesture_uses_public_android_api (test_live_gesture_android_source.TestLiveAndroidTransport.test_internal_gesture_uses_public_android_api) ... ok
+2026-10-20T21:30:51.8741934Z test_just_one_short_tap (test_live_gesture_android_source.TestLiveAndroidTransport.test_just_one_short_tap) ... ok
+2026-10-20T21:30:51.8744202Z test_manifest_metadata (test_live_gesture_android_source.TestLiveAndroidTransport.test_manifest_metadata) ... ok
+2026-10-20T21:30:51.8746292Z test_manifest_permission (test_live_gesture_android_source.TestLiveAndroidTransport.test_manifest_permission) ... ok
+2026-10-20T21:30:51.8748410Z test_movable_stop_overlay (test_live_gesture_android_source.TestLiveAndroidTransport.test_movable_stop_overlay) ... ok
+2026-10-20T21:30:51.8750573Z test_no_automatic_ui_taps (test_live_gesture_android_source.TestLiveAndroidTransport.test_no_automatic_ui_taps) ... ok
+2026-10-20T21:30:51.8752766Z test_no_model_network_calls (test_live_gesture_android_source.TestLiveAndroidTransport.test_no_model_network_calls) ... ok
+2026-10-20T21:30:51.8755103Z test_no_server_fields (test_live_gesture_android_source.TestLiveAndroidTransport.test_no_server_fields) ... ok
+2026-10-20T21:30:51.8757638Z test_operator_arm_updates_volatile_guard (test_live_gesture_android_source.TestLiveAndroidTransport.test_operator_arm_updates_volatile_guard) ... ok
+2026-10-20T21:30:51.8760281Z test_operator_stop_revokes_permission (test_live_gesture_android_source.TestLiveAndroidTransport.test_operator_stop_revokes_permission) ... ok
+2026-10-20T21:30:51.8762549Z test_overlay_durable_stop (test_live_gesture_android_source.TestLiveAndroidTransport.test_overlay_durable_stop) ... ok
+2026-10-20T21:30:51.8765192Z test_real_game_result_required_separately (test_live_gesture_android_source.TestLiveAndroidTransport.test_real_game_result_required_separately) ... ok
+2026-10-20T21:30:51.8767582Z test_service_gesture_capability (test_live_gesture_android_source.TestLiveAndroidTransport.test_service_gesture_capability) ... ok
+2026-10-20T21:30:51.8769900Z test_service_window_capability (test_live_gesture_android_source.TestLiveAndroidTransport.test_service_window_capability) ... ok
+2026-10-20T21:30:51.8772121Z test_target_package_proof (test_live_gesture_android_source.TestLiveAndroidTransport.test_target_package_proof) ... ok
+2026-10-20T21:30:51.8774453Z test_verified_dispatch (test_live_gesture_android_source.TestLiveAndroidTransport.test_verified_dispatch) ... ok
+2026-10-20T21:30:51.8776309Z test_version (test_live_gesture_android_source.TestLiveAndroidTransport.test_version) ... ok
+2026-10-20T21:30:51.8778168Z test_jvm_scenarios_wired (test_login_preflight_wiring.LoginPreflightWiring.test_jvm_scenarios_wired) ... ok
+2026-10-20T21:30:51.8780306Z test_preflight_occurs_before_browser (test_login_preflight_wiring.LoginPreflightWiring.test_preflight_occurs_before_browser) ... ok
+2026-10-20T21:30:51.8782590Z test_status_code_hides_credentials (test_login_preflight_wiring.LoginPreflightWiring.test_status_code_hides_credentials) ... ok
+2026-10-20T21:30:51.8785505Z test_consensus_rejects_ambiguous_or_changed_values (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_consensus_rejects_ambiguous_or_changed_values) ... ok
+2026-10-20T21:30:51.8788283Z test_consensus_requires_two_distinct_frames (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_consensus_requires_two_distinct_frames) ... ok
+2026-10-20T21:30:51.8790851Z test_diagnostics_only_can_never_dispatch (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_diagnostics_only_can_never_dispatch) ... ok
+2026-10-20T21:30:51.8793694Z test_frame_binds_epoch_package_and_generation (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_frame_binds_epoch_package_and_generation) ... ok
+2026-10-20T21:30:51.8796631Z test_ocr_callback_checks_ticket_not_only_package (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_ocr_callback_checks_ticket_not_only_package) ... ok
+2026-10-20T21:30:51.8799372Z test_one_frame_only_never_declared_consistent (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_one_frame_only_never_declared_consistent) ... ok
+2026-10-20T21:30:51.8801878Z test_stop_and_restart_erase_history (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_stop_and_restart_erase_history) ... ok
+2026-10-20T21:30:51.8804434Z test_version_and_suite_registered (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_version_and_suite_registered) ... ok
+2026-10-20T21:30:51.8806975Z test_visual_evidence_revoked_on_window_transition (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_visual_evidence_revoked_on_window_transition) ... ok
+2026-10-20T21:30:51.8809661Z test_window_generation_is_in_origin_assessment (test_ocr_provenance_source.OcrFrameBindingSourceTest.test_window_generation_is_in_origin_assessment) ... ok
+2026-10-20T21:30:51.8812511Z test_authorization_requires_recent_non_system_app (test_operator_authorization_source.OperatorAuthorizationSourceTest.test_authorization_requires_recent_non_system_app) ... ok
+2026-10-20T21:30:51.8815686Z test_gesture_transport_still_checks_permission (test_operator_authorization_source.OperatorAuthorizationSourceTest.test_gesture_transport_still_checks_permission) ... ok
+2026-10-20T21:30:51.8818712Z test_ocr_does_not_forge_verified_hand (test_operator_authorization_source.OperatorAuthorizationSourceTest.test_ocr_does_not_forge_verified_hand) ... ok
+2026-10-20T21:30:51.8821230Z test_stop_revokes_authorization (test_operator_authorization_source.OperatorAuthorizationSourceTest.test_stop_revokes_authorization) ... ok
+2026-10-20T21:30:51.8823997Z test_user_has_real_permission_switch (test_operator_authorization_source.OperatorAuthorizationSourceTest.test_user_has_real_permission_switch) ... ok
+2026-10-20T21:30:51.8826818Z test_confirmed_two_frame_observations_only (test_opponent_awareness_source.OpponentAwarenessSourceTests.test_confirmed_two_frame_observations_only) ... ok
+2026-10-20T21:30:51.8829640Z test_facing_bet_denominator_excludes_unknown (test_opponent_awareness_source.OpponentAwarenessSourceTests.test_facing_bet_denominator_excludes_unknown) ... ok
+2026-10-20T21:30:51.8832037Z test_prev_release_kept (test_opponent_awareness_source.OpponentAwarenessSourceTests.test_prev_release_kept) ... ok
+2026-10-20T21:30:51.8834674Z test_stop_erases_transient_only (test_opponent_awareness_source.OpponentAwarenessSourceTests.test_stop_erases_transient_only) ... ok
+2026-10-20T21:30:51.8837487Z test_terminal_only_goes_through_verified_gate (test_opponent_awareness_source.OpponentAwarenessSourceTests.test_terminal_only_goes_through_verified_gate) ... ok
+2026-10-20T21:30:51.8840215Z test_unknown_is_not_negative_vpip_or_pfr (test_opponent_awareness_source.OpponentAwarenessSourceTests.test_unknown_is_not_negative_vpip_or_pfr) ... ok
+2026-10-20T21:30:51.8843239Z test_untrusted_incident_identifiers_never_exported (test_opponent_awareness_source.OpponentAwarenessSourceTests.test_untrusted_incident_identifiers_never_exported) ... ok
+2026-10-20T21:30:51.8845450Z test_ace_low_straight (test_poker_math.PokerMathContract.test_ace_low_straight) ... ok
+2026-10-20T21:30:51.8847152Z test_bridge_is_diagnostic_only (test_poker_math.PokerMathContract.test_bridge_is_diagnostic_only) ... ok
+2026-10-20T21:30:51.8848869Z test_duplicate_rejected (test_poker_math.PokerMathContract.test_duplicate_rejected) ... ok
+2026-10-20T21:30:51.9337825Z test_independent_vectors_are_committed_and_current (test_poker_math.PokerMathContract.test_independent_vectors_are_committed_and_current) ... ok
+2026-10-20T21:30:51.9340842Z test_jvm_test_runner_includes_math (test_poker_math.PokerMathContract.test_jvm_test_runner_includes_math) ... ok
+2026-10-20T21:30:51.9343350Z test_kotlin_module_is_pure_and_guarded (test_poker_math.PokerMathContract.test_kotlin_module_is_pure_and_guarded) ... ok
+2026-10-20T21:30:51.9345514Z test_multi_pair (test_poker_math.PokerMathContract.test_multi_pair) ... ok
+2026-10-20T21:30:51.9859426Z test_reference_counts (test_poker_math.PokerMathContract.test_reference_counts) ... ok
+2026-10-20T21:30:51.9861625Z test_royal_flush (test_poker_math.PokerMathContract.test_royal_flush) ... ok
+2026-10-20T21:30:51.9863664Z test_two_sets_of_trips (test_poker_math.PokerMathContract.test_two_sets_of_trips) ... ok
+2026-10-20T21:30:51.9865482Z test_wheel_straight_flush (test_poker_math.PokerMathContract.test_wheel_straight_flush) ... ok
+2026-10-20T21:30:51.9867200Z test_dedup (test_post_hand_learning_source.LearningSourceTests.test_dedup) ... ok
+2026-10-20T21:30:51.9869824Z test_initialization (test_post_hand_learning_source.LearningSourceTests.test_initialization) ... ok
+2026-10-20T21:30:51.9871903Z test_latest_code_version (test_post_hand_learning_source.LearningSourceTests.test_latest_code_version) ... ok
+2026-10-20T21:30:51.9874715Z test_learning_only_from_verified_end (test_post_hand_learning_source.LearningSourceTests.test_learning_only_from_verified_end) ... ok
+2026-10-20T21:30:51.9877074Z test_no_network (test_post_hand_learning_source.LearningSourceTests.test_no_network) ... ok
+2026-10-20T21:30:51.9879084Z test_no_unverified_automatic_events (test_post_hand_learning_source.LearningSourceTests.test_no_unverified_automatic_events) ... ok
+2026-10-20T21:30:51.9881308Z test_stop_does_not_wipe_learned_stats (test_post_hand_learning_source.LearningSourceTests.test_stop_does_not_wipe_learned_stats) ... ok
+2026-10-20T21:30:51.9883998Z test_transaction (test_post_hand_learning_source.LearningSourceTests.test_transaction) ... ok
+2026-10-20T21:30:51.9889245Z test_one_hero_decision_per_id (test_post_hand_sqlite_contract.HandSqliteContract.test_one_hero_decision_per_id) ... ok
+2026-10-20T21:30:51.9898345Z test_profile_delta_query_and_counts (test_post_hand_sqlite_contract.HandSqliteContract.test_profile_delta_query_and_counts) ... ok
+2026-10-20T21:30:51.9904655Z test_receipt_unique (test_post_hand_sqlite_contract.HandSqliteContract.test_receipt_unique) ... ok
+2026-10-20T21:30:51.9910458Z test_tables (test_post_hand_sqlite_contract.HandSqliteContract.test_tables) ... ok
+2026-10-20T21:30:51.9917446Z test_txn_atomic_rollback (test_post_hand_sqlite_contract.HandSqliteContract.test_txn_atomic_rollback) ... ok
+2026-10-20T21:30:51.9919620Z test_real_frame_calibration (unittest.loader._FailedTest.test_real_frame_calibration) ... ERROR
+2026-10-20T21:30:51.9921557Z test_recorded_surface (unittest.loader._FailedTest.test_recorded_surface) ... ERROR
+2026-10-20T21:30:51.9924213Z test_prior_cert_must_not_be_treated_as_signing_key (test_reference_prior_apk.BaselineMetadataContract.test_prior_cert_must_not_be_treated_as_signing_key) ... ok
+2026-10-20T21:30:51.9926840Z test_recovered_prior_apk_metadata (test_reference_prior_apk.BaselineMetadataContract.test_recovered_prior_apk_metadata) ... ok
+2026-10-20T21:30:51.9929261Z test_archive_is_actual_v39 (test_reference_prior_v21439.BaselineV39.test_archive_is_actual_v39) ... ok
+2026-10-20T21:30:51.9931316Z test_ci_gate_uses_immediately_previous_apk (test_reference_prior_v21439.BaselineV39.test_ci_gate_uses_immediately_previous_apk) ... ok
+2026-10-20T21:30:51.9933897Z test_advanced_is_actually_collapsed (test_release_candidate_contract.MinimalUiAndReleaseTest.test_advanced_is_actually_collapsed) ... ok
+2026-10-20T21:30:51.9936482Z test_keystore_is_not_committed (test_release_candidate_contract.MinimalUiAndReleaseTest.test_keystore_is_not_committed) ... ok
+2026-10-20T21:30:51.9939048Z test_only_four_primary_work_actions (test_release_candidate_contract.MinimalUiAndReleaseTest.test_only_four_primary_work_actions) ... ok
+2026-10-20T21:30:51.9941659Z test_workflow_no_unverified_artifact (test_release_candidate_contract.MinimalUiAndReleaseTest.test_workflow_no_unverified_artifact) ... ok
+2026-10-20T21:30:51.9944305Z test_module_is_read_only (test_seat_transition_source.SeatTransitionSourceTests.test_module_is_read_only) ... ok
+2026-10-20T21:30:51.9947636Z test_multiple_observations_and_full_context_required (test_seat_transition_source.SeatTransitionSourceTests.test_multiple_observations_and_full_context_required) ... ok
+2026-10-20T21:30:51.9950681Z test_no_default_1win_layout_or_fabricated_source (test_seat_transition_source.SeatTransitionSourceTests.test_no_default_1win_layout_or_fabricated_source) ... ok
+2026-10-20T21:30:51.9953691Z test_tests_registered_and_release_incremented (test_seat_transition_source.SeatTransitionSourceTests.test_tests_registered_and_release_incremented) ... ok
+2026-10-20T21:30:51.9956100Z test_frame_provenance_and_layout_binding (test_seat_visual_source.SeatVisualSourceTests.test_frame_provenance_and_layout_binding) ... ok
+2026-10-20T21:30:51.9958322Z test_jvm_runner_includes_scenarios (test_seat_visual_source.SeatVisualSourceTests.test_jvm_runner_includes_scenarios) ... ok
+2026-10-20T21:30:51.9960869Z test_no_implicit_layout_or_gameplay_authorization (test_seat_visual_source.SeatVisualSourceTests.test_no_implicit_layout_or_gameplay_authorization) ... ok
+2026-10-20T21:30:51.9963531Z test_reset_uses_atomic_frame_store (test_seat_visual_source.SeatVisualSourceTests.test_reset_uses_atomic_frame_store) ... ok
+2026-10-20T21:30:51.9965722Z test_ui_shows_unverified_state (test_seat_visual_source.SeatVisualSourceTests.test_ui_shows_unverified_state) ... ok
+2026-10-20T21:30:51.9968056Z test_version_increment_and_previous_qa_present (test_seat_visual_source.SeatVisualSourceTests.test_version_increment_and_previous_qa_present) ... ok
+2026-10-20T21:30:51.9971158Z test_worker_uses_ocr_but_does_not_convert_to_confirmed_action (test_seat_visual_source.SeatVisualSourceTests.test_worker_uses_ocr_but_does_not_convert_to_confirmed_action) ... ok
+2026-10-20T21:30:51.9973968Z test_empty_report_rejected (test_t042_execution_proof.T042AndroidExecutionProofTests.test_empty_report_rejected) ... ok
+2026-10-20T21:30:51.9976245Z test_error_method_rejected (test_t042_execution_proof.T042AndroidExecutionProofTests.test_error_method_rejected) ... ok
+2026-10-20T21:30:51.9981087Z test_failed_method_rejected (test_t042_execution_proof.T042AndroidExecutionProofTests.test_failed_method_rejected) ... ok
+2026-10-20T21:30:51.9984377Z test_missing_report_rejected (test_t042_execution_proof.T042AndroidExecutionProofTests.test_missing_report_rejected) ... ok
+2026-10-20T21:30:51.9990762Z test_missing_required_method_rejected (test_t042_execution_proof.T042AndroidExecutionProofTests.test_missing_required_method_rejected) ... ok
+2026-10-20T21:30:51.9997314Z test_nine_mandatory_executed_tests_required (test_t042_execution_proof.T042AndroidExecutionProofTests.test_nine_mandatory_executed_tests_required) ... ok
+2026-10-20T21:30:52.0003240Z test_notrun_status_rejected (test_t042_execution_proof.T042AndroidExecutionProofTests.test_notrun_status_rejected) ... ok
+2026-10-20T21:30:52.0009311Z test_skipped_method_rejected (test_t042_execution_proof.T042AndroidExecutionProofTests.test_skipped_method_rejected) ... ok
+2026-10-20T21:30:52.0015456Z test_suite_failure_count_rejected (test_t042_execution_proof.T042AndroidExecutionProofTests.test_suite_failure_count_rejected) ... ok
+2026-10-20T21:30:52.0021864Z test_unrelated_tests_do_not_substitute_required_methods (test_t042_execution_proof.T042AndroidExecutionProofTests.test_unrelated_tests_do_not_substitute_required_methods) ... ok
+2026-10-20T21:30:52.0024938Z test_both_original_signers_accepted (test_t042_execution_proof.T042TestApkSignerTests.test_both_original_signers_accepted) ... ok
+2026-10-20T21:30:52.0027243Z test_new_target_key_rejected (test_t042_execution_proof.T042TestApkSignerTests.test_new_target_key_rejected) ... ok
+2026-10-20T21:30:52.0029470Z test_new_test_key_rejected (test_t042_execution_proof.T042TestApkSignerTests.test_new_test_key_rejected) ... ok
+2026-10-20T21:30:52.0031725Z test_premature_version_promotion_rejected (test_t042_execution_proof.T042TestApkSignerTests.test_premature_version_promotion_rejected) ... ok
+2026-10-20T21:30:52.0034364Z test_wrong_target_package_rejected (test_t042_execution_proof.T042TestApkSignerTests.test_wrong_target_package_rejected) ... ok
+2026-10-20T21:30:52.0036914Z test_wrong_test_package_rejected (test_t042_execution_proof.T042TestApkSignerTests.test_wrong_test_package_rejected) ... ok
+2026-10-20T21:30:52.0039784Z test_candidate_staging_checks_checkpoint_and_refuses_double_release (test_t042_release_gate.T042ProtectedReleaseGateTests.test_candidate_staging_checks_checkpoint_and_refuses_double_release) ... ok
+2026-10-20T21:30:52.0042548Z test_manual_only_not_auto_upload (test_t042_release_gate.T042ProtectedReleaseGateTests.test_manual_only_not_auto_upload) ... ok
+2026-10-20T21:30:52.0045423Z test_no_plaintext_key_or_password_in_repository (test_t042_release_gate.T042ProtectedReleaseGateTests.test_no_plaintext_key_or_password_in_repository) ... ok
+2026-10-20T21:30:52.0048143Z test_signer_and_instrumentation_precede_release (test_t042_release_gate.T042ProtectedReleaseGateTests.test_signer_and_instrumentation_precede_release) ... ok
+2026-10-20T21:30:52.0050668Z test_staging_fails_for_missing_checkpoint (test_t042_release_gate.T042ProtectedReleaseGateTests.test_staging_fails_for_missing_checkpoint) ... ok
+2026-10-20T21:30:52.0053388Z test_version75_baseline_is_actual_21441 (test_t042_release_gate.T042ProtectedReleaseGateTests.test_version75_baseline_is_actual_21441) ... ok
+2026-10-20T21:30:52.0056088Z test_activity_has_no_fake_identity_provider (test_table_hand_identity_guard_source.TableHandBindingGuardSourceTest.test_activity_has_no_fake_identity_provider) ... ok
+2026-10-20T21:30:52.0059329Z test_fail_closed_for_absent_independent_proof (test_table_hand_identity_guard_source.TableHandBindingGuardSourceTest.test_fail_closed_for_absent_independent_proof) ... ok
+2026-10-20T21:30:52.0062220Z test_guard_is_separate_non_android_module (test_table_hand_identity_guard_source.TableHandBindingGuardSourceTest.test_guard_is_separate_non_android_module) ... ok
+2026-10-20T21:30:52.0074760Z test_jvm_provenance_tests_present (test_table_hand_identity_guard_source.TableHandBindingGuardSourceTest.test_jvm_provenance_tests_present) ... ok
+2026-10-20T21:30:52.0077806Z test_no_external_dispatched_action_in_identity_module (test_table_hand_identity_guard_source.TableHandBindingGuardSourceTest.test_no_external_dispatched_action_in_identity_module) ... ok
+2026-10-20T21:30:52.0081031Z test_stop_reset_and_ocr_failure_forget_binding (test_table_hand_identity_guard_source.TableHandBindingGuardSourceTest.test_stop_reset_and_ocr_failure_forget_binding) ... ok
+2026-10-20T21:30:52.0083855Z test_version_and_runner (test_table_hand_identity_guard_source.TableHandBindingGuardSourceTest.test_version_and_runner) ... ok
+2026-10-20T21:30:52.0086459Z test_workflow_is_manual_and_versioned (test_table_hand_identity_guard_source.TableHandBindingGuardSourceTest.test_workflow_is_manual_and_versioned) ... ok
+2026-10-20T21:30:52.0089331Z test_jwks_probe_checks_actual_https_not_independent_dns (test_token_transport_no_false_dns.TokenTransportRegression.test_jwks_probe_checks_actual_https_not_independent_dns) ... ok
+2026-10-20T21:30:52.0091847Z test_no_insecure_fallback (test_token_transport_no_false_dns.TokenTransportRegression.test_no_insecure_fallback) ... ok
+2026-10-20T21:30:52.0094293Z test_no_separate_dns_gate_on_post (test_token_transport_no_false_dns.TokenTransportRegression.test_no_separate_dns_gate_on_post) ... ok
+2026-10-20T21:30:52.0096560Z test_one_write_no_post_replay (test_token_transport_no_false_dns.TokenTransportRegression.test_one_write_no_post_replay) ... ok
+2026-10-20T21:30:52.0098754Z test_version_and_minimal_ui (test_token_transport_no_false_dns.TokenTransportRegression.test_version_and_minimal_ui) ... ok
+2026-10-20T21:30:52.0101227Z test_capture_gates_and_fail_closed_source (test_turn_visibility_source.TurnVisibilityIntegrationChecks.test_capture_gates_and_fail_closed_source) ... ok
+2026-10-20T21:30:52.0104291Z test_manifest_scoped_accessibility_no_internet (test_turn_visibility_source.TurnVisibilityIntegrationChecks.test_manifest_scoped_accessibility_no_internet) ... ok
+2026-10-20T21:30:52.0107339Z test_no_action_authorization_from_pixels (test_turn_visibility_source.TurnVisibilityIntegrationChecks.test_no_action_authorization_from_pixels) ... ok
+2026-10-20T21:30:52.0110098Z test_operator_sees_diagnostic_not_button (test_turn_visibility_source.TurnVisibilityIntegrationChecks.test_operator_sees_diagnostic_not_button) ... ok
+2026-10-20T21:30:52.0113084Z test_single_raster_used_for_both_detectors (test_turn_visibility_source.TurnVisibilityIntegrationChecks.test_single_raster_used_for_both_detectors) ... ok
+2026-10-20T21:30:52.0115629Z test_stop_resets_turn_evidence (test_turn_visibility_source.TurnVisibilityIntegrationChecks.test_stop_resets_turn_evidence) ... ok
+2026-10-20T21:30:52.0117698Z test_version (test_turn_visibility_source.TurnVisibilityIntegrationChecks.test_version) ... ok
+2026-10-20T21:30:52.0119897Z test_visual_detector_stays_read_only (test_turn_visibility_source.TurnVisibilityIntegrationChecks.test_visual_detector_stays_read_only) ... ok
+2026-10-20T21:30:52.0121923Z test_metadata (test_verified_dispatch_admission_source.SourceGateTest.test_metadata) ... ok
+2026-10-20T21:30:52.0123789Z test_no_bypass (test_verified_dispatch_admission_source.SourceGateTest.test_no_bypass) ... ok
+2026-10-20T21:30:52.0125798Z test_bet_bounds_required (test_verified_local_poker_strategy.VerifiedLocalStrategySourceTests.test_bet_bounds_required) ... ok
+2026-10-20T21:30:52.0128355Z test_equity_not_guessed_from_unverified_cards (test_verified_local_poker_strategy.VerifiedLocalStrategySourceTests.test_equity_not_guessed_from_unverified_cards) ... ok
+2026-10-20T21:30:52.0131312Z test_local_strategy_installed_without_auto_arming (test_verified_local_poker_strategy.VerifiedLocalStrategySourceTests.test_local_strategy_installed_without_auto_arming) ... ok
+2026-10-20T21:30:52.0134120Z test_missing_verified_observation_not_promoted (test_verified_local_poker_strategy.VerifiedLocalStrategySourceTests.test_missing_verified_observation_not_promoted) ... ok
+2026-10-20T21:30:52.0136588Z test_strategy_bound_to_exact_turn_and_frame (test_verified_local_poker_strategy.VerifiedLocalStrategySourceTests.test_strategy_bound_to_exact_turn_and_frame) ... ok
+2026-10-20T21:30:52.0139103Z test_strategy_is_local_and_does_not_tap_or_call_network (test_verified_local_poker_strategy.VerifiedLocalStrategySourceTests.test_strategy_is_local_and_does_not_tap_or_call_network) ... ok
+2026-10-20T21:30:52.0141891Z test_virtual_chip_assumption_is_documented_not_money_detection (test_verified_local_poker_strategy.VerifiedLocalStrategySourceTests.test_virtual_chip_assumption_is_documented_not_money_detection) ... ok
+2026-10-20T21:30:52.0144583Z test_capture_end_clears_only_transient_evidence (test_verified_terminal_source.TerminalSourceTests.test_capture_end_clears_only_transient_evidence) ... ok
+2026-10-20T21:30:52.0146605Z test_durable_stop_checked_at_bridge (test_verified_terminal_source.TerminalSourceTests.test_durable_stop_checked_at_bridge) ... ok
+2026-10-20T21:30:52.0148515Z test_no_actions_and_no_external_network (test_verified_terminal_source.TerminalSourceTests.test_no_actions_and_no_external_network) ... ok
+2026-10-20T21:30:52.0150394Z test_no_fake_capture_producer (test_verified_terminal_source.TerminalSourceTests.test_no_fake_capture_producer) ... ok
+2026-10-20T21:30:52.0152308Z test_strict_terminal_cue_and_stable_id (test_verified_terminal_source.TerminalSourceTests.test_strict_terminal_cue_and_stable_id) ... ok
+2026-10-20T21:30:52.0154233Z test_android_metadata (test_verified_turn_binding_source.BindingSourceTest.test_android_metadata) ... ok
+2026-10-20T21:30:52.0155815Z test_producer_required (test_verified_turn_binding_source.BindingSourceTest.test_producer_required) ... ok
+2026-10-20T21:30:52.0157514Z test_certificate_change_fails (test_verify_android_upgrade.AndroidUpgradeGateTest.test_certificate_change_fails) ... ok
+2026-10-20T21:30:52.0159437Z test_colon_separated_cert_accepted (test_verify_android_upgrade.AndroidUpgradeGateTest.test_colon_separated_cert_accepted) ... ok
+2026-10-20T21:30:52.0161434Z test_invalid_certificate_format_fails (test_verify_android_upgrade.AndroidUpgradeGateTest.test_invalid_certificate_format_fails) ... ok
+2026-10-20T21:30:52.0164008Z test_invalid_or_missing_baseline_rejected_by_cli (test_verify_android_upgrade.AndroidUpgradeGateTest.test_invalid_or_missing_baseline_rejected_by_cli) ... ok
+2026-10-20T21:30:52.0165905Z test_missing_name_fails (test_verify_android_upgrade.AndroidUpgradeGateTest.test_missing_name_fails) ... ok
+2026-10-20T21:30:52.0167561Z test_package_change_fails (test_verify_android_upgrade.AndroidUpgradeGateTest.test_package_change_fails) ... ok
+2026-10-20T21:30:52.0169412Z test_valid_upgrade_metadata (test_verify_android_upgrade.AndroidUpgradeGateTest.test_valid_upgrade_metadata) ... ok
+2026-10-20T21:30:52.0171060Z test_version_same_or_lower_fails (test_verify_android_upgrade.AndroidUpgradeGateTest.test_version_same_or_lower_fails) ... ok
+2026-10-20T21:30:52.0173507Z test_capture_requires_stable_source_before_decoding (test_window_origin_source.WindowOriginSourceTests.test_capture_requires_stable_source_before_decoding) ... ok
+2026-10-20T21:30:52.0175753Z test_not_granted_game_permission (test_window_origin_source.WindowOriginSourceTests.test_not_granted_game_permission) ... ok
+2026-10-20T21:30:52.0177633Z test_readiness_is_still_blocked (test_window_origin_source.WindowOriginSourceTests.test_readiness_is_still_blocked) ... ok
+2026-10-20T21:30:52.0179577Z test_root_is_not_guessed_from_event (test_window_origin_source.WindowOriginSourceTests.test_root_is_not_guessed_from_event) ... ok
+2026-10-20T21:30:52.0180619Z 
+2026-10-20T21:30:52.0181371Z ======================================================================
+2026-10-20T21:30:52.0182544Z ERROR: test_action_control_source (unittest.loader._FailedTest.test_action_control_source)
+2026-10-20T21:30:52.0184024Z ----------------------------------------------------------------------
+2026-10-20T21:30:52.0185074Z ImportError: Failed to import test module: test_action_control_source
+2026-10-20T21:30:52.0185991Z Traceback (most recent call last):
+2026-10-20T21:30:52.0186956Z   File "/usr/lib/python3.12/unittest/loader.py", line 394, in _find_test_path
+2026-10-20T21:30:52.0187943Z     module = self._get_module_from_name(name)
+2026-10-20T21:30:52.0188701Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-20T21:30:52.0189717Z   File "/usr/lib/python3.12/unittest/loader.py", line 337, in _get_module_from_name
+2026-10-20T21:30:52.0190622Z     __import__(name)
+2026-10-20T21:30:52.0191913Z   File "/home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt/tools/test_action_control_source.py", line 6, in <module>
+2026-10-20T21:30:52.0193841Z     from PIL import Image
+2026-10-20T21:30:52.0194592Z ModuleNotFoundError: No module named 'PIL'
+2026-10-20T21:30:52.0195133Z 
+2026-10-20T21:30:52.0195302Z 
+2026-10-20T21:30:52.0195800Z ======================================================================
+2026-10-20T21:30:52.0196918Z ERROR: test_real_frame_calibration (unittest.loader._FailedTest.test_real_frame_calibration)
+2026-10-20T21:30:52.0198109Z ----------------------------------------------------------------------
+2026-10-20T21:30:52.0199178Z ImportError: Failed to import test module: test_real_frame_calibration
+2026-10-20T21:30:52.0200218Z Traceback (most recent call last):
+2026-10-20T21:30:52.0201163Z   File "/usr/lib/python3.12/unittest/loader.py", line 394, in _find_test_path
+2026-10-20T21:30:52.0202092Z     module = self._get_module_from_name(name)
+2026-10-20T21:30:52.0202995Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-20T21:30:52.0203912Z   File "/usr/lib/python3.12/unittest/loader.py", line 337, in _get_module_from_name
+2026-10-20T21:30:52.0204734Z     __import__(name)
+2026-10-20T21:30:52.0206038Z   File "/home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt/tools/test_real_frame_calibration.py", line 5, in <module>
+2026-10-20T21:30:52.0207260Z     from PIL import Image
+2026-10-20T21:30:52.0207937Z ModuleNotFoundError: No module named 'PIL'
+2026-10-20T21:30:52.0208420Z 
+2026-10-20T21:30:52.0208557Z 
+2026-10-20T21:30:52.0209036Z ======================================================================
+2026-10-20T21:30:52.0210346Z ERROR: test_recorded_surface (unittest.loader._FailedTest.test_recorded_surface)
+2026-10-20T21:30:52.0211479Z ----------------------------------------------------------------------
+2026-10-20T21:30:52.0212486Z ImportError: Failed to import test module: test_recorded_surface
+2026-10-20T21:30:52.0213545Z Traceback (most recent call last):
+2026-10-20T21:30:52.0214490Z   File "/usr/lib/python3.12/unittest/loader.py", line 394, in _find_test_path
+2026-10-20T21:30:52.0215439Z     module = self._get_module_from_name(name)
+2026-10-20T21:30:52.0216174Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-20T21:30:52.0217141Z   File "/usr/lib/python3.12/unittest/loader.py", line 337, in _get_module_from_name
+2026-10-20T21:30:52.0217988Z     __import__(name)
+2026-10-20T21:30:52.0219221Z   File "/home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt/tools/test_recorded_surface.py", line 4, in <module>
+2026-10-20T21:30:52.0220494Z     from audit_recorded_surface import classify
+2026-10-20T21:30:52.0221901Z   File "/home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt/tools/audit_recorded_surface.py", line 14, in <module>
+2026-10-20T21:30:52.0223277Z     from PIL import Image
+2026-10-20T21:30:52.0223919Z ModuleNotFoundError: No module named 'PIL'
+2026-10-20T21:30:52.0224362Z 
+2026-10-20T21:30:52.0224482Z 
+2026-10-20T21:30:52.0224966Z ----------------------------------------------------------------------
+2026-10-20T21:30:52.0225723Z Ran 301 tests in 0.182s
+2026-10-20T21:30:52.0226337Z 
+2026-10-20T21:30:52.0226660Z FAILED (errors=3)
+2026-10-20T21:30:52.0282226Z ##[error]Process completed with exit code 1.
+2026-10-20T21:30:52.0367731Z ##[group]Run actions/upload-artifact@v4
+2026-10-20T21:30:52.0368043Z with:
+2026-10-20T21:30:52.0368262Z   name: t042-unit-evidence-39500838887
+2026-10-20T21:30:52.0368536Z   if-no-files-found: warn
+2026-10-20T21:30:52.0369118Z   path: artifacts/*-tests.log
+android/app/build/test-results/testDebugUnitTest/*.xml
+android/app/build/reports/tests/testDebugUnitTest/
+
+2026-10-20T21:30:52.0369727Z   compression-level: 6
+2026-10-20T21:30:52.0369956Z   overwrite: false
+2026-10-20T21:30:52.0370174Z   include-hidden-files: false
+2026-10-20T21:30:52.0370404Z env:
+2026-10-20T21:30:52.0370695Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:52.0371191Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T21:30:52.0371594Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-10-20T21:30:52.0371901Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-10-20T21:30:52.0372222Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-10-20T21:30:52.0372546Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-10-20T21:30:52.0373137Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-10-20T21:30:52.0373506Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-10-20T21:30:52.0373952Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-10-20T21:30:52.0374426Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-10-20T21:30:52.0374734Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-10-20T21:30:52.0374989Z ##[endgroup]
+2026-10-20T21:30:52.2498505Z (node:2559) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-20T21:30:52.2500228Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-20T21:30:52.2638487Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-10-20T21:30:52.2714470Z The least common ancestor is /home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt. This will be the root directory of the artifact
+2026-10-20T21:30:52.2733426Z With the provided path, there will be 1 file uploaded
+2026-10-20T21:30:52.2754057Z Artifact name is valid!
+2026-10-20T21:30:52.2773588Z Root directory input is valid!
+2026-10-20T21:30:52.6881813Z Beginning upload of artifact content to blob storage
+2026-10-20T21:30:52.7119726Z (node:2559) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-20T21:30:52.9863999Z Uploaded bytes 7001
+2026-10-20T21:30:53.0638143Z Finished uploading artifact content to blob storage!
+2026-10-20T21:30:53.0639889Z SHA256 digest of uploaded artifact zip is aa41af7257f09903515e3d9002fcb0092e15079efa8c92e869eb30fdd8807f5e
+2026-10-20T21:30:53.0642404Z Finalizing artifact upload
+2026-10-20T21:30:53.3702179Z Artifact t042-unit-evidence-39500838887.zip successfully finalized. Artifact ID 12299767165
+2026-10-20T21:30:53.3704568Z Artifact t042-unit-evidence-39500838887 has been successfully uploaded! Final size is 7001 bytes. Artifact ID is 12299767165
+2026-10-20T21:30:53.3711038Z Artifact download URL: https://github.com/snowdanmail-code/ai-remote-control-gpt/actions/runs/39500838887/artifacts/12299767165
+2026-10-20T21:30:53.3964414Z Post job cleanup.
+2026-10-20T21:30:53.6875236Z In post-action step
+2026-10-20T21:30:53.6883543Z Cache is read-only: will not save state for use in subsequent builds.
+2026-10-20T21:30:53.6890897Z Generating Job Summary
+2026-10-20T21:30:53.6912604Z Completed post-action step
+2026-10-20T21:30:53.7224607Z Post job cleanup.
+2026-10-20T21:30:53.8765501Z (node:2584) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-20T21:30:53.8767246Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-20T21:30:53.9026426Z Post job cleanup.
+2026-10-20T21:30:54.0399840Z [command]/usr/bin/git version
+2026-10-20T21:30:54.0473918Z git version 2.55.0
+2026-10-20T21:30:54.0536624Z Temporarily overriding HOME='/home/runner/work/_temp/8c1610d6-ee11-4bf6-a422-c7ab2484dc4c' before making global git config changes
+2026-10-20T21:30:54.0546597Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-20T21:30:54.0569460Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/ai-remote-control-gpt/ai-remote-control-gpt
+2026-10-20T21:30:54.0630793Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T21:30:54.0677093Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-20T21:30:54.1084782Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-20T21:30:54.1136617Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-20T21:30:54.1635977Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-20T21:30:54.1716566Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-20T21:30:54.2345103Z Cleaning up orphan processes
+2026-10-20T21:30:54.2597364Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-java@v4, actions/upload-artifact@v4, android-actions/setup-android@v3, gradle/actions/setup-gradle@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

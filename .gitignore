@@ -1,0 +1,13 @@
+.gradle/
+**/build/
+.build-jvm/
+local.properties
+*.jks
+*.keystore
+*.token
+*.vault
+.env
+.private/
+__pycache__/
+*.pyc
+artifacts/

@@ -1,0 +1,3 @@
+<resources>
+    <string name="live_input_accessibility_description">Контроль активного приложения и аварийный STOP. Отправка касаний доступна только при подтверждённых условиях и разрешённой автоматизации.</string>
+</resources>

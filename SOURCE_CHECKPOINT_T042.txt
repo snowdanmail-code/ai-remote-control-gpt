@@ -1,0 +1,1 @@
+UNRELEASED T042 CHECKPOINT. BLOCKED. Version remains 75 / 2.14.41. No signed compatible APK release. See OAUTH_AUDIT_T042_2026-10-19.md.

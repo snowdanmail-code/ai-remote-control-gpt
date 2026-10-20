@@ -1,0 +1,25 @@
+{
+  "version": "2.14.26",
+  "date": "2026-10-18",
+  "artifact_kind": "source_only",
+  "base_version": "2.14.25",
+  "verified_base_sha256": "70ced4c739a553c0fd5b3feaf3a9cdd591edeb83c8d7c8eacd6eb9357b38dfd3",
+  "tests": {
+    "python": {
+      "passed": 207,
+      "failed": 0,
+      "command": "python -m unittest discover -s tools -p 'test_*.py' -q"
+    },
+    "real_frame_kotlin_scenarios": {
+      "passed": 35,
+      "failed": 0
+    },
+    "kotlin_jvm_suite": "passed",
+    "android_gradle_unit_tests": "not_run",
+    "actual_device": "not_run"
+  },
+  "real_1win_screen_accuracy": "unmeasured: authentic annotated frames absent",
+  "apk_built": false,
+  "live_game_actions_enabled": false,
+  "next": "Collect authentic labeled frames and measure source reliability before any action authorization"
+}

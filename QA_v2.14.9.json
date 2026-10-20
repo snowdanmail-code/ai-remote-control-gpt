@@ -1,0 +1,18 @@
+{
+  "version": "v2.14.9",
+  "purpose": "Delayed gesture dispatch protection",
+  "compiled_android": false,
+  "installed_apk": false,
+  "tests": {
+    "kotlin_delayed_gesture": 15,
+    "kotlin_action_guard_regression": 18,
+    "python_static": 84,
+    "android_junit_added_not_run": 7
+  },
+  "limitations": [
+    "SDK and Gradle unavailable",
+    "GitHub Android project repo not identified",
+    "External game automation not permitted without platform approval",
+    "No GPT authorization or end-to-end tests"
+  ]
+}

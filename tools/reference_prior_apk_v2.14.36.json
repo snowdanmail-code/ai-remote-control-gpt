@@ -1,0 +1,10 @@
+{
+  "source_filename": "AI-Remote-Control-GPT-v2.14.36-ChatGPT-Connection-Fix.apk",
+  "source_apk_sha256": "13cdf388dc13dd8ab9f9c2297a565531f9e21a45d6501fea1e7c2845566b7a2f",
+  "package": "com.example.airemote.dev",
+  "version_code": 70,
+  "version_name": "2.14.36-chatgpt-connection-diagnostics-test",
+  "signer_sha256": "511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c",
+  "signing_scheme": "APK Signature Scheme v2",
+  "provenance": "Metadata independently parsed from the exact archived APK bytes; NOT a runtime query of the owner's phone. A fresh APK must pass Android apksigner verification before distribution."
+}

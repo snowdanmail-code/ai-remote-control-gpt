@@ -1,0 +1,620 @@
+--- a/.github/workflows/android.yml
++++ b/.github/workflows/android.yml
+@@ -51,17 +51,17 @@
+             --candidate android/app/build/outputs/apk/debug/app-debug.apk \
+             --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+-            --baseline-metadata tools/reference_prior_apk_v2.14.36.json \
++            --baseline-metadata tools/reference_prior_apk_v2.14.39.json \
+             --report artifacts/upgrade-verification.json
+           cp android/app/build/outputs/apk/debug/app-debug.apk \
+-            artifacts/AI-Remote-Control-GPT-v2.14.39-VERIFIED-UPDATE-debug.apk
++            artifacts/AI-Remote-Control-GPT-v2.14.40-VERIFIED-UPDATE-debug.apk
+           cd artifacts
+-          sha256sum AI-Remote-Control-GPT-v2.14.39-VERIFIED-UPDATE-debug.apk \
+-            > AI-Remote-Control-GPT-v2.14.39-VERIFIED-UPDATE-debug.apk.sha256
++          sha256sum AI-Remote-Control-GPT-v2.14.40-VERIFIED-UPDATE-debug.apk \
++            > AI-Remote-Control-GPT-v2.14.40-VERIFIED-UPDATE-debug.apk.sha256
+       - name: Publish APK only AFTER full upgrade verification
+         uses: actions/upload-artifact@v4
+         with:
+-          name: ai-remote-control-v2.14.39-verified-update-debug
++          name: ai-remote-control-v2.14.40-verified-update-debug
+           path: artifacts/*
+           retention-days: 14
+           if-no-files-found: error
+--- a/CURRENT_VERSION.txt
++++ b/CURRENT_VERSION.txt
+@@ -1 +1 @@
+-AI Remote Control GPT v2.14.39 — OAuth identity/JWKS and Android DNS admission; source release candidate, not an APK.
++AI Remote Control GPT v2.14.40 — remove false-negative DNS admission, HTTPS pre-body connect with bounded safe retry. Source-only candidate; NOT an APK.
+--- /dev/null
++++ b/QA_v2.14.40.json
+@@ -0,0 +1,34 @@
++{
++  "version": "2.14.40",
++  "base_version": "2.14.39",
++  "source_only": true,
++  "issue_observed": "AUTH_TOKEN_DNS_FAILURE after successful HTTPS preflight (AUTH 200, API unauthenticated 401)",
++  "confirmed_code_defect": "redundant InetAddress.getAllByName before OAuth POST may reject an otherwise reachable HTTPS endpoint",
++  "fix": "remove independent DNS gate; connect to HTTPS before writing sensitive body, one bounded UnknownHostException retry before writing only; stream fixed length",
++  "python_unittest": {
++    "pass": 291,
++    "fail": 0
++  },
++  "kotlin_scenarios": {
++    "full_suite_exit": 0,
++    "new_prebody_connector": 6
++  },
++  "kotlin_android_stub_compile": {
++    "passed": true,
++    "note": "stub compilation is not Android SDK or APK compilation"
++  },
++  "gradle_build": "not_run_no_android_sdk",
++  "real_phone_chatgpt_oauth": "not_tested",
++  "signing_target": {
++    "package": "com.example.airemote.dev",
++    "new_versionCode": 74,
++    "prior_versionCode": 73,
++    "signer_sha256": "511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c"
++  },
++  "safety": {
++    "no_new_ui_buttons": true,
++    "no_password_or_2fa_codes_requested": true,
++    "no_oauth_post_retry_after_body": true,
++    "previous_version_preserved": true
++  }
++}
+--- a/README_RU.md
++++ b/README_RU.md
+@@ -1 +1,5 @@
++# AI Remote Control GPT — v2.14.40 (исходники)
++
++См. [README_v2.14.40.md](README_v2.14.40.md) и [WORK_BUILD_GATE_v2.14.40.md](WORK_BUILD_GATE_v2.14.40.md). Приложение v2.14.39 на телефоне не изменено. Новый APK не собран.
++
+ AI Remote Control GPT v2.14.36 — исправление подключения ChatGPT. Подробнее: README_v2.14.36.md. APK не включён.
+--- /dev/null
++++ b/README_v2.14.40.md
+@@ -0,0 +1,28 @@
++# AI Remote Control GPT — v2.14.40 OAuth token transport fix (source-only)
++
++## Причина исправления
++
++На Samsung Android 16 в установленной v2.14.39 после успешной HTTPS-проверки `auth.openai.com/.well-known/jwks.json` (200) и `api.openai.com/v1/models` (401 без токена) OAuth-код не обменивается на токены: `AUTH_TOKEN_DNS_FAILURE`. Код v2.14.39 выполнял **дополнительный** `InetAddress.getAllByName("auth.openai.com")` непосредственно перед отправкой POST. Этот независимый DNS-запрос мог завершиться ошибкой, запрещая даже попытку рабочей HTTPS-транзакции. Это дефект логики, но без трассировки устройства нельзя исключить и реальный DNS-сбой при HTTPS.
++
++## Изменения
++
++1. Удалена повторная обязательная `ChatGptDnsAdmission.preflight()` и устаревший вспомогательный класс.
++2. DNS/HTTPS доступность диагностируется **одним настоящим HTTPS GET**, а не отдельным предварительным `InetAddress.getAllByName`.
++3. Добавлен `ChatGptTokenConnect.openBeforeBody`: до отправки OAuth-данных выполняется HTTPS `connect()`. Однократный повтор допускается лишь если это соединение упало на `UnknownHostException` до отправки тела. Остальные исключения не повторяются.
++4. Для OAuth POST установлен `setFixedLengthStreamingMode`; тело запроса записывается ровно один раз после успешного соединения. Ответ или тайм-аут **никогда** не вызывают повторного отправления кода.
++5. Нет новых кнопок. Сохранены системный Chrome, 2FA, PKCE/state/nonce, строгая подпись ID-токена и STOP.
++6. В CI ссылка на базовый APK обновлена до подписанного v2.14.39 (`versionCode=73`). Кандидат — `versionCode=74`, пакет `com.example.airemote.dev` и прежний сертификат SHA-256 `511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c`.
++
++## Ограничения
++
++- Данный ZIP — **исходники, не APK**. Невозможно подтвердить исправление ошибки на Starlink из офлайн-тестов.
++- Нет разрешения отключать 2FA или встраивать пароли/токены/коды в APK.
++- Требуется полноценный Gradle `:app:testDebugUnitTest` и `:app:assembleDebug` в Work, проверка подписи кандидата, затем один контрольный вход на реальном телефоне.
++- Вход ChatGPT не даёт права на автоматические касания в 1win. OCR/STOP/локальная стратегия сохранены, но не признаны полноценной живой автономной игрой.
++- Возможны иные причины DNS после этого исправления; прежде чем менять сеть или OAuth наугад, нужны обезличенные сведения о конкретном сбое HTTPS из приложения, без повторных скриншотов и установок ради кнопки диагностики.
++
++## QA
++
++- Python: выполнить `python -m unittest discover -s tools -p 'test_*.py' -q`.
++- Kotlin/JVM: `bash tools/run_jvm_tests.sh`.
++- Независимая компиляция облачного модуля с тестовыми заглушками Android выполнена, но она не заменяет Android Gradle build.
+--- /dev/null
++++ b/ROADMAP_v2.14.40.md
+@@ -0,0 +1,6 @@
++# Follow-up after v2.14.40
++
++1. Полная Android сборка и проверка совместимости с APK v2.14.39.
++2. Тест реального входа ChatGPT через Chrome/2FA один раз, без лишних diagnostic buttons.
++3. Подтвердить получение модели и streaming Responses API (`store: false`).
++4. Только после успешного облачного теста — интегрировать с доверенным hand-state tracker в разрешённом режиме, не обходя game guards.
+--- /dev/null
++++ b/WORK_BUILD_GATE_v2.14.40.md
+@@ -0,0 +1,12 @@
++# ChatGPT Work / Android CI handoff — OAuth transport patch v2.14.40
++
++**Не запрашивать у пользователя APK, новые скриншоты, пароль или коды 2FA.** Исходная установленная v2.14.39 и отчёт сборки уже получены. APK v2.14.39 SHA256: `622e0901466499a7faa32235b22d230f6f7a3dfe13d2a0d2e5d7da501b4ae2ba`.
++
++1. Используй полный архив исходников v2.14.40 (или при необходимости приложенный patch); не начинай проект заново. Убедись, что блокирующий `InetAddress.getAllByName(host)` в OAuth POST действительно удалён и реализован безопасный HTTPS-connect до передачи одноразового кода.
++2. Выполни Python/JVM-тесты; затем Android `:app:testDebugUnitTest` и `:app:assembleDebug`. Исправь реальные ошибки, сохрани прежний минимальный UI и STOP.
++3. Собери APK с тем же `applicationId=com.example.airemote.dev`, увеличенным versionCode 74, **точно прежним** сертификатом SHA256 `511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c`. Используй защищённый keystore из предыдущей сборки; никогда не добавляй его в репозиторий. При несовпадении блокируй публикацию.
++4. Запусти `tools/verify_android_upgrade.py` против `tools/reference_prior_apk_v2.14.39.json` с `aapt` и `apksigner`, проверь APK ZIP CRC и SHA-256. Опубликуй файл только при успешных результатах.
++5. Осуществи тесты протокола с подставным OAuth сервером для разных сетевых исходов. Реальную авторизацию с пользовательской подпиской и 2FA можно подтвердить только на пользовательском смартфоне; **не объявляй её успешной заранее**.
++6. Не добавляй кнопки диагностики, не требуй от пользователя повторных установок для отдельных ошибок. Итог: один проверенный APK, его SHA-256, отчёт Gradle, результаты тестов и точные пределы подтверждённого поведения.
++
++**Запрещено:** повторно POST-ить authorization code после записи тела; использовать HTTP, сторонний DNS/прокси без согласия, обходить 2FA, менять подпись или удалять данные существующего приложения.
+--- a/android/app/build.gradle.kts
++++ b/android/app/build.gradle.kts
+@@ -14,8 +14,8 @@
+         applicationId = "com.example.airemote"
+         minSdk = 29
+         targetSdk = 35
+-        versionCode = 73
+-        versionName = "2.14.39-identity-network-fix"
++        versionCode = 74
++        versionName = "2.14.40-token-transport-fix"
+     }
+     signingConfigs {
+         if (!compatibleKeystore.isNullOrBlank()) {
+--- a/android/app/src/main/java/com/example/airemote/ChatGptCloudBridge.kt
++++ b/android/app/src/main/java/com/example/airemote/ChatGptCloudBridge.kt
+@@ -218,14 +218,12 @@
+     }
+ 
+     private fun probeEndpoint(host: String, path: String): String {
+-        // The host and path are fixed in code; never pass redirect or credentials to this probe.
++        // Check the REAL HTTPS request, not a separate InetAddress lookup.
++        // On Android the independent DNS lookup can fail even if the HTTPS
++        // transport to exactly this host succeeds. A reachable HTTP 401/403
++        // only proves transport availability, never a valid OAuth session.
+         require(host == "auth.openai.com" || host == "api.openai.com")
+         require(path == "/.well-known/jwks.json" || path == "/v1/models")
+-        try {
+-            if (InetAddress.getAllByName(host).isEmpty()) return "DNS_EMPTY"
+-        } catch (e: Exception) {
+-            return "DNS_${ChatGptTransportDiagnostics.problem(e).name}"
+-        }
+         return try {
+             val conn = request("https://$host$path", "GET")
+             conn.connectTimeout = 5_000
+@@ -233,35 +231,53 @@
+             try {
+                 val code = conn.responseCode
+                 if (code in 100..599) "DNS_OK HTTPS_REACHABLE HTTP_$code"
+-                else "DNS_OK HTTPS_NO_RESPONSE"
++                else "HTTPS_NO_RESPONSE"
+             } finally { conn.disconnect() }
+         } catch (e: Exception) {
+-            "DNS_OK HTTPS_${ChatGptTransportDiagnostics.problem(e).name}"
+-        }
+-    }
+-
+-    /** Only HTTPS, bounded response, no redirects to another credential destination. */
++            val kind = ChatGptTransportDiagnostics.problem(e)
++            if (kind == ChatGptCloudProblem.DNS_FAILURE) "DNS_FAILURE"
++            else "HTTPS_${kind.name}"
++        }
++    }
++
++    /** HTTPS only. OAuth POST establishes its network connection BEFORE the
++     * credential-bearing request body is written. A single DNS retry is allowed
++     * only if the pre-body connection failed with UnknownHostException. No
++     * authorization code / refresh-token POST is replayed after any bytes.
++     */
+     private fun request(url: String, method: String, bearer: String? = null,
+                         contentType: String? = null, body: ByteArray? = null): HttpURLConnection {
+         val uri = URL(url)
+         require(uri.protocol == "https" && (uri.host == "auth.openai.com" || uri.host == "api.openai.com"))
+-        // Intermittent DNS on Android/Starlink: retry only hostname resolution
+-        // BEFORE constructing/opening the connection, never an OAuth POST/code.
+-        if (method == "POST" && uri.host == "auth.openai.com") {
+-            ChatGptDnsAdmission.preflight(uri.host, { host -> InetAddress.getAllByName(host).isNotEmpty() })
+-        }
+-        val conn = uri.openConnection() as HttpURLConnection
+-        conn.instanceFollowRedirects = false
+-        conn.requestMethod = method
+-        conn.connectTimeout = 12_000
+-        conn.readTimeout = 35_000
+-        conn.setRequestProperty("Accept", if (url.endsWith("/v1/responses")) "text/event-stream" else "application/json")
+-        if (bearer != null) conn.setRequestProperty("Authorization", "Bearer $bearer")
+-        if (contentType != null) conn.setRequestProperty("Content-Type", contentType)
++        require(method == "GET" || method == "POST")
++        if (body != null) require(body.size < 128_000 && method == "POST")
++        val newConnection = {
++            (uri.openConnection() as HttpURLConnection).apply {
++                instanceFollowRedirects = false
++                requestMethod = method
++                connectTimeout = 12_000
++                readTimeout = 35_000
++                setRequestProperty("Accept", if (url.endsWith("/v1/responses")) "text/event-stream" else "application/json")
++                if (bearer != null) setRequestProperty("Authorization", "Bearer $bearer")
++                if (contentType != null) setRequestProperty("Content-Type", contentType)
++                if (body != null) {
++                    doOutput = true
++                    // Never let HttpURLConnection buffer/replay a sensitive grant body.
++                    setFixedLengthStreamingMode(body.size)
++                }
++            }
++        }
++        val conn = if (body != null && uri.host == "auth.openai.com") {
++            ChatGptTokenConnect.openBeforeBody(
++                create = newConnection,
++                establish = { it.connect() },
++                discard = { it.disconnect() }
++            )
++        } else newConnection()
++        // The body is written ONCE. No retry of write/response/HTTP error.
+         if (body != null) {
+-            require(body.size < 128_000)
+-            conn.doOutput = true
+-            conn.outputStream.use { it.write(body) }
++            try { conn.outputStream.use { it.write(body) } }
++            catch (ex: Exception) { conn.disconnect(); throw ex }
+         }
+         return conn
+     }
+--- a/android/app/src/main/java/com/example/airemote/ChatGptDnsAdmission.kt
++++ /dev/null
+@@ -1,22 +0,0 @@
+-package com.example.airemote
+-
+-import java.net.UnknownHostException
+-
+-/** One bounded DNS retry BEFORE a credential-bearing POST is opened.
+- * This must never retry an authorization code, refresh-token grant or HTTP request.
+- */
+-object ChatGptDnsAdmission {
+-    fun preflight(host: String, resolves: (String) -> Boolean,
+-                  waitBeforeRetry: () -> Unit = { Thread.sleep(350) }) {
+-        require(host == "auth.openai.com")
+-        for (attempt in 0..1) {
+-            try {
+-                if (resolves(host)) return
+-            } catch (_: UnknownHostException) {
+-                // Only DNS has been attempted. No OAuth bytes were sent.
+-            }
+-            if (attempt == 0) waitBeforeRetry()
+-        }
+-        throw UnknownHostException("OpenAI OAuth hostname could not be resolved")
+-    }
+-}
+--- /dev/null
++++ b/android/app/src/main/java/com/example/airemote/ChatGptTokenConnect.kt
+@@ -0,0 +1,32 @@
++package com.example.airemote
++
++import java.net.UnknownHostException
++
++/** A DNS retry before OAuth credentials are transmitted, never a retry of POST.
++ * The HTTPS transport must actually attempt connect(); a stand-alone DNS gate
++ * can reject a request that would otherwise succeed on the active network.
++ */
++object ChatGptTokenConnect {
++    fun <T> openBeforeBody(
++        create: () -> T,
++        establish: (T) -> Unit,
++        discard: (T) -> Unit,
++        pauseBeforeRetry: () -> Unit = { Thread.sleep(350) }
++    ): T {
++        for (attempt in 0..1) {
++            val c = create()
++            try {
++                establish(c) // No credential-bearing bytes written yet.
++                return c
++            } catch (ex: UnknownHostException) {
++                discard(c)
++                if (attempt == 1) throw ex
++                pauseBeforeRetry()
++            } catch (ex: Exception) {
++                discard(c)
++                throw ex // TLS, HTTP, timeout and other errors are never retried.
++            }
++        }
++        error("Unreachable: bounded attempts exhausted")
++    }
++}
+--- a/android/app/src/main/java/com/example/airemote/MainActivity.kt
++++ b/android/app/src/main/java/com/example/airemote/MainActivity.kt
+@@ -108,7 +108,7 @@
+         }
+         advanced.addView(arm, LinearLayout.LayoutParams(
+             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+-        label("AI Remote Control v2.14.39 — Android + ChatGPT")
++        label("AI Remote Control v2.14.40 — Android + ChatGPT")
+         label("Захват и OCR локально. Windows-сервер и его настройки удалены. " +
+             "Локальная стратегия сохранена. Подключение ChatGPT проверяется через OAuth в системном браузере. " +
+             "Исполнитель Android-касаний доступен после разрешения оператора, проверки игрового состояния и кнопок.")
+@@ -247,7 +247,7 @@
+             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                 addCategory(Intent.CATEGORY_OPENABLE)
+                 type = "application/json"
+-                putExtra(Intent.EXTRA_TITLE, "incident-report-v2.14.39.json")
++                putExtra(Intent.EXTRA_TITLE, "incident-report-v2.14.40.json")
+             }
+             @Suppress("DEPRECATION")
+             startActivityForResult(intent, incidentExportRequest)
+--- a/tools/ChatGptDnsAdmissionScenarios.kt
++++ /dev/null
+@@ -1,18 +0,0 @@
+-package com.example.airemote
+-
+-import java.net.UnknownHostException
+-
+-object ChatGptDnsAdmissionScenarios {
+-    @JvmStatic fun main(args: Array<String>) {
+-        var n = 0
+-        fun assertCase(block: () -> Unit) { block(); n++ }
+-        assertCase { var c = 0; ChatGptDnsAdmission.preflight("auth.openai.com", { c++; true }, {}); check(c==1) }
+-        assertCase { var c = 0; var w = 0; ChatGptDnsAdmission.preflight("auth.openai.com", { c++; c == 2 }, {w++}); check(c==2 && w==1) }
+-        assertCase { var c = 0; ChatGptDnsAdmission.preflight("auth.openai.com", { c++; if(c==1) throw UnknownHostException() else true }, {}); check(c==2) }
+-        assertCase { var c = 0; try { ChatGptDnsAdmission.preflight("auth.openai.com", { c++; false }, {}); error("accepted") } catch (_: UnknownHostException) { check(c==2) } }
+-        assertCase { var c = 0; try { ChatGptDnsAdmission.preflight("auth.openai.com", { c++; throw UnknownHostException() }, {}); error("accepted") } catch (_: UnknownHostException) { check(c==2) } }
+-        assertCase { var c = 0; try { ChatGptDnsAdmission.preflight("api.openai.com", { c++; true }, {}); error("accepted") } catch (_: IllegalArgumentException) { check(c==0) } }
+-        assertCase { var c = 0; try { ChatGptDnsAdmission.preflight("auth.openai.com", { c++; throw java.net.ConnectException() }, {}); error("accepted") } catch (_: java.net.ConnectException) { check(c==1) } }
+-        println("CHATGPT_DNS_ADMISSION_OK=$n")
+-    }
+-}
+--- /dev/null
++++ b/tools/ChatGptTokenConnectScenarios.kt
+@@ -0,0 +1,38 @@
++package com.example.airemote
++
++import java.net.UnknownHostException
++import java.net.SocketTimeoutException
++import javax.net.ssl.SSLException
++
++object ChatGptTokenConnectScenarios {
++    @JvmStatic fun main(args: Array<String>) {
++        var assertions = 0
++        fun case(run: () -> Unit) { run(); assertions++ }
++        case { var opened=0; var connected=0
++            val selected=ChatGptTokenConnect.openBeforeBody(create={ ++opened }, establish={ connected++; check(it==1) }, discard={ error("unexpected discard") }, pauseBeforeRetry={ error("unexpected retry") })
++            check(selected==1 && opened==1 && connected==1)
++        }
++        case { var opened=0; var connected=0; var closed=0; var paused=0
++            val selected=ChatGptTokenConnect.openBeforeBody(create={ ++opened }, establish={ connected++; if (it==1) throw UnknownHostException() }, discard={ closed++ }, pauseBeforeRetry={ paused++ })
++            check(selected==2 && opened==2 && connected==2 && closed==1 && paused==1)
++        }
++        case { var opened=0; var closed=0
++            try { ChatGptTokenConnect.openBeforeBody(create={ ++opened }, establish={ throw UnknownHostException() }, discard={ closed++ }, pauseBeforeRetry={}) ; error("must fail") }
++            catch (_: UnknownHostException) { check(opened==2 && closed==2) }
++        }
++        case { var opened=0; var closed=0
++            try { ChatGptTokenConnect.openBeforeBody(create={ ++opened }, establish={ throw SSLException("failed") }, discard={ closed++ }, pauseBeforeRetry={ error("never retry TLS") }) ; error("must fail") }
++            catch (_: SSLException) { check(opened==1 && closed==1) }
++        }
++        case { var opened=0; var closed=0
++            try { ChatGptTokenConnect.openBeforeBody(create={ ++opened }, establish={ throw SocketTimeoutException("timeout") }, discard={ closed++ }, pauseBeforeRetry={ error("never retry timeout") }); error("must fail") }
++            catch (_: SocketTimeoutException) { check(opened==1 && closed==1) }
++        }
++        case { var sent=0; var opened=0
++            val selected=ChatGptTokenConnect.openBeforeBody(create={++opened}, establish={ if(it==1) throw UnknownHostException() }, discard={}, pauseBeforeRetry={})
++            // The caller writes the POST body only after a connection is returned.
++            sent++; check(selected==2 && sent==1 && opened==2)
++        }
++        println("CHATGPT_TOKEN_CONNECT_OK=$assertions")
++    }
++}
+--- /dev/null
++++ b/tools/reference_prior_apk_v2.14.39.json
+@@ -0,0 +1,10 @@
++{
++  "source_filename": "AI-Remote-Control-GPT-v2.14.39.apk",
++  "source_apk_sha256": "622e0901466499a7faa32235b22d230f6f7a3dfe13d2a0d2e5d7da501b4ae2ba",
++  "package": "com.example.airemote.dev",
++  "version_code": 73,
++  "version_name": "2.14.39-identity-network-fix-test",
++  "signer_sha256": "511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c",
++  "signing_scheme": "APK Signature Scheme v2",
++  "provenance": "Baseline recorded from archived v2.14.39 APK and its Work build report, with matching digest; candidate must pass its own Android SDK apksigner and aapt checks. Do not embed keystore or credentials."
++}
+--- a/tools/run_jvm_tests.sh
++++ b/tools/run_jvm_tests.sh
+@@ -39,7 +39,7 @@
+ com.example.airemote.ChatGptLoginPreflightScenarios
+ com.example.airemote.ChatGptCloudDiagnosticScenarios
+ com.example.airemote.ChatGptIdentityPolicyScenarios
+-com.example.airemote.ChatGptDnsAdmissionScenarios
++com.example.airemote.ChatGptTokenConnectScenarios
+ com.example.airemote.RecordedSurfaceScenarios
+ com.example.airemote.OpponentGateIntegrationScenarios
+ com.example.airemote.AutomaticOcrEvidenceScenariosKt
+--- a/tools/test_chatgpt_identity_network_21439.py
++++ /dev/null
+@@ -1,44 +0,0 @@
+-"""Regression against misclassifying JWKS network errors as invalid identity."""
+-import re
+-import unittest
+-from pathlib import Path
+-R=Path(__file__).resolve().parents[1]
+-S=R/'android/app/src/main/java/com/example/airemote'
+-
+-class IdentityNetworkRegression(unittest.TestCase):
+-    def test_jwks_network_exceptions_not_mapped_to_bad_identity(self):
+-        bridge=(S/'ChatGptCloudBridge.kt').read_text()
+-        self.assertIn('val claims = verifyIdToken(idToken, returned.issuedClientId, nonce)', bridge)
+-        self.assertNotRegex(bridge, r'verifyIdToken\(idToken, returned\.issuedClientId, nonce\)\s*}\s*catch\s*\(_:\s*Exception\)')
+-        self.assertIn('getJson(ChatGptAuthProtocol.JWKS)',bridge)
+-        self.assertIn('ChatGptDnsAdmission.preflight',bridge)
+-        self.assertLess(bridge.index('ChatGptDnsAdmission.preflight'), bridge.index('conn.outputStream'))
+-    def test_valid_id_token_header_does_not_require_typ(self):
+-        bridge=(S/'ChatGptCloudBridge.kt').read_text()
+-        self.assertIn('header.optString("alg") != "RS256"',bridge)
+-        self.assertNotIn('header.optString("typ"',bridge)
+-        self.assertIn('Signature.getInstance("SHA256withRSA")',bridge)
+-        self.assertIn('sig.verify(decode(parts[2]))',bridge)
+-    def test_claim_validation_remains_strict(self):
+-        policy=(S/'ChatGptIdentityPolicy.kt').read_text()
+-        for s in ('ChatGptAuthProtocol.ISSUER','expectedClient !in claims.audiences','expirationSeconds <= nowSeconds','ChatGptAuthProtocol.secureEquals(expectedNonce, claims.nonce)','claims.subject.isBlank()'):
+-            self.assertIn(s,policy)
+-    def test_no_oauth_replay_on_dns_failure(self):
+-        dns=(S/'ChatGptDnsAdmission.kt').read_text()
+-        self.assertIn('UnknownHostException',dns)
+-        self.assertNotIn('code_verifier',dns)
+-        self.assertNotIn('authorization_code',dns)
+-        self.assertNotIn('postForm(',dns)
+-    def test_no_additional_buttons(self):
+-        main=(S/'MainActivity.kt').read_text()
+-        self.assertNotIn('ПРОВЕРИТЬ JWKS ОТДЕЛЬНО',main)
+-        self.assertIn('primaryActions',main)
+-    def test_workflow_yaml_no_blank_env_step(self):
+-        workflow=(R/'.github/workflows/android.yml').read_text()
+-        self.assertNotIn('        env:\n        run:',workflow)
+-    def test_compatibility_version_increment(self):
+-        build=(R/'android/app/build.gradle.kts').read_text()
+-        self.assertIn('versionCode = 73',build)
+-        self.assertIn('applicationIdSuffix = ".dev"',build)
+-
+-if __name__=='__main__': unittest.main()
+--- /dev/null
++++ b/tools/test_chatgpt_identity_network_21440.py
+@@ -0,0 +1,45 @@
++"""Regression against misclassifying JWKS network errors as invalid identity."""
++import re
++import unittest
++from pathlib import Path
++R=Path(__file__).resolve().parents[1]
++S=R/'android/app/src/main/java/com/example/airemote'
++
++class IdentityNetworkRegression(unittest.TestCase):
++    def test_jwks_network_exceptions_not_mapped_to_bad_identity(self):
++        bridge=(S/'ChatGptCloudBridge.kt').read_text()
++        self.assertIn('val claims = verifyIdToken(idToken, returned.issuedClientId, nonce)', bridge)
++        self.assertNotRegex(bridge, r'verifyIdToken\(idToken, returned\.issuedClientId, nonce\)\s*}\s*catch\s*\(_:\s*Exception\)')
++        self.assertIn('getJson(ChatGptAuthProtocol.JWKS)',bridge)
++        self.assertIn('ChatGptTokenConnect.openBeforeBody',bridge)
++        self.assertNotIn('ChatGptDnsAdmission.preflight',bridge)
++        self.assertLess(bridge.index('ChatGptTokenConnect.openBeforeBody'), bridge.index('conn.outputStream'))
++    def test_valid_id_token_header_does_not_require_typ(self):
++        bridge=(S/'ChatGptCloudBridge.kt').read_text()
++        self.assertIn('header.optString("alg") != "RS256"',bridge)
++        self.assertNotIn('header.optString("typ"',bridge)
++        self.assertIn('Signature.getInstance("SHA256withRSA")',bridge)
++        self.assertIn('sig.verify(decode(parts[2]))',bridge)
++    def test_claim_validation_remains_strict(self):
++        policy=(S/'ChatGptIdentityPolicy.kt').read_text()
++        for s in ('ChatGptAuthProtocol.ISSUER','expectedClient !in claims.audiences','expirationSeconds <= nowSeconds','ChatGptAuthProtocol.secureEquals(expectedNonce, claims.nonce)','claims.subject.isBlank()'):
++            self.assertIn(s,policy)
++    def test_no_oauth_replay_on_dns_failure(self):
++        connector=(S/'ChatGptTokenConnect.kt').read_text()
++        self.assertIn('UnknownHostException',connector)
++        self.assertNotIn('code_verifier',connector)
++        self.assertNotIn('authorization_code',connector)
++        self.assertNotIn('postForm(',connector)
++    def test_no_additional_buttons(self):
++        main=(S/'MainActivity.kt').read_text()
++        self.assertNotIn('ПРОВЕРИТЬ JWKS ОТДЕЛЬНО',main)
++        self.assertIn('primaryActions',main)
++    def test_workflow_yaml_no_blank_env_step(self):
++        workflow=(R/'.github/workflows/android.yml').read_text()
++        self.assertNotIn('        env:\n        run:',workflow)
++    def test_compatibility_version_increment(self):
++        build=(R/'android/app/build.gradle.kts').read_text()
++        self.assertIn('versionCode = 74',build)
++        self.assertIn('applicationIdSuffix = ".dev"',build)
++
++if __name__=='__main__': unittest.main()
+--- a/tools/test_chatgpt_transport_source.py
++++ b/tools/test_chatgpt_transport_source.py
+@@ -11,8 +11,9 @@
+ 
+     def test_no_credentials_in_probe(self):
+         bridge = (SRC/'ChatGptCloudBridge.kt').read_text()
+-        probe = bridge.split('private fun probeEndpoint(')[1].split('    /** Only HTTPS')[0]
+-        self.assertIn('InetAddress.getAllByName(host)', probe)
++        probe = bridge.split('private fun probeEndpoint(')[1].split('    private fun request(')[0]
++        self.assertNotIn('InetAddress.getAllByName(host)', probe)
++        self.assertIn('conn.responseCode',probe)
+         self.assertIn('"GET"', probe)
+         self.assertNotIn('Bearer', probe)
+         self.assertNotIn('access_token', probe)
+--- /dev/null
++++ b/tools/test_reference_prior_v21439.py
+@@ -0,0 +1,17 @@
++"""The next APK must use v2.14.39's verified package, signing cert and a higher code."""
++import json
++import unittest
++from pathlib import Path
++ROOT=Path(__file__).resolve().parents[1]
++class BaselineV39(unittest.TestCase):
++    def test_archive_is_actual_v39(self):
++        data=json.loads((ROOT/'tools/reference_prior_apk_v2.14.39.json').read_text())
++        self.assertEqual('com.example.airemote.dev',data['package'])
++        self.assertEqual(73,data['version_code'])
++        self.assertEqual('622e0901466499a7faa32235b22d230f6f7a3dfe13d2a0d2e5d7da501b4ae2ba',data['source_apk_sha256'])
++        self.assertEqual(64,len(data['signer_sha256']))
++    def test_ci_gate_uses_immediately_previous_apk(self):
++        workflow=(ROOT/'.github/workflows/android.yml').read_text()
++        self.assertIn('reference_prior_apk_v2.14.39.json',workflow)
++        self.assertLess(workflow.index('verify_android_upgrade.py'),workflow.index('actions/upload-artifact@v4'))
++if __name__=='__main__': unittest.main()
+--- a/tools/test_release_candidate_contract.py
++++ b/tools/test_release_candidate_contract.py
+@@ -35,14 +35,14 @@
+         self.assertIn('AI_REMOTE_SIGNING_KEYSTORE_PATH', s)
+         self.assertIn('signingConfig = signingConfigs.getByName("existingInstallation")', s)
+         self.assertIn('applicationIdSuffix = ".dev"', s)
+-        self.assertIn('versionCode = 73', s)
++        self.assertIn('versionCode = 74', s)
+         self.assertNotIn('storePassword = "android"', s)
+         self.assertNotIn('keyPassword = "android"', s)
+ 
+     def test_workflow_no_unverified_artifact(self):
+         w = WORKFLOW.read_text()
+         self.assertIn('secrets.EXISTING_APK_KEYSTORE_B64', w)
+-        self.assertIn('tools/reference_prior_apk_v2.14.36.json', w)
++        self.assertIn('tools/reference_prior_apk_v2.14.39.json', w)
+         self.assertIn('tools/verify_android_upgrade.py', w)
+         self.assertIn('app:assembleDebug', w)
+         self.assertIn('app:testDebugUnitTest', w)
+--- /dev/null
++++ b/tools/test_token_transport_no_false_dns.py
+@@ -0,0 +1,43 @@
++"""No redundant DNS gate before OAuth token POST. Regression for v2.14.39 AUTH_TOKEN_DNS_FAILURE."""
++from pathlib import Path
++import unittest
++R=Path(__file__).resolve().parents[1]
++BRIDGE=(R/'android/app/src/main/java/com/example/airemote/ChatGptCloudBridge.kt')
++HELPER=(R/'android/app/src/main/java/com/example/airemote/ChatGptTokenConnect.kt')
++
++class TokenTransportRegression(unittest.TestCase):
++    def test_no_separate_dns_gate_on_post(self):
++        body=BRIDGE.read_text().split('private fun request(')[1].split('private fun getJson(')[0]
++        self.assertNotIn('InetAddress.getAllByName', body)
++        self.assertNotIn('ChatGptDnsAdmission',body)
++        self.assertIn('ChatGptTokenConnect.openBeforeBody',body)
++        self.assertIn('establish = { it.connect() }',body)
++        self.assertIn('setFixedLengthStreamingMode(body.size)',body)
++    def test_one_write_no_post_replay(self):
++        body=BRIDGE.read_text().split('private fun request(')[1].split('private fun getJson(')[0]
++        self.assertEqual(1,body.count('conn.outputStream.use { it.write(body) }'))
++        self.assertNotIn('postForm(',body)
++        self.assertLess(body.index('ChatGptTokenConnect.openBeforeBody'),body.index('conn.outputStream.use'))
++    def test_jwks_probe_checks_actual_https_not_independent_dns(self):
++        body=BRIDGE.read_text().split('private fun probeEndpoint(')[1].split('private fun request(')[0]
++        self.assertNotIn('InetAddress.getAllByName',body)
++        self.assertIn('conn.responseCode',body)
++        self.assertIn('HTTP_$code',body)
++    def test_no_insecure_fallback(self):
++        code=BRIDGE.read_text()
++        self.assertIn('uri.protocol == "https"',code)
++        self.assertIn('conn.outputStream.use',code)
++        self.assertNotIn('http://auth.openai.com',code)
++        helper=HELPER.read_text()
++        self.assertIn('catch (ex: UnknownHostException)',helper)
++        self.assertIn('catch (ex: Exception)',helper)
++        self.assertIn('if (attempt == 1) throw ex',helper)
++        self.assertNotIn('code_verifier',helper)
++    def test_version_and_minimal_ui(self):
++        build=(R/'android/app/build.gradle.kts').read_text()
++        self.assertIn('versionCode = 74',build)
++        self.assertIn('applicationIdSuffix = ".dev"',build)
++        self.assertIn('primaryActions',(R/'android/app/src/main/java/com/example/airemote/MainActivity.kt').read_text())
++
++if __name__=='__main__': unittest.main()
++
+--- a/tools/test_verified_dispatch_admission_source.py
++++ b/tools/test_verified_dispatch_admission_source.py
+@@ -13,5 +13,5 @@
+   self.assertIn('current = null',guard)
+   self.assertIn('trustedExternalBinding',guard)
+  def test_metadata(self):
+-  self.assertIn('versionName = "2.14.39-',(R/'android/app/build.gradle.kts').read_text())
++  self.assertIn('versionName = "2.14.40-',(R/'android/app/build.gradle.kts').read_text())
+ if __name__=='__main__':unittest.main()
+--- a/tools/test_verify_android_upgrade.py
++++ b/tools/test_verify_android_upgrade.py
+@@ -16,7 +16,7 @@
+     def setUp(self):
+         self.baseline = {'package': 'com.example.airemote.dev', 'signer_sha256': CERT, 'version_code': 70}
+         self.candidate = {'package': 'com.example.airemote.dev', 'signer_sha256': CERT,
+-                          'version_code': 73, 'version_name': '2.14.39-identity-network-fix-test',
++                          'version_code': 74, 'version_name': '2.14.40-identity-network-fix-test',
+                           'apk_sha256': 'ef'*32, 'size_bytes': 10000}
+ 
+     def test_valid_upgrade_metadata(self):

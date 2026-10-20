@@ -1,0 +1,23 @@
+{
+  "version": "2.14.15-ocr-evidence-guard",
+  "base_immutable_archive": "AI-Remote-Control-GPT-v2.14.14-Frame-Numeric-Guard-Sources.zip",
+  "artifact_type": "Android source ZIP, NOT an APK",
+  "focus": "Read-only local OCR with text bounding boxes and strict action/numeric candidate rejection",
+  "python_tests_passed": 102,
+  "kotlin_jvm_scenarios_passed": 397,
+  "new_kotlin_text_checks": 26,
+  "new_python_source_checks": 6,
+  "android_gradle_compilation_run": false,
+  "real_android_device_verified": false,
+  "apk_created": false,
+  "external_game_commands_performed": false,
+  "numeric_ocr_connected_to_authoritative_table_gate": false,
+  "action_permission_remains_disabled": true,
+  "known_blocks": [
+    "No independent verification of table/hand identity",
+    "No trusted exact-action verification across actual 1win frames",
+    "OCR analysis read-only and manually invoked",
+    "No Android SDK/Gradle or device instrumentation in this environment",
+    "No live use or external game commands verified"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "version": "2.14.17",
+  "baseline_archive": "AI-Remote-Control-GPT-v2.14.16-OCR-Frame-Provenance-Sources.zip",
+  "baseline_sha256": "875be07226c5a7f312077eeac83c1847a176852b8f447c843237ebf8f3f3d968",
+  "artifact_type": "source archive, not APK",
+  "tests": {
+    "kotlin_jvm": {
+      "passed": 480,
+      "failed": 0,
+      "new": 44,
+      "command": "bash tools/run_jvm_tests.sh"
+    },
+    "python": {
+      "passed": 120,
+      "failed": 0,
+      "new": 8,
+      "command": "python3 -m unittest discover -s tools -p test_*.py -q"
+    },
+    "android_gradle": {
+      "run": false,
+      "reason": "Android SDK and Gradle missing"
+    },
+    "device": {
+      "run": false
+    }
+  },
+  "changes": [
+    "strict independent table+hand identity interface",
+    "two independently timestamped frame assertions",
+    "reset on stop, identity/window/epoch change, replay and stale frames",
+    "read-only OCR UI status showing missing identity proof",
+    "CI artifact version name correction"
+  ],
+  "not_connected": [
+    "independent table ID provider",
+    "independent hand ID provider",
+    "authorized third-party UI automation",
+    "ChatGPT strategy"
+  ],
+  "external_actions_enabled": false,
+  "apk_built": false
+}

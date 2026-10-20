@@ -1,0 +1,22 @@
+{
+  "version": "2.14.5-onphone-turn-visibility",
+  "feature": "read-only local action-strip classification and two-frame confirmation",
+  "verified": {
+    "turn_kotlin_assertions": 48,
+    "card_vision_jvm_assertions": 51,
+    "card_consensus_jvm_assertions": 19,
+    "hand_state_jvm_assertions": 44,
+    "foreground_jvm_assertions": 11,
+    "static_python_unittests": 37,
+    "turn_video_fixtures_anonymized": 9
+  },
+  "android_junit_added_not_run": 5,
+  "android_gradle_build": "NOT RUN (Android SDK/Gradle not available in current environment)",
+  "apk": "NOT PRODUCED",
+  "live_device_test": false,
+  "source_verified": false,
+  "labels_verified": false,
+  "authorized_to_act": false,
+  "chatgpt_plus_connection": "NOT CONNECTED",
+  "next": "verify real APK; full source/hand/turn labels/time guards; then exactly-once post-action confirmation"
+}

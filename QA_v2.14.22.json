@@ -1,0 +1,28 @@
+{
+  "version": "2.14.22",
+  "release_type": "source_only",
+  "base_version": "2.14.21",
+  "new_poker_kotlin_jvm_assertions": 839,
+  "independent_python_oracle_vectors": 552,
+  "python_unittest_passed": 179,
+  "junit_android_project_cases_added": 7,
+  "junit_gradle_executed": false,
+  "legacy_kotlin_jvm_runner_status": "passed",
+  "standalone_kotlin_math_runner_status": "passed",
+  "android_gradle_build": "not_run_android_sdk_unavailable",
+  "apk_created": false,
+  "android_device_tested": false,
+  "1win_live_actions_tested": false,
+  "api_strategy_connected": false,
+  "full_player_range_equity": false,
+  "equity_vs_known_hole_cards": true,
+  "offline_showdown_chip_conservation_tested": true,
+  "automated_gestures_enabled": false,
+  "known_blockers": [
+    "independent_table_and_hand_identity_missing",
+    "real_card_recognition_accuracy_not_measured",
+    "opponent_hole_card_ranges_not_implemented",
+    "platform_automation_permission_not_verified",
+    "android_sdk_build_and_device_tests_pending"
+  ]
+}

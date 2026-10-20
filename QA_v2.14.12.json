@@ -1,0 +1,23 @@
+{
+  "version": "2.14.12-capture-lifecycle",
+  "artifact_type": "Android source ZIP; NOT APK",
+  "change": "MediaProjection stop/start lifecycle race guarded; stale consent not reused",
+  "android_apk_created": false,
+  "android_sdk_gradle_tests_run": false,
+  "simulator_created": false,
+  "real_game_gestures_performed": false,
+  "known_blocks": [
+    "App/table identity unverified",
+    "Live button labels and result verification missing",
+    "ChatGPT decision engine not connected",
+    "No device tests or APK build",
+    "Platform automation permission unverified"
+  ],
+  "kotlin_pure_modules_compiled": 16,
+  "kotlin_jvm_scenarios_passed": 337,
+  "python_unittests_passed": 92,
+  "android_junit_added_not_run": 1,
+  "test_fixtures_restored_from_immutable_v2.14.6_archive": true,
+  "kotlin_compiled_without_android_sdk": true,
+  "github_workflow_dispatched": false
+}

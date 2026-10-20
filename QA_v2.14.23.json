@@ -1,0 +1,37 @@
+{
+  "version": "2.14.23",
+  "release_type": "source_only",
+  "base_version": "2.14.22",
+  "module": "LiveOpponentAwareness + VerifiedHandCompletionGate",
+  "test_results": {
+    "kotlin_math_assertions": 839,
+    "kotlin_in_hand_checks": 53,
+    "kotlin_gate_integration_checks": 15,
+    "kotlin_existing_suite": "passed",
+    "python_unittest": 186,
+    "android_gradle_junit": "not_run"
+  },
+  "actions": {
+    "android_apk_created": false,
+    "android_device_tested": false,
+    "real_1win_actions_tested": false,
+    "trusted_table_hand_observation_producer_connected": false,
+    "chatgpt_api_connected": false,
+    "automated_gestures_enabled": false
+  },
+  "safety": {
+    "stop_resets_transient_observations": true,
+    "stop_keeps_committed_sqlite_history": true,
+    "unknown_not_false_vpip_pfr": true,
+    "confirmed_terminal_required": true,
+    "journal_excludes_identifiers": true,
+    "new_identity_cross_hand_aggregation": "verified_scoped_key_only"
+  },
+  "known_limitations": [
+    "independent real table and hand ID unavailable",
+    "opponent identity/action source unavailable",
+    "real-world CV accuracy unmeasured",
+    "platform consent for automated gameplay unverified",
+    "Android SDK and Gradle unavailable in current environment"
+  ]
+}

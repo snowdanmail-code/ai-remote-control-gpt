@@ -1,0 +1,71 @@
+name: T042 source and Android unit validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install compile SDK
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install pinned Kotlin compiler from its upstream release
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --output "$RUNNER_TEMP/kotlin.zip" https://github.com/JetBrains/kotlin/releases/download/v1.9.24/kotlin-compiler-1.9.24.zip
+          unzip -q "$RUNNER_TEMP/kotlin.zip" -d "$RUNNER_TEMP/t042-kotlin"
+          echo "$RUNNER_TEMP/t042-kotlin/kotlinc/bin" >> "$GITHUB_PATH"
+      - name: Install Python image-test dependency
+        run: python3 -m pip install 'Pillow==11.3.0'
+      - name: Python tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python3 -m unittest discover -s tools -p 'test_*.py' -v 2>&1 | tee artifacts/python-tests.log
+      - name: JVM scenario tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/run_jvm_tests.sh 2>&1 | tee artifacts/jvm-tests.log
+      - name: Android unit tests and instrumentation compilation without signing
+        working-directory: android
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin 2>&1 | tee ../artifacts/gradle-unit-tests.log
+      - name: Preserve actual unit test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t042-unit-evidence-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            artifacts/*-tests.log
+            android/app/build/test-results/testDebugUnitTest/*.xml
+            android/app/build/reports/tests/testDebugUnitTest/
+
+# This job neither signs nor publishes APKs. Runtime Android 16 tests and the
+# original signer remain mandatory in android.yml before a v2.14.42 release.

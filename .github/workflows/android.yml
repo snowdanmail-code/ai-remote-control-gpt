@@ -1,0 +1,197 @@
+name: T042 protected Android 16 validation and compatible APK
+# Manual dispatch only. Release baseline is the signed v2.14.41 APK.
+on:
+  workflow_dispatch:
+    inputs:
+      promote_t042:
+        description: 'Only after all API36 tests pass, stage v2.14.42/versionCode76'
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: t042-android-signing
+  cancel-in-progress: false
+jobs:
+  verify-android:
+    if: ${{ inputs.promote_t042 == true }}
+    runs-on: ubuntu-latest
+    environment: android-signing
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Restore only PRIOR signing identity from protected secrets
+        shell: bash
+        env:
+          EXISTING_APK_KEYSTORE_B64: ${{ secrets.EXISTING_APK_KEYSTORE_B64 }}
+          EXISTING_APK_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          EXISTING_APK_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          EXISTING_APK_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$EXISTING_APK_KEYSTORE_B64" || { echo 'BLOCKED: prior signing keystore missing'; exit 1; }
+          test -n "$EXISTING_APK_STORE_PASSWORD" || { echo 'BLOCKED: signing store password missing'; exit 1; }
+          test -n "$EXISTING_APK_KEY_ALIAS" || { echo 'BLOCKED: signing alias missing'; exit 1; }
+          test -n "$EXISTING_APK_KEY_PASSWORD" || { echo 'BLOCKED: signing key password missing'; exit 1; }
+          umask 077
+          printf '%s' "$EXISTING_APK_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/previous-install.keystore"
+          chmod 600 "$RUNNER_TEMP/previous-install.keystore"
+          KEY_INFO="$(keytool -list -v -keystore "$RUNNER_TEMP/previous-install.keystore" -alias "$EXISTING_APK_KEY_ALIAS" -storepass:env EXISTING_APK_STORE_PASSWORD)"
+          grep -q 'Entry type: PrivateKeyEntry' <<< "$KEY_INFO" || { echo 'BLOCKED: not a private signing key'; exit 1; }
+          CERT="$(grep -m1 -E '^[[:space:]]*SHA256:' <<< "$KEY_INFO" | sed -E 's/^[[:space:]]*SHA256:[[:space:]]*//' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          EXPECTED='511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c'
+          test "$CERT" = "$EXPECTED" || { echo 'BLOCKED: prior signing certificate mismatch'; exit 1; }
+          echo "AI_REMOTE_SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/previous-install.keystore" >> "$GITHUB_ENV"
+          mkdir -p artifacts
+          printf '{"status":"ORIGINAL_PRIVATE_KEY_VERIFIED","signer_sha256":"%s","new_signing_key_generated":false}\n' "$CERT" > artifacts/T042-signing-identity.json
+          echo 'Existing signing identity verified; no new key generated.'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install project Android SDK
+        run: sdkmanager --install 'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Python contract and source tests
+        run: |
+          python3 -m pip install 'Pillow==11.3.0'
+          python3 -m unittest discover -s tools -p 'test_*.py' -v
+      - name: Install pinned Kotlin compiler from its upstream release
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --output "$RUNNER_TEMP/kotlin.zip" https://github.com/JetBrains/kotlin/releases/download/v1.9.24/kotlin-compiler-1.9.24.zip
+          unzip -q "$RUNNER_TEMP/kotlin.zip" -d "$RUNNER_TEMP/t042-kotlin"
+          echo "$RUNNER_TEMP/t042-kotlin/kotlinc/bin" >> "$GITHUB_PATH"
+      - name: Kotlin JVM scenario tests
+        run: bash tools/run_jvm_tests.sh
+      - name: Android unit tests and instrumentation compilation
+        working-directory: android
+        env:
+          AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          AI_REMOTE_SIGNING_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
+        run: |
+          gradle --no-daemon :app:testDebugUnitTest
+          gradle --no-daemon :app:compileDebugAndroidTestKotlin
+      - name: Build instrumentation pair with ORIGINAL signer before installation
+        working-directory: android
+        env:
+          AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          AI_REMOTE_SIGNING_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Require original certificate on target AND test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/verify_t042_test_apks.py \
+            --target android/app/build/outputs/apk/debug/app-debug.apk \
+            --test android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+            --baseline tools/reference_prior_apk_v2.14.41.json \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+            --report artifacts/T042-test-apk-identity.json
+      - name: Hardware virtualization required (no slow/fake Android PASS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm || { echo 'BLOCKED_KVM_MISSING: select an authorized KVM-capable runner'; exit 1; }
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -w /dev/kvm || { echo 'BLOCKED_KVM_PERMISSIONS'; exit 1; }
+      - name: Android 16 API36 INSTRUMENTATION — release gate
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          AI_REMOTE_SIGNING_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
+        with:
+          api-level: 36
+          emulator-boot-timeout: 900
+          pre-emulator-launch-script: |
+            python3 tools/monitor_t042_boot.py --budget-seconds 900 --interval-seconds 15 > "$RUNNER_TEMP/t042-boot-progress.jsonl" 2>&1 &
+            echo $! > "$RUNNER_TEMP/t042-boot-monitor.pid"
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -euo pipefail
+            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = '36'
+            rm -rf android/app/build/outputs/androidTest-results/connected
+            cd android
+            gradle --no-daemon :app:connectedDebugAndroidTest
+            adb shell pm path com.example.airemote.dev | grep -q '^package:'
+      - name: Require all mandatory Android tests executed with zero skips
+        run: >-
+          python3 tools/verify_t042_android_results.py
+          --directory android/app/build/outputs/androidTest-results/connected
+          --report artifacts/T042-android-execution-proof.json
+      - name: Stage v2.14.42 ONLY AFTER Android tests PASSED
+        run: |
+          python3 tools/prepare_t042_release.py
+          git diff --check
+      - name: Build compatible versionCode76 with ORIGINAL key
+        working-directory: android
+        env:
+          AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          AI_REMOTE_SIGNING_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Fail-closed APK signature and update compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python3 tools/verify_android_upgrade.py \
+            --candidate android/app/build/outputs/apk/debug/app-debug.apk \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+            --baseline-metadata tools/reference_prior_apk_v2.14.41.json \
+            --report artifacts/T042-upgrade-verification.json
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk
+          cd artifacts
+          sha256sum AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk > AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk.sha256
+      - name: Publish ONLY after Android 16 test, signer, package and version gates
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-remote-control-v2.14.42-android-verified-debug
+          path: |
+            artifacts/AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk
+            artifacts/AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk.sha256
+            artifacts/T042-upgrade-verification.json
+          retention-days: 14
+          if-no-files-found: error
+      - name: Erase runner signing-key file
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/previous-install.keystore"
+          python3 tools/monitor_t042_boot.py --stop-pid-file "$RUNNER_TEMP/t042-boot-monitor.pid"
+      - name: Preserve test evidence on success or failure (no APK or signing secrets)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: t042-check-evidence-${{ github.run_id }}
+          path: |
+            android/app/build/test-results/testDebugUnitTest/*.xml
+            android/app/build/outputs/androidTest-results/connected/**/*.xml
+            artifacts/T042-signing-identity.json
+            artifacts/T042-test-apk-identity.json
+            artifacts/T042-android-execution-proof.json
+            artifacts/T042-upgrade-verification.json
+            ${{ runner.temp }}/t042-boot-progress.jsonl
+          if-no-files-found: warn
+          retention-days: 14

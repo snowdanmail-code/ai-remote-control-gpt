@@ -1,0 +1,134 @@
+package com.example.airemote
+
+/** One current JPEG only; no server queues and no persistent screenshot archive. */
+data class FrameInfo(val jpeg: ByteArray, val seq: Long, val width: Int,
+                     val height: Int, val quality: Int, val profile: Int,
+                     val capturedAtMs: Long,
+                     val captureEpoch: Long = -1L,
+                     val sourcePackage: String? = null,
+                     val windowGeneration: Long? = null)
+
+object CaptureOptions {
+    /** On-device capture presets: 960, 1280, 1536px. */
+    @Volatile var profile: Int = 0
+    val longEdges = intArrayOf(960, 1280, 1536)
+    val qualities = intArrayOf(75, 88, 75)
+}
+
+object FrameStore {
+    private val epochCounter = java.util.concurrent.atomic.AtomicLong(0L)
+    val captureEpoch: Long get() = epochCounter.get()
+    @Volatile var latest: FrameInfo? = null
+    @Volatile var lastAutomaticOcr: AutomaticOcrEvidence? = null
+    @Volatile var lastSeatVisual: SeatVisualReport? = null
+    @Volatile var lastRealFrameRegions: RegionObservationReport? = null
+    @Volatile var lastActionStrip: ActionStripReport? = null
+    @Volatile var lastHeroTurnEpisode: HeroTurnLifecycleReport? = null
+    val heroTurnLifecycle = HeroTurnLifecycleDiagnostics()
+    @Volatile var isCapturing: Boolean = false
+    @Volatile var frameSequence: Long = 0L
+    @Volatile var captureError: String = ""
+    @Volatile var localFrameHealth: OnDeviceFrameHealth? = null
+    @Volatile var lastCards: CardVisionSignal? = null
+    val cardConsensus = CardReadingConsistency()
+    @Volatile var windowOrigin: WindowOriginAssessment? = null
+    // Read-only display diagnostics; never a permission to send a tap.
+    @Volatile var lastTurnVisual: TurnVisualSignal? = null
+    val turnConsensus = TurnDisplayConsistency()
+    @Volatile var confirmedTurnVisual: ConfirmedTurnDisplay? = null
+    @Volatile var confirmedCards: StableCardReading? = null
+    @Volatile var lastConfirmedForPreview: StableCardReading? = null
+    /** Erase all visual conclusions on a lost/mixed foreground without changing capture epoch. */
+    @Synchronized fun invalidateVisualEvidence() {
+        latest = null
+        lastAutomaticOcr = null
+        lastSeatVisual = null
+        lastRealFrameRegions = null
+        lastActionStrip = null
+        lastHeroTurnEpisode = null
+        heroTurnLifecycle.reset()
+        OnDeviceRealFrameRegions.resetSession()
+        OnDeviceSeatVisualDiagnostics.reset()
+        localFrameHealth = null
+        lastCards = null
+        confirmedCards = null
+        lastConfirmedForPreview = null
+        cardConsensus.reset()
+        lastTurnVisual = null
+        confirmedTurnVisual = null
+        turnConsensus.reset()
+        windowOrigin = null
+    }
+    /**
+     * A capture worker must not publish after clear()/STOP or an origin change.
+     * Validate and mutate under the SAME lock as clear()/invalidateVisualEvidence().
+     * The caller's allowed predicate must re-check STOP, activity visibility and
+     * the live Accessibility root while this lock is held. Diagnostics only.
+     */
+    @Synchronized fun commitIfCurrent(
+        expectedEpoch: Long,
+        expectedOrigin: WindowOriginAssessment,
+        allowed: () -> Boolean,
+        publish: () -> Unit
+    ): Boolean {
+        if (!isCapturing || captureEpoch != expectedEpoch ||
+            !expectedOrigin.safeForLocalDiagnostics || windowOrigin !== expectedOrigin ||
+            !allowed()) return false
+        publish()
+        return true
+    }
+
+    /**
+     * A visible in-game history/statistics panel covers the table. Old cards,
+     * OCR, turn buttons and cached JPEG must not survive an occluded frame.
+     * Keep the captured window and operator-approved geometry; preserve only
+     * long-term, already-verified history. In-flight OCR fails provenance since
+     * latest is erased. This is a read-only diagnostic invalidation.
+     */
+    @Synchronized fun invalidateOccludedSurface(
+        expectedEpoch: Long, expectedOrigin: WindowOriginAssessment
+    ): Boolean {
+        if (!isCapturing || captureEpoch != expectedEpoch ||
+            windowOrigin !== expectedOrigin) return false
+        latest = null
+        lastAutomaticOcr = null
+        lastSeatVisual = null
+        lastRealFrameRegions = null
+        lastActionStrip = null
+        lastHeroTurnEpisode = null
+        heroTurnLifecycle.reset()
+        OnDeviceRealFrameRegions.resetSession()
+        OnDeviceSeatVisualDiagnostics.reset()
+        localFrameHealth = null
+        lastCards = null
+        confirmedCards = null
+        lastConfirmedForPreview = null
+        cardConsensus.reset()
+        lastTurnVisual = null
+        confirmedTurnVisual = null
+        turnConsensus.reset()
+        return true
+    }
+
+    /** Starting a service cannot resurrect a capture after the operator cleared it. */
+    @Synchronized fun beginActive(expectedEpoch: Long): Boolean {
+        if (isCapturing || captureEpoch != expectedEpoch) return false
+        isCapturing = true
+        return true
+    }
+
+    /** Do not resurrect an origin after clear() increments the capture epoch. */
+    @Synchronized fun observeWindow(expectedEpoch: Long, assessment: WindowOriginAssessment): Boolean {
+        if (!isCapturing || captureEpoch != expectedEpoch ||
+            assessment.captureEpoch != expectedEpoch) return false
+        if (!assessment.safeForLocalDiagnostics) invalidateVisualEvidence()
+        windowOrigin = assessment
+        return true
+    }
+
+    @Synchronized fun clear() {
+        epochCounter.incrementAndGet()
+        invalidateVisualEvidence()
+        isCapturing = false
+    }
+}

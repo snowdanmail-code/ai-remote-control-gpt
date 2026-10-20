@@ -1,0 +1,33 @@
+{
+  "version": "2.14.16-ocr-frame-provenance",
+  "immutable_base_archive": "AI-Remote-Control-GPT-v2.14.15-OCR-Evidence-Guard-Sources.zip",
+  "artifact_type": "Android Kotlin source ZIP, NOT an APK",
+  "primary_fixes": [
+    "FrameInfo now captures capture epoch, observed external package and active-window generation together with JPEG",
+    "WindowOriginTracker exports its sampled window generation in diagnostics and verifies it before publishing",
+    "Asynchronous OCR callback is rejected on STOP, capture/sequence/timestamp mismatch, changed external package/window generation or expired JPEG",
+    "Two-frame diagnostic OCR consensus rejects inconsistent button names, pot/call amounts, invalid timer evolution, changed origin, duplicates, reordered or stale frames",
+    "OCR confidence does not set application/table/hand authorization; external automatic gestures remain blocked"
+  ],
+  "python_tests_passed": 112,
+  "python_new_tests": 10,
+  "kotlin_jvm_scenarios_passed": 436,
+  "kotlin_new_checks": 39,
+  "android_gradle_compilation_run": false,
+  "real_device_verified": false,
+  "apk_created": false,
+  "real_1win_test_performed": false,
+  "trusted_table_identity_implemented": false,
+  "ocr_diagnostic_consensus_is_permission": false,
+  "remaining_blockers": [
+    "No independently verified application/table/hand identity; consistency is not table proof",
+    "OCR remains user-invoked and diagnostic-only, not a live verified gaming state pipeline",
+    "No validated action-button boundaries or exact live bet sizes on actual Android screenshots",
+    "No verified end-to-end MediaProjection/Accessibility lifecycle and no Android Gradle/device tests",
+    "No verified production APK or installation"
+  ],
+  "tests": [
+    "python3 -m unittest discover -s tools -p 'test_*.py' -q",
+    "bash tools/run_jvm_tests.sh"
+  ]
+}

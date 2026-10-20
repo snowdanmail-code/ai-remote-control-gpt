@@ -1,0 +1,20 @@
+{
+  "release": "v2.14.3-onphone-hand-state",
+  "parent": "v2.14.2-Visibility-Gate",
+  "goal": "Fix #1: reliably track poker hand stage from independently verified observations",
+  "checks": {
+    "kotlin_pure_jvm_assertions": {"passed": 44, "failed": 0},
+    "python_source_and_regression_tests": {"passed": 20, "failed": 0},
+    "kotlin_pure_jvm_compilation": "pass",
+    "android_gradle_tests": "not_run_android_sdk_and_gradle_unavailable",
+    "android_apk_build": "not_run",
+    "device_test": "not_run"
+  },
+  "not_implemented": [
+    "verified 1win screen identity and card/board detection",
+    "feeding actual frames to HandStateTracker",
+    "ChatGPT Plus login and inference",
+    "external game actions"
+  ],
+  "features_preserved": ["STOP", "WindowInsets", "Snowden text", "local OCR", "MediaProjection", "visibility gate", "no Windows server"]
+}
