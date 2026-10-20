@@ -61,6 +61,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+          cache-read-only: false
       - name: Python contract and source tests
         run: |
           python3 -m pip install 'Pillow==11.3.0'
@@ -118,6 +119,7 @@ jobs:
           AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
         with:
           api-level: 36
+          disk-size: 3072M
           emulator-boot-timeout: 900
           pre-emulator-launch-script: |
             python3 tools/monitor_t042_boot.py --budget-seconds 900 --interval-seconds 15 > "$RUNNER_TEMP/t042-boot-progress.jsonl" 2>&1 &
