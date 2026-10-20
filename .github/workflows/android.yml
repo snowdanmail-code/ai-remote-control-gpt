@@ -3,6 +3,11 @@ name: T042 protected Android 16 validation and compatible APK
 on:
   workflow_dispatch:
     inputs:
+      samsung_prototype:
+        description: 'Build experimental Samsung prototype; Android runtime tests explicitly NOT_RUN'
+        required: true
+        type: boolean
+        default: false
       promote_t042:
         description: 'Only after all API36 tests pass, stage v2.14.42/versionCode76'
         required: true
@@ -15,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify-android:
-    if: ${{ inputs.promote_t042 == true }}
+    if: ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
@@ -63,10 +68,12 @@ jobs:
           gradle-version: '8.9'
           cache-read-only: false
       - name: Python contract and source tests
+        if: ${{ !inputs.samsung_prototype }}
         run: |
           python3 -m pip install 'Pillow==11.3.0'
           python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Install pinned Kotlin compiler from its upstream release
+        if: ${{ !inputs.samsung_prototype }}
         shell: bash
         run: |
           set -euo pipefail
@@ -74,8 +81,10 @@ jobs:
           unzip -q "$RUNNER_TEMP/kotlin.zip" -d "$RUNNER_TEMP/t042-kotlin"
           echo "$RUNNER_TEMP/t042-kotlin/kotlinc/bin" >> "$GITHUB_PATH"
       - name: Kotlin JVM scenario tests
+        if: ${{ !inputs.samsung_prototype }}
         run: bash tools/run_jvm_tests.sh
       - name: Android unit tests and instrumentation compilation
+        if: ${{ !inputs.samsung_prototype }}
         working-directory: android
         env:
           AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
@@ -85,6 +94,7 @@ jobs:
           gradle --no-daemon :app:testDebugUnitTest
           gradle --no-daemon :app:compileDebugAndroidTestKotlin
       - name: Build instrumentation pair with ORIGINAL signer before installation
+        if: ${{ !inputs.samsung_prototype }}
         working-directory: android
         env:
           AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
@@ -92,6 +102,7 @@ jobs:
           AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
       - name: Require original certificate on target AND test APK
+        if: ${{ !inputs.samsung_prototype }}
         shell: bash
         run: |
           set -euo pipefail
@@ -103,6 +114,7 @@ jobs:
             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
             --report artifacts/T042-test-apk-identity.json
       - name: Hardware virtualization required (no slow/fake Android PASS)
+        if: ${{ !inputs.samsung_prototype }}
         shell: bash
         run: |
           set -euo pipefail
@@ -112,6 +124,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           test -w /dev/kvm || { echo 'BLOCKED_KVM_PERMISSIONS'; exit 1; }
       - name: Android 16 API36 INSTRUMENTATION — release gate
+        if: ${{ !inputs.samsung_prototype }}
         uses: reactivecircus/android-emulator-runner@v2
         env:
           AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
@@ -137,13 +150,38 @@ jobs:
             gradle --no-daemon :app:connectedDebugAndroidTest
             adb shell pm path com.example.airemote.dev | grep -q '^package:'
       - name: Require all mandatory Android tests executed with zero skips
+        if: ${{ !inputs.samsung_prototype }}
         run: >-
           python3 tools/verify_t042_android_results.py
           --directory android/app/build/outputs/androidTest-results/connected
           --report artifacts/T042-android-execution-proof.json
       - name: Stage v2.14.42 ONLY AFTER Android tests PASSED
+        if: ${{ !inputs.samsung_prototype }}
         run: |
           python3 tools/prepare_t042_release.py
+          git diff --check
+      - name: Stage explicitly experimental Samsung prototype (runtime NOT_RUN)
+        if: ${{ inputs.samsung_prototype }}
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          import json
+          from pathlib import Path
+          p = Path('android/app/build.gradle.kts')
+          s = p.read_text()
+          assert s.count('versionCode = 75') == 1
+          assert s.count('versionName = "2.14.41-in-app-oauth-hardening"') == 1
+          s = s.replace('versionCode = 75', 'versionCode = 76', 1)
+          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-samsung-prototype"', 1)
+          p.write_text(s)
+          Path('artifacts/T042-device-test-status.json').write_text(json.dumps({
+              'status': 'EXPERIMENTAL_DEVICE_TEST_CANDIDATE',
+              'android16_instrumentation': 'NOT_RUN_IN_THIS_PROTOTYPE_BUILD',
+              'samsung_oauth': 'NOT_TESTED',
+              'not_final_v2_14_42': True,
+              'reason': 'User authorized Samsung-first testing instead of emulator gate'
+          }, indent=2) + '\n')
+          PYCODE
           git diff --check
       - name: Build compatible versionCode76 with ORIGINAL key
         working-directory: android
@@ -163,17 +201,18 @@ jobs:
             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
             --baseline-metadata tools/reference_prior_apk_v2.14.41.json \
             --report artifacts/T042-upgrade-verification.json
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Samsung-Prototype.apk
           cd artifacts
-          sha256sum AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk > AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk.sha256
-      - name: Publish ONLY after Android 16 test, signer, package and version gates
+          sha256sum AI-Remote-Control-GPT-T042-Samsung-Prototype.apk > AI-Remote-Control-GPT-T042-Samsung-Prototype.apk.sha256
+      - name: Save candidate only after signature, package, version and integrity gates
         uses: actions/upload-artifact@v4
         with:
-          name: ai-remote-control-v2.14.42-android-verified-debug
+          name: ai-remote-control-t042-samsung-prototype
           path: |
-            artifacts/AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk
-            artifacts/AI-Remote-Control-GPT-v2.14.42-VERIFIED-debug.apk.sha256
+            artifacts/AI-Remote-Control-GPT-T042-Samsung-Prototype.apk
+            artifacts/AI-Remote-Control-GPT-T042-Samsung-Prototype.apk.sha256
             artifacts/T042-upgrade-verification.json
+            artifacts/T042-device-test-status.json
           retention-days: 14
           if-no-files-found: error
       - name: Erase runner signing-key file
@@ -181,7 +220,9 @@ jobs:
         shell: bash
         run: |
           rm -f "$RUNNER_TEMP/previous-install.keystore"
-          python3 tools/monitor_t042_boot.py --stop-pid-file "$RUNNER_TEMP/t042-boot-monitor.pid"
+          if test -f "$RUNNER_TEMP/t042-boot-monitor.pid"; then
+            python3 tools/monitor_t042_boot.py --stop-pid-file "$RUNNER_TEMP/t042-boot-monitor.pid" || true
+          fi
       - name: Preserve test evidence on success or failure (no APK or signing secrets)
         if: always()
         uses: actions/upload-artifact@v4
