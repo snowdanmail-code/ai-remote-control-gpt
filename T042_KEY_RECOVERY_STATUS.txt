@@ -1,0 +1,1 @@
+T042 signing private key recovered and locally proved usable; same certificate as v2.14.41. GitHub protected pipeline prepared but not deployed, Android16 instrumentation NOT_RUN, v2.14.42 APK NOT_RELEASED. No keystore included.

@@ -1,0 +1,19 @@
+{
+  "version": "2.14.30",
+  "artifact_type": "source_only",
+  "previous_version": "2.14.29",
+  "jvm_suite": "passed",
+  "new_action_control_checks": 31,
+  "python_unittest_passed": 230,
+  "android_gradle_unit_tests": "not_run",
+  "android_apk": "not_built",
+  "real_1win_gestures": "not_tested",
+  "automatic_gesture_unblocked": false,
+  "known_blockers": [
+    "independently verified table and hand IDs",
+    "turn and amount evidence",
+    "screen coordinate mapping",
+    "post-gesture in-game acknowledgement",
+    "Android device testing"
+  ]
+}

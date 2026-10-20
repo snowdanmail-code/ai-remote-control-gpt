@@ -1,0 +1,19 @@
+{
+  "version": "2.14.28",
+  "user_mode": "virtual chips only, no deposits and withdrawals (operator statement)",
+  "source_only": true,
+  "apk_built": false,
+  "installed_on_android": false,
+  "live_1win_actions_tested": false,
+  "local_strategy_installed_in_android_source": true,
+  "chatgpt_api_connected": false,
+  "live_verified_table_hand_state_connected": false,
+  "virtual_chip_claim_independently_verified": false,
+  "source_tests": {
+    "python_unittest_passed": 217,
+    "kotlin_local_strategy_scenarios": 16,
+    "kotlin_existing_scenarios_passed": true
+  },
+  "gesture_dispatch": "remains gated behind independent observations/STOP/external permission",
+  "critical_next": "validated live AutonomousObservation producer and post-gesture confirmation"
+}

@@ -1,0 +1,52 @@
+{
+  "source_sha256": "5d0e8bb0b0291767f566a0ed5a91d8fd84d9c276d3d746031aa2c98754104902",
+  "apk_sha256": "2c319dc7a30a4cd34583aeab5fe9691c4795f67ee3e1da7d11705cbafd4697f5",
+  "apk_bytes": 52998561,
+  "application_id": "com.example.airemote.dev",
+  "versionCode": 75,
+  "certificate_sha256": "511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c",
+  "junit": {
+    "tests": 131,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "gradle_exit_code": 0,
+  "zip_crc": "PASS",
+  "apk_signature_v2": "PASS",
+  "zipalign_16k": "PASS",
+  "elf_load_alignment": {
+    "lib/arm64-v8a/libmlkit_google_ocr_pipeline.so": [
+      16384,
+      16384,
+      16384
+    ],
+    "lib/x86_64/libmlkit_google_ocr_pipeline.so": [
+      16384,
+      16384,
+      16384
+    ]
+  },
+  "no_mock_fixtures_in_dex": true,
+  "minSdk": 29,
+  "targetSdk": 35,
+  "real_phone_install_oauth_inference": "not tested",
+  "github_actions": "not run; local Android SDK build",
+  "python_tests": 297,
+  "kotlin_scenario_runners": 46,
+  "android_instrumentation": {
+    "tests": 5,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "status": "FAILED_IN_EMULATOR"
+  },
+  "emulator_api": 29,
+  "emulator_apk_installation": "CONFIRMED_API29",
+  "emulator_acceleration": "software / no KVM",
+  "custom_tab_synthetic_loopback": "FAILED_TIMEOUT_OR_NOT_CONFIRMED",
+  "android_keystore_synthetic_rotation": "PASS",
+  "completed_response_parser_android": "PASS",
+  "real_user_authentication": "NOT_TESTED",
+  "existing_ui_buttons_retained": 26
+}

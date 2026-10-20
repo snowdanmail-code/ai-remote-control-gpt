@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "version": "2.14.21-SYNTHETIC",
+  "session": "synthetic-session",
+  "events": [
+    {
+      "sequence": 1,
+      "elapsed_ms": 100,
+      "severity": "INFO",
+      "code": "CAPTURE_STARTED",
+      "capture_epoch": 1
+    },
+    {
+      "sequence": 2,
+      "elapsed_ms": 200,
+      "severity": "INFO",
+      "code": "SESSION_ARMED"
+    },
+    {
+      "sequence": 3,
+      "elapsed_ms": 1000,
+      "severity": "WARNING",
+      "code": "OBSERVATION_UNVERIFIED",
+      "frame_sequence": 27
+    },
+    {
+      "sequence": 4,
+      "elapsed_ms": 1200,
+      "severity": "ERROR",
+      "code": "DECISION_REJECTED",
+      "frame_sequence": 28,
+      "stage": "FLOP",
+      "pot_chips": 600,
+      "call_chips": 300,
+      "timer_remaining_ms": 2400,
+      "action": "RAISE",
+      "legal_actions": [
+        "CALL",
+        "FOLD"
+      ],
+      "latency_ms": 250
+    },
+    {
+      "sequence": 5,
+      "elapsed_ms": 1450,
+      "severity": "ERROR",
+      "code": "DECISION_EXPIRED",
+      "frame_sequence": 29,
+      "stage": "FLOP",
+      "timer_remaining_ms": 900,
+      "action": "CALL",
+      "latency_ms": 1900
+    },
+    {
+      "sequence": 6,
+      "elapsed_ms": 1500,
+      "severity": "INFO",
+      "code": "OPERATOR_STOP"
+    },
+    {
+      "sequence": 7,
+      "elapsed_ms": 1510,
+      "severity": "INFO",
+      "code": "CAPTURE_STOPPED"
+    }
+  ]
+}

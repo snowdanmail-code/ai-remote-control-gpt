@@ -1,0 +1,11 @@
+{
+  "version": "2.14.20",
+  "type": "source_only",
+  "kotlin_jvm_scenarios": 539,
+  "python_tests": 151,
+  "android_sdk_build": "not_run",
+  "apk_created": false,
+  "android_device_tested": false,
+  "automatic_gameplay_enabled": false,
+  "files": 163
+}

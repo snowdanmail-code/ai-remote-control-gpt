@@ -1,0 +1,25 @@
+{
+  "status": "PRELIMINARY_COORDINATES_REVIEW_REQUIRED_NOT_IMPORTABLE",
+  "source": "Screen_Recording_20261017_023653.mp4 at 126 seconds",
+  "recordingSizePixels": [1080, 2340],
+  "operatorApproved": false,
+  "actualPackageNameKnown": false,
+  "actualCapturedJpegDimensionsKnown": false,
+  "notes": "Estimated rectangles read from original 1080x2340 video frame. They require operator inspection on the phone; these are NOT verified input, opponent identity or gesture targets. No Android-importable calibration is generated until package and captured JPEG dimensions are observed. Seat indices are visual location indices only, not persistent player identities.",
+  "zones": [
+    {"role":"SEAT_ACTION", "seatIndex":0, "boundsPixels":[415,490,650,660]},
+    {"role":"SEAT_ACTION", "seatIndex":1, "boundsPixels":[35,760,310,935]},
+    {"role":"SEAT_ACTION", "seatIndex":2, "boundsPixels":[785,760,1060,940]},
+    {"role":"SEAT_ACTION", "seatIndex":3, "boundsPixels":[35,1490,310,1710]},
+    {"role":"SEAT_ACTION", "seatIndex":4, "boundsPixels":[785,1480,1060,1710]},
+    {"role":"SEAT_ACTION", "seatIndex":5, "boundsPixels":[330,1830,760,2040]},
+    {"role":"SEAT_STACK", "seatIndex":0, "boundsPixels":[415,565,655,650]},
+    {"role":"SEAT_STACK", "seatIndex":1, "boundsPixels":[35,820,310,930]},
+    {"role":"SEAT_STACK", "seatIndex":2, "boundsPixels":[785,820,1060,940]},
+    {"role":"SEAT_STACK", "seatIndex":3, "boundsPixels":[35,1570,310,1720]},
+    {"role":"SEAT_STACK", "seatIndex":4, "boundsPixels":[785,1560,1060,1730]},
+    {"role":"SEAT_STACK", "seatIndex":5, "boundsPixels":[325,1900,760,2030]},
+    {"role":"POT", "boundsPixels":[466,965,650,1060]},
+    {"role":"TIMER", "boundsPixels":[810,1990,940,2150]}
+  ]
+}

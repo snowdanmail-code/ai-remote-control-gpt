@@ -1,0 +1,15 @@
+{
+  "annotationNote": "Manually selected timepoints from genuine 1win recordings. TABLE means unobstructed gameplay layout, BLOCK means an in-game history/statistics/wait-list panel. Selection is NOT a random holdout.",
+  "clips": [
+    {"filename":"Screen_Recording_20261017_023653.mp4", "samples":[
+      {"second":0,"expected":"TABLE"},{"second":25.2,"expected":"TABLE"},{"second":50.4,"expected":"TABLE"},{"second":75.6,"expected":"TABLE"},{"second":100.8,"expected":"TABLE"},{"second":126,"expected":"TABLE"},{"second":151.2,"expected":"TABLE"},{"second":176.4,"expected":"TABLE"},{"second":201.6,"expected":"TABLE"},{"second":226.8,"expected":"TABLE"}]},
+    {"filename":"Screen_Recording_20261017_024504.mp4", "samples":[
+      {"second":0,"expected":"TABLE"},{"second":46.9,"expected":"TABLE"},{"second":93.9,"expected":"TABLE"},{"second":140.8,"expected":"TABLE"},{"second":187.7,"expected":"TABLE"},{"second":234.7,"expected":"TABLE"},{"second":281.6,"expected":"TABLE"},{"second":328.6,"expected":"TABLE"},{"second":375.5,"expected":"TABLE"},{"second":422.4,"expected":"TABLE"}]},
+    {"filename":"Screen_Recording_20261017_025551.mp4", "samples":[
+      {"second":0,"expected":"TABLE"},{"second":2,"expected":"TABLE"},{"second":4,"expected":"TABLE"},
+      {"second":7,"expected":"BLOCK"},{"second":9,"expected":"BLOCK"},{"second":11,"expected":"BLOCK"},{"second":13,"expected":"BLOCK"},
+      {"second":15,"expected":"TABLE"},{"second":17,"expected":"TABLE"},
+      {"second":20,"expected":"BLOCK"},{"second":22,"expected":"BLOCK"},{"second":24,"expected":"BLOCK"}
+    ]}
+  ]
+}

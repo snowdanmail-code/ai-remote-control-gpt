@@ -1,0 +1,21 @@
+{
+  "version": "2.14.34",
+  "starting_source": "2.14.31",
+  "sequential_source_checkpoints": ["2.14.32", "2.14.33", "2.14.34"],
+  "new_kotlin_scenarios": {
+    "verified_turn_binding": 23,
+    "authenticated_action_effects": 26,
+    "dispatch_admission": 21,
+    "end_to_end_contract_replay": 19
+  },
+  "python_unit_tests": {"passed": 241, "failed": 0},
+  "kotlin_compilation": "passed_pure_jvm_sources",
+  "legacy_kotlin_scenarios": "passed_and_final_trailing_scenarios_checked_separately",
+  "android_gradle_build": "not_run",
+  "apk_created": false,
+  "device_tested": false,
+  "independent_1win_table_hand_identity_provider": "not_connected",
+  "independent_1win_action_effect_provider": "not_connected",
+  "live_actions_unblocked": false,
+  "notes": "Synthetic verifier fixtures are tests, not evidence of an authenticated 1win integration."
+}

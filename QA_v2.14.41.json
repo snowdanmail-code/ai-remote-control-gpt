@@ -1,0 +1,32 @@
+{
+  "version": "2.14.41",
+  "artifact_type": "source-only",
+  "android_application_id_debug": "com.example.airemote.dev",
+  "android_version_code": 75,
+  "python_unittest": {
+    "passed": 297,
+    "failed": 0
+  },
+  "kotlin_suites_passed": {
+    "auth_protocol": 30,
+    "cloud_diagnostics": 25,
+    "transport_diagnostics": 12,
+    "token_connect": 6,
+    "identity_policy": 20,
+    "login_preflight": 16,
+    "hero_turn_lifecycle": 49,
+    "local_poker_strategy": 16,
+    "live_tap_safety": 29,
+    "verified_hand_completion": 26,
+    "verified_turn_binding": 23,
+    "authenticated_action_effects": 26,
+    "dispatch_admission": 21,
+    "autonomy_end_to_end": 19
+  },
+  "full_kotlin_jvm_suite": "timed_out (split selected suites passed)",
+  "gradle_android_unit_tests": "NOT_RUN",
+  "android_assemble": "NOT_RUN",
+  "real_device_auth": "NOT_VERIFIED",
+  "oauth_safety": "PKCE, browser-owned credentials, no password/OTP storage; one transport retry before body only",
+  "notes": "Active-network DNS fallback is conditional, not a verified fix for Starlink; test under actual Android network only after APK passes CI."
+}

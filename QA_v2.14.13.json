@@ -1,0 +1,21 @@
+{
+  "version": "2.14.13-window-origin-guard",
+  "base_immutable_archive": "AI-Remote-Control-GPT-v2.14.12-Capture-Lifecycle-Sources.zip",
+  "artifact_type": "Android source ZIP; NOT APK",
+  "focus": "Independent active-root provenance diagnostic; prohibit mixing cross-app card/turn/frame conclusions",
+  "python_unit_tests_passed": 96,
+  "kotlin_jvm_scenarios_passed": 362,
+  "new_kotlin_window_origin_checks": 25,
+  "android_gradle_compilation_run": false,
+  "android_unit_tests_run": false,
+  "apk_created": false,
+  "real_android_device_verified": false,
+  "external_game_commands_performed": false,
+  "known_blocks": [
+    "Observed external package is a diagnostic, not independently verified 1win identity",
+    "No verified concrete table/hand identity or authoritative button labels/amounts/timer",
+    "No trusted automated live results or ChatGPT decision engine",
+    "No platform automation permission verification",
+    "Device STOP, Capture, Accessibility and APK not yet tested"
+  ]
+}

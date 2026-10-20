@@ -1,0 +1,38 @@
+{
+  "version": "2.14.8",
+  "based_on": "2.14.7",
+  "status": "SOURCE_ONLY_NO_APK",
+  "utc_created": "2026-10-18T01:56:56.951830+00:00",
+  "technical_changes": [
+    "Android AccessibilityService dispatchGesture transport",
+    "movable STOP Accessibility overlay",
+    "live foreground package probe",
+    "per-action geometry+exact text gate",
+    "durable STOP and operator arm",
+    "debug .dev side-by-side ID",
+    "CI APK workflow version update"
+  ],
+  "test_results": {
+    "tap_safety_kotlin_jvm": 29,
+    "action_guard_kotlin_jvm": 18,
+    "post_hand_learning_kotlin_jvm": 30,
+    "verified_hand_completion_kotlin_jvm": 26,
+    "python_source_unittest": 77
+  },
+  "gradle_unit_tests_ran": false,
+  "android_sdk_available": false,
+  "apk_built": false,
+  "real_1win_touch_tests": false,
+  "third_party_automation_authorized": false,
+  "chatgpt_plus_oauth_authorized": false,
+  "verified_live_command_producer": false,
+  "no_poker_simulator_created": true,
+  "known_blockers": [
+    "exact game package not verified",
+    "platform permission not established",
+    "visual labels/button bounds unverified",
+    "Android build unavailable",
+    "strategy model unconnected",
+    "no real hand completion detector"
+  ]
+}

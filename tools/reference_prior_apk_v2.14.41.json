@@ -1,0 +1,10 @@
+{
+  "source_filename": "AI-Remote-Control-GPT-v2.14.41.apk",
+  "source_apk_sha256": "2c319dc7a30a4cd34583aeab5fe9691c4795f67ee3e1da7d11705cbafd4697f5",
+  "package": "com.example.airemote.dev",
+  "version_code": 75,
+  "version_name": "2.14.41-in-app-oauth-hardening-test",
+  "signer_sha256": "511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c",
+  "signing_scheme": "APK Signature Scheme v2",
+  "provenance": "Exact archived v2.14.41 APK verified independently by Work using aapt/apksigner and SHA256; private key also matched independently with keytool during T042 signing recovery. Not a live query of the user phone."
+}

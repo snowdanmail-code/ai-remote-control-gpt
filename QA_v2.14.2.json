@@ -1,0 +1,20 @@
+{
+  "release": "v2.14.2",
+  "parent": "v2.14.1",
+  "change": "Prevent own-UI frame publication using foreground/background generation tickets",
+  "checks": {
+    "python_unittest": {"passed": 15, "failed": 0},
+    "kotlin_pure_jvm_assertions": {"passed": 11, "failed": 0},
+    "kotlin_pure_jvm_compilation": "pass",
+    "android_gradle_tests": "not_run_missing_gradle_sdk",
+    "android_apk_build": "blocked_missing_gradle_sdk",
+    "device_test": "not_run",
+    "github_actions": "not_run_no_project_repository"
+  },
+  "constraints": [
+    "Other external apps may be captured; app identity is not verified",
+    "No network or game-action permission in Lite Android manifest",
+    "ChatGPT Plus authorization not verified",
+    "No real-money gambling or anti-bot bypass"
+  ]
+}

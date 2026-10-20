@@ -1,0 +1,13 @@
+{
+  "version": "2.14.35",
+  "date": "2026-10-18",
+  "auth_protocol_scenarios_passed": 30,
+  "python_tests_passed": 250,
+  "python_errors": 0,
+  "android_bridge_stub_compilation": "passed",
+  "android_sdk_apk_build": "not run (Android SDK/Gradle unavailable; GitHub write refused)",
+  "real_oauth_signin": "not tested",
+  "real_responses_api": "not tested",
+  "autonomous_gameplay": "not functional; independent 1win state provider missing",
+  "stop": "retained"
+}

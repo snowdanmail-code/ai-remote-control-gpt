@@ -1,0 +1,20 @@
+{
+  "version": "v2.14.36",
+  "parent": "v2.14.35",
+  "date": "2026-10-18",
+  "tests": {
+    "python": "256 passed",
+    "oauth_kotlin": "30 passed",
+    "cloud_diagnostic_kotlin": "25 passed",
+    "cloud_android_stub_compilation": "passed (not Android SDK)",
+    "full_kotlin_suite": "attempted; timed out; unverified",
+    "android_gradle": "not run",
+    "on_device_oauth": "not tested"
+  },
+  "apk_created": false,
+  "safety": {
+    "stop_untouched": true,
+    "no_live_taps": true,
+    "no_credentials_in_messages": true
+  }
+}

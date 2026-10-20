@@ -1,0 +1,19 @@
+{
+  "version": "2.14.4-onphone-card-vision",
+  "completed": "card reader + suit/rank template matching + two-frame stability + on-device capture integration",
+  "tests_verified": {
+    "card_vision_jvm_assertions": 51,
+    "card_consensus_jvm_assertions": 19,
+    "hand_state_jvm_assertions": 44,
+    "foreground_jvm_assertions": 11,
+    "static_python_unittests": 29
+  },
+  "android_gradle_build": "NOT RUN (SDK/Gradle unavailable here)",
+  "apk": "NOT PRODUCED",
+  "android_unit_test_added": "5 JUnit methods covering preflop/flop/river and fail-closed behavior; not run here",
+  "foreground_package_verified": false,
+  "recognition_limit": "calibrated portrait 1080x2340 1win layout in user-provided videos; two samples under shadow rejected",
+  "chatgpt_plus_connection": "NOT CONNECTED",
+  "game_actions": "DISABLED",
+  "next": "build APK, test on phone, validate source app before enabling HandStateTracker, further evaluate unknown-screen error rates"
+}

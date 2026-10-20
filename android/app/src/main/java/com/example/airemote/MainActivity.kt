@@ -1,0 +1,660 @@
+package com.example.airemote
+
+import android.Manifest
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.media.projection.MediaProjectionManager
+import android.os.Build
+import android.os.Bundle
+import android.os.SystemClock
+import android.view.ViewGroup
+import android.view.Gravity
+import android.view.WindowInsets
+import android.widget.*
+
+/** Phone-only operator console: read-only screen signal, local OCR and persistent STOP. */
+class MainActivity : Activity() {
+    private val projectionRequest = 501
+    private val ocrConsensus = OcrDiagnosticConsensus()
+    private val identityGuard = TableHandIdentityGuard()
+    private val notificationRequest = 502
+    private val incidentExportRequest = 503
+    private val layoutImportRequest = 504
+    private lateinit var cloudStatus: TextView
+    private val cloudControls = mutableListOf<Button>()
+    private val cloudHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var wasAuthorizing = false
+    private val cloudUiTick = object : Runnable {
+        override fun run() {
+            val authorizing = ChatGptCloudBridge.isAuthorizing()
+            cloudControls.forEach { it.isEnabled = !ChatGptCloudBridge.isBusy() }
+            if (::cloudStatus.isInitialized && (authorizing || wasAuthorizing))
+                cloudStatus.text = ChatGptCloudBridge.statusDetail(this@MainActivity)
+            wasAuthorizing = authorizing
+            cloudHandler.postDelayed(this, 400)
+        }
+    }
+    private lateinit var status: TextView
+    private lateinit var result: TextView
+    private lateinit var preview: ImageView
+    private lateinit var arm: Button
+    private lateinit var handStateText: TextView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        AppVisibilityGate.onActivityVisible()
+        // Persistent per-hand learning is local and available without Windows or cloud.
+        OnDevicePostHandLearning.initialize(applicationContext)
+        OnDeviceAutonomousRuntime.ensureLocalStrategy()
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // Android 15+/target 35 draw edge-to-edge: keep emergency STOP below status icons.
+        root.setOnApplyWindowInsetsListener { view, insets ->
+            if (Build.VERSION.SDK_INT >= 30) {
+                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(bars.left + 12, bars.top + 8, bars.right + 12, bars.bottom + 8)
+            } else {
+                @Suppress("DEPRECATION")
+                view.setPadding(12, insets.systemWindowInsetTop + 8, 12, insets.systemWindowInsetBottom + 8)
+            }
+            insets
+        }
+        // Permanent laboratory attribution at the top, immediately below system insets.
+        // Keep it compact so the emergency STOP remains visible without scrolling.
+        val laboratoryCaption = TextView(this).apply {
+            text = "Разработано в лаборатории Сноудена"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(64, 73, 88))
+            setPadding(0, 0, 0, 4)
+        }
+        root.addView(laboratoryCaption, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val stop = Button(this).apply {
+            text = "СТОП — ПРЕКРАТИТЬ ВСЕ ДЕЙСТВИЯ"
+            textSize = 18f
+            setBackgroundColor(Color.rgb(160, 25, 25))
+            setTextColor(Color.WHITE)
+            setOnClickListener { emergencyStop() }
+        }
+        root.addView(stop, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        arm = Button(this).apply {
+            text = "РАЗРЕШИТЬ НОВУЮ СЕССИЮ"
+            setOnClickListener {
+                if (OperatorStopStore.armFromOperator(this@MainActivity)) {
+                    status.text = "Сессия разрешена. Для наблюдения нажмите «Начать захват»."
+                    updateArmStatus()
+                } else status.text = "Не удалось сохранить разрешение: STOP остаётся включён"
+            }
+        }
+        // ARM is a recovery function. Keep it in Advanced settings, not on the main screen.
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(12, 8, 12, 22)
+        }
+        val scroll = ScrollView(this).apply { addView(content) }
+        root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        setContentView(root)
+        root.requestApplyInsets()
+        // Only essential actions appear on the main screen; advanced tools are retained
+        // without creating a forest of diagnostic buttons for the operator.
+        val advanced = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = android.view.View.GONE
+        }
+        val primaryActions = setOf(
+            "ВОЙТИ ЧЕРЕЗ CHATGPT",
+            "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ",
+            "НАЧАТЬ ЗАХВАТ ЭКРАНА",
+            "ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)"
+        )
+        fun label(text: String) {
+            val target = if (text.startsWith("AI Remote Control v")) content else advanced
+            target.addView(TextView(this).apply { this.text = text; textSize = 16f })
+        }
+        fun button(text: String, action: () -> Unit) {
+            val target = if (text in primaryActions) content else advanced
+            val control = Button(this).apply { this.text = text; setOnClickListener { action() } }
+            if (text in setOf("ВОЙТИ ЧЕРЕЗ CHATGPT", "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ", "СПРОСИТЬ ОБЛАЧНОГО ИИ — ТЕСТ")) cloudControls.add(control)
+            target.addView(control)
+        }
+        advanced.addView(arm, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        label("AI Remote Control v2.14.41 — Android + ChatGPT")
+        label("Захват и OCR локально. Windows-сервер и его настройки удалены. " +
+            "Локальная стратегия сохранена. Подключение ChatGPT проверяется через защищённую вкладку OpenAI. " +
+            "Исполнитель Android-касаний доступен после разрешения оператора, проверки игрового состояния и кнопок.")
+        label("ОБЛАЧНЫЙ ИИ / CHATGPT")
+        label("Вход на официальном сайте OpenAI во вкладке приложения: пароль и 2FA не передаются приложению. " +
+            "Разрешение ChatGPT на работу модели запрашивается отдельно. " +
+            "Авторизация не даёт доступа к истории переписок и не разрешает игровых касаний.")
+        cloudStatus = TextView(this).apply {
+            textSize = 16f
+            text = ChatGptCloudBridge.connectionLabel(this@MainActivity)
+            content.addView(this)
+        }
+        button("ВОЙТИ ЧЕРЕЗ CHATGPT") {
+            cloudStatus.text = "Запускается официальный вход в ChatGPT…"
+            ChatGptCloudBridge.startSignIn(this@MainActivity) { message ->
+                cloudStatus.text = message
+            }
+        }
+        button("ПРОВЕРИТЬ СЕТЬ OPENAI (БЕЗ ВХОДА)") {
+            cloudStatus.text = "Проверяю DNS и HTTPS из приложения…"
+            ChatGptCloudBridge.diagnoseOpenAiNetwork { message ->
+                runOnUiThread { cloudStatus.text = message }
+            }
+        }
+        button("ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ") {
+            cloudStatus.text = "Проверяю модель и выполняю тестовый запрос…"
+            ChatGptCloudBridge.testInference(this@MainActivity) { message ->
+                runOnUiThread { cloudStatus.text = message }
+            }
+        }
+        label("Тест общения: введи вопрос ИИ. Не отправляй пароли, личные данные или имена игроков.")
+        val cloudQuestion = EditText(this).apply {
+            hint = "Например: как оценить pot odds в Texas Hold'em?"
+            setText("Объясни в двух предложениях, как вычисляются pot odds в Texas Hold'em.")
+            filters = arrayOf(android.text.InputFilter.LengthFilter(1600))
+            advanced.addView(this)
+        }
+        button("СПРОСИТЬ ОБЛАЧНОГО ИИ — ТЕСТ") {
+            cloudStatus.text = "Ожидаю ответ облачной модели…"
+            ChatGptCloudBridge.askPrompt(this@MainActivity, cloudQuestion.text.toString()) { message ->
+                runOnUiThread { cloudStatus.text = message }
+            }
+        }
+        button("СОСТОЯНИЕ CHATGPT") {
+            cloudStatus.text = ChatGptCloudBridge.statusDetail(this@MainActivity)
+        }
+        button("ВЫЙТИ ИЗ CHATGPT") {
+            cloudStatus.text = "Отзываю сеанс…"
+            ChatGptCloudBridge.signOut(this@MainActivity) { message ->
+                runOnUiThread { cloudStatus.text = message }
+            }
+        }
+        label("Облачный ИИ подключается для испытаний и рекомендаций. " +
+            "Реальные касания в 1win не разрешаются результатом тестового запроса.")
+        status = TextView(this).apply { textSize = 16f; text = "Захват выключен"; content.addView(this) }
+        handStateText = TextView(this).apply { textSize = 15f; advanced.addView(this) }
+        refreshHandState()
+        label("Фоновое OCR обрабатывает кадры захвата локально. Данные диагностики не подтверждают стол/раздачу и не разрешают касаний.")
+        label("Калибровка: только из вручную размеченного кадра оригинального приложения. " +
+            "Никакие координаты по умолчанию не устанавливаются.")
+        button("ЗАГРУЗИТЬ КАЛИБРОВКУ РЕАЛЬНОГО КАДРА (JSON)") {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+            }
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, layoutImportRequest)
+        }
+        button("ОЧИСТИТЬ КАЛИБРОВКУ") {
+            OnDeviceRealFrameRegions.clear()
+            status.text = "Калибровка удалена, распознавание мест сброшено"
+        }
+        button("ДИАГНОСТИКА МЕСТ ИГРОКОВ") {
+            status.text = FrameStore.lastSeatVisual?.summary()
+                ?: "Нет наблюдений. Для распознавания мест необходима калибровка " +
+                   "на размеченных кадрах настоящего интерфейса. Автоматические касания запрещены."
+        }
+        button("ПОКАЗАТЬ НАБЛЮДЕНИЯ ПО ОБЛАСТЯМ") {
+            val report = FrameStore.lastRealFrameRegions
+            status.text = report?.let {
+                "Области реального кадра: ${it.status}; ${it.reason}. " +
+                    "Измерений: ${it.fields.size}. " +
+                    "Это НЕ подтверждение действий и НЕ разрешение касаний."
+            } ?: "Наблюдений нет; профиль загружен: ${OnDeviceRealFrameRegions.configured()}"
+        }
+        button("ДИАГНОСТИКА НАЧАЛА И ОКОНЧАНИЯ ХОДА") {
+            status.text = FrameStore.lastHeroTurnEpisode?.summary()
+                ?: "Нет двух подтверждённых кадров для анализа границ хода."
+        }
+        button("ПРОВЕРКА РЕАЛЬНЫХ КНОПОК (ДВА КАДРА)") {
+            status.text = FrameStore.lastActionStrip?.summary()
+                ?: "Нужны вручную измеренные три области HERO_FOLD, HERO_CHECK_CALL, HERO_BET_RAISE, " +
+                    "свежее OCR и реальная активная панель. Это не разрешение на касание."
+        }
+        button("ПОКАЗАТЬ ФОНОВОЕ OCR") {
+            status.text = FrameStore.lastAutomaticOcr?.summary()
+                ?: "Сейчас нет актуального OCR (окно оператора сбрасывает игровое изображение). " +
+                    "Последняя историческая диагностика, НЕ разрешение на действия: " +
+                    OnDeviceAutonomousRuntime.diagnostic()
+        }
+        label("AUTO: можно разрешить транспорт касаний для виртуальных фишек. " +
+            "Для реального действия всё равно обязательны достоверные стол, раздача, " +
+            "свой ход и кнопка. Неизвестные данные не дают права нажимать.")
+        button("РАЗРЕШИТЬ КАСАНИЯ ДЛЯ ПОДТВЕРЖДЁННОГО ПРИЛОЖЕНИЯ") {
+            requestAutomationAuthorization()
+        }
+        button("ОТОЗВАТЬ РАЗРЕШЕНИЕ АВТОМАТИЗАЦИИ") {
+            OperatorStopStore.stop(this@MainActivity)
+            updateArmStatus()
+            status.text = "Разрешение отозвано, STOP активирован. Для новой сессии нужен ARM."
+        }
+        button("ПОКАЗАТЬ РАЗРЕШЕНИЯ И АВТО-РЕЖИМ") {
+            val pkg = LiveGamePermissionGate.packageName() ?: "не назначен"
+            status.text = "Касания разрешены: ${LiveGamePermissionGate.permitted()}. " +
+                "Целевое приложение: $pkg. " +
+                "Accessibility: ${LiveForegroundProbe.connected()}. " +
+                "Захват: ${FrameStore.isCapturing}. " +
+                "AUTO: ${OnDeviceAutonomousRuntime.status().state}. " +
+                OnDeviceAutonomousRuntime.readiness(this@MainActivity)
+        }
+        button("ПРОВЕРИТЬ ГОТОВНОСТЬ АВТО-РЕЖИМА") {
+            val state = OnDeviceAutonomousRuntime.status()
+            status.text = "AUTO: ${state.state} — ${state.explanation}. " +
+                "Готовность: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
+        }
+        button("ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)") {
+            val enabled = OnDeviceAutonomousRuntime.startIfAuthorized(this@MainActivity)
+            status.text = if (enabled) "AUTO включён, ждёт подтверждённый ход и точные кнопки. STOP доступен всегда."
+                else "AUTO заблокирован: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
+        }
+        label("Диагностика ошибок: локальный журнал не содержит скриншотов, OCR-текст, имена игроков или ключи API.")
+        button("ПОКАЗАТЬ СОСТОЯНИЕ ЖУРНАЛА") {
+            status.text = OnDeviceIncidentRecorder.shortStatus()
+        }
+        button("ЭКСПОРТ ОТЧЁТА ОБ ОШИБКАХ (ВРУЧНУЮ)") {
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+                putExtra(Intent.EXTRA_TITLE, "incident-report-v2.14.41.json")
+            }
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, incidentExportRequest)
+        }
+        button("НАСТРОИТЬ СЛУЖБУ STOP И УПРАВЛЕНИЯ") {
+            startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        button("НАЧАТЬ ЗАХВАТ ЭКРАНА") { requestCapture() }
+        button("ОСТАНОВИТЬ ЗАХВАТ И УДАЛИТЬ КАДР") { stopCapture() }
+        button("ПОКАЗАТЬ ПОСЛЕДНИЙ КАДР") { refreshFrame() }
+        button("ПРОВЕРИТЬ КАЧЕСТВО КАДРА") { inspectFrameOnPhone() }
+        button("РАСПОЗНАТЬ ТЕКСТ НА КАДРЕ") { recognizeTextOnPhone() }
+        label("Качество изображения:")
+        Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
+                arrayOf("Баланс · 960px", "Детали · 1280px", "Точное · 1536px"))
+            setSelection(0)
+            onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?,
+                                            position: Int, id: Long) { CaptureOptions.profile = position }
+            }
+            advanced.addView(this)
+        }
+        preview = ImageView(this).apply {
+            adjustViewBounds = true
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 420)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            advanced.addView(this)
+        }
+        result = TextView(this).apply { textSize = 15f; advanced.addView(this) }
+        label("Во время наблюдения не открывайте пароли и платёжные данные. " +
+            "При блокировке экрана захват может завершиться.")
+        val advancedToggle = Button(this).apply {
+            text = "НАСТРОЙКИ И ОТЧЁТ ▾"
+            setOnClickListener {
+                val show = advanced.visibility != android.view.View.VISIBLE
+                advanced.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
+                text = if (show) "СКРЫТЬ НАСТРОЙКИ ▴" else "НАСТРОЙКИ И ОТЧЁТ ▾"
+            }
+        }
+        content.addView(advancedToggle)
+        content.addView(advanced)
+        updateArmStatus()
+    }
+
+    /**
+     * One explicit, in-app operator authorization. The app must have seen the
+     * intended external package in Accessibility within the last 20 seconds.
+     * A virtual-chip label is not itself evidence of platform permission.
+     */
+    private fun requestAutomationAuthorization() {
+        val seen = LiveForegroundProbe.lastExternalPackage()
+        val target = seen?.packageName ?: "не определён"
+        val message = "Последнее наблюдаемое приложение: $target.\n\n" +
+            "Режим проекта: только виртуальные фишки, без пополнений и вывода.\n" +
+            "Разрешайте управление, только если выбран именно 1win и правила " +
+            "этой платформы допускают автоматизацию.\n\n" +
+            "После включения STOP остаётся доступным. Разрешение не заменяет " +
+            "проверку карт, хода, размера ставки и точной кнопки. " +
+            "Если здесь не 1win, сначала откройте 1win и вернитесь сюда за 20 секунд."
+        AlertDialog.Builder(this)
+            .setTitle("Разрешить автоматизацию")
+            .setMessage(message)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Разрешаю управление") { _, _ ->
+                val recent = LiveForegroundProbe.lastExternalPackage()
+                val request = OperatorAutomationAuthRequest(
+                    observedPackage = recent?.packageName,
+                    observedAtElapsedMs = recent?.atMs,
+                    nowElapsedMs = SystemClock.elapsedRealtime(),
+                    ownPackage = packageName,
+                    accessibilityConnected = LiveForegroundProbe.connected(),
+                    stopped = OperatorStopStore.isStopped(this),
+                    operatorConfirmedVirtualOnly = true,
+                    operatorConfirmedPlatformAllowsAutomation = true
+                )
+                val result = OperatorAutomationAuthorization.assess(request)
+                // Prevent a switch between showing the dialog and approving a new target.
+                if (recent == null || result != OperatorAutomationAuthStatus.VALID ||
+                    recent?.packageName != seen?.packageName ||
+                    recent?.windowGeneration != seen?.windowGeneration) {
+                    LiveGamePermissionGate.revoke()
+                    status.text = "Разрешение не выдано: $result. Откройте игру и повторите."
+                } else {
+                    LiveGamePermissionGate.grantForVerifiedEnvironment(
+                        requireNotNull(recent.packageName), platformExplicitlyPermits = true)
+                    status.text = if (LiveGamePermissionGate.permitted())
+                        "Транспорт касаний разрешён для ${recent.packageName}. " +
+                            "Теперь включите AUTO после запуска захвата. " +
+                            "До подтверждения каждого хода касаний не будет."
+                    else "Разрешение не удалось включить"
+                }
+            }.show()
+    }
+
+    private fun updateArmStatus() {
+        if (::arm.isInitialized) arm.isEnabled = OperatorStopStore.isStopped(this)
+    }
+
+    private fun refreshHandState() {
+        if (!::handStateText.isInitialized) return
+        val now = SystemClock.elapsedRealtime()
+        val state = OnDeviceHandState.snapshot(now)
+        val cards = FrameStore.cardConsensus.current(now)
+        val last = cards ?: FrameStore.lastConfirmedForPreview
+        val recognized = if (last == null) {
+            "Карты: пока нет 2 согласованных результатов"
+        } else {
+            val note = if (cards == null) "ПОСЛЕДНИЙ, УЖЕ НЕСВЕЖИЙ РЕЗУЛЬТАТ" else "Локально распознано"
+            "$note: ${last.hole.joinToString(" ")} | " +
+                "стол: ${if (last.community.isEmpty()) "пусто" else last.community.joinToString(" ")}. " +
+                "Источник приложения не подтверждён"
+        }
+        val probable = OnDeviceStageBridge.lastAssessment
+        val probableText = if (probable != null && !probable.stageConfirmed) {
+            "Локальный признак фазы: ${probable.probableStage} (НЕ ПОДТВЕРЖДЕНО). " +
+                probable.reason
+        } else "Локальный признак фазы пока не определён"
+        val phase = if (state.trustworthyNow) {
+            "Фаза раздачи: ${state.stage} · № ${state.handSerial} (подтверждено)"
+        } else {
+            "Фаза раздачи: НЕ ПОДТВЕРЖДЕНА. Игровые команды отключены"
+        }
+        val latestTurn = FrameStore.lastTurnVisual
+        val stableTurn = FrameStore.turnConsensus.current(now)
+        val turnText = if (stableTurn != null) {
+            val words = when (stableTurn.state) {
+                TurnDisplayState.READY -> "ПРИЗНАК НАШЕГО ХОДА (яркие кнопки)"
+                TurnDisplayState.PREACTION -> "ПРЕДВАРИТЕЛЬНЫЙ ВЫБОР (не ход)"
+                TurnDisplayState.BET_SIZING -> "ВЫБОР РАЗМЕРА СТАВКИ"
+                TurnDisplayState.WAITING -> "НЕТ АКТИВНЫХ КНОПОК"
+                TurnDisplayState.UNKNOWN -> "НЕИЗВЕСТНО"
+            }
+            "Кнопки: $words. Два кадра совпали, но источник и точные действия НЕ подтверждены."
+        } else if (latestTurn != null) {
+            "Кнопки: ${latestTurn.reading.state} (не подтверждено / устарело)"
+        } else "Кнопки: ожидаем распознавание"
+        val readiness = GameReadinessStatus.inspect(GameReadinessInput(
+            stopped = OperatorStopStore.isStopped(this),
+            captureActive = FrameStore.isCapturing,
+            appVerified = false, // no trusted foreground app binding yet
+            tableVerified = false, // no verified table identity yet
+            cardEpoch = cards?.captureEpoch ?: -1L,
+            turnEpoch = stableTurn?.captureEpoch ?: -1L,
+            currentEpoch = FrameStore.captureEpoch,
+            cardObservedAtMs = cards?.capturedAtMs ?: -1L,
+            turnObservedAtMs = stableTurn?.capturedAtMs ?: -1L,
+            nowMs = now,
+            cardsConfirmed = cards != null,
+            handStageConfirmed = state.trustworthyNow,
+            ourTurnConfirmed = stableTurn?.state == TurnDisplayState.READY &&
+                stableTurn.sourceVerified,
+            exactActionLabelsConfirmed = false, // color != precise button label
+            strategyConnected = OnDeviceAutonomousRuntime.strategyInstalled() // cloud sign-in is independent from gesture permission
+        ))
+        val lastExternal = LiveForegroundProbe.lastExternalPackage()?.packageName ?: "не установлен"
+        val origin = FrameStore.windowOrigin
+        val originText = if (origin?.safeForLocalDiagnostics == true)
+            "Активное внешнее окно: ${origin.observedPackage} (2 кадра, ТОЛЬКО диагностика; стол не установлен)"
+        else "Источник кадра НЕ определён: ${origin?.reason ?: "требуется служба Accessibility"}"
+        handStateText.text = "$recognized\n$phase\n$probableText\n$turnText\n" +
+            "$originText\nПроверка готовности: $readiness (не разрешение на касание).\n" +
+            "Служба жестов: ${if (LiveForegroundProbe.connected()) "включена" else "не включена"}. " +
+            "Последний внешний пакет: $lastExternal (не подтверждён). " +
+            "Внешние нажатия заблокированы до проверки условий."
+    }
+
+    private fun requestCapture() {
+        if (!OnDeviceCaptureLifecycle.gate.mayRequestNewCapture()) {
+            status.text = "Новый захват недоступен: завершите предыдущую сессию"
+            return
+        }
+        if (OperatorStopStore.isStopped(this)) { status.text = "СТОП: сначала разрешите новую сессию"; return }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), notificationRequest)
+        } else showCaptureDialog()
+    }
+
+    private fun showCaptureDialog() {
+        val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        @Suppress("DEPRECATION")
+        startActivityForResult(manager.createScreenCaptureIntent(), projectionRequest)
+    }
+
+    @Deprecated("Android Activity result used to keep minimum dependencies")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == layoutImportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val bytes = contentResolver.openInputStream(requireNotNull(data.data))?.use { stream ->
+                        // Bounded streaming: compatible with minSdk 29 and hostile file sizes.
+                        val out = java.io.ByteArrayOutputStream()
+                        val chunk = ByteArray(4096)
+                        while (true) {
+                            val n = stream.read(chunk)
+                            if (n < 0) break
+                            if (out.size() + n > 32 * 1024) error("Слишком большой файл")
+                            out.write(chunk, 0, n)
+                        }
+                        out.toByteArray()
+                    } ?: error("Файл недоступен")
+                    val profile = OnDeviceLayoutImport.parse(bytes)
+                    val applied = OnDeviceRealFrameRegions.configure(profile)
+                    status.text = if (applied)
+                        "Калибровка загружена: ${profile.layoutKey}, ${profile.frameWidth}×${profile.frameHeight}. " +
+                            "Области: ${profile.zones.size}. Кнопки: ${OnDeviceActionStripDiagnostics.configured()}. " +
+                            "Калибровка не подтверждает личность, раздачу и не разрешает касаний."
+                    else "Калибровка отклонена"
+                } catch (_: Exception) {
+                    OnDeviceRealFrameRegions.clear()
+                    status.text = "Файл калибровки отклонён. Проверьте схему, пакет и координаты."
+                }
+            }
+            return
+        }
+        if (requestCode == incidentExportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val uri = requireNotNull(data.data)
+                    val bytes = OnDeviceIncidentRecorder.exportReport(this).toByteArray(Charsets.UTF_8)
+                    contentResolver.openOutputStream(uri, "w")?.use { it.write(bytes) }
+                        ?: error("Документ не открыт")
+                    status.text = "Отчёт сохранён (${bytes.size} байт). Прикрепите его к чату для доработки."
+                } catch (_: Exception) {
+                    status.text = "Не удалось сохранить отчёт — журнал остался на телефоне"
+                }
+            }
+            return
+        }
+        if (requestCode != projectionRequest) return
+        if (resultCode != RESULT_OK || data == null) { status.text = "Разрешение захвата отменено"; return }
+        if (OperatorStopStore.isStopped(this)) { status.text = "Сессия остановлена"; return }
+        // Do NOT stopService() and immediately startForegroundService(): Android can
+        // deliver both commands to the SAME service before its old onDestroy().
+        if (!OnDeviceCaptureLifecycle.gate.mayRequestNewCapture()) {
+            status.text = "Предыдущий захват ещё не завершён. Новый не запускается"
+            return
+        }
+        FrameStore.clear()
+        ocrConsensus.reset()
+        identityGuard.reset()
+        OnDeviceHandState.reset("Новый захват: фаза не установлена")
+        OnDeviceStageBridge.reset("Новый захват")
+        refreshHandState()
+        val request = Intent(this, CaptureService::class.java).apply {
+            action = CaptureService.ACTION_START
+            putExtra(CaptureService.EXTRA_RESULT_CODE, resultCode)
+            putExtra(CaptureService.EXTRA_DATA, data)
+        }
+        startForegroundService(request)
+        status.text = "Захват запускается. Перейдите в разрешённую тестовую среду; вернитесь для просмотра кадра."
+    }
+
+    override fun onRequestPermissionsResult(req: Int, permissions: Array<out String>, results: IntArray) {
+        super.onRequestPermissionsResult(req, permissions, results)
+        if (req == notificationRequest) showCaptureDialog()
+    }
+
+    private fun stopCapture() {
+        OnDeviceCaptureLifecycle.gate.requestStop()
+        OnDeviceAutonomousRuntime.stop("Оператор остановил захват")
+        OnDeviceLiveActionControl.stop()
+        stopService(Intent(this, CaptureService::class.java))
+        FrameStore.clear()
+        ocrConsensus.reset()
+        identityGuard.reset()
+        OnDeviceHandState.reset("Захват остановлен")
+        OnDeviceStageBridge.reset("Захват остановлен")
+        refreshHandState()
+        preview.setImageDrawable(null)
+        result.text = ""
+        status.text = "Захват остановлен, последний кадр удалён"
+    }
+
+    private fun emergencyStop() {
+        OperatorStopStore.stop(this)
+        OnDeviceRealFrameRegions.clear()
+        OnDeviceCaptureLifecycle.gate.requestStop()
+        // Persist STOP before stopping the service; no acknowledgement dialog.
+        stopService(Intent(this, CaptureService::class.java))
+        FrameStore.clear()
+        ocrConsensus.reset()
+        identityGuard.reset()
+        OnDeviceHandState.reset("Аварийный STOP")
+        OnDeviceStageBridge.reset("Аварийный STOP")
+        refreshHandState()
+        preview.setImageDrawable(null)
+        result.text = ""
+        status.text = "АВАРИЙНЫЙ STOP — захват и локальная обработка выключены"
+        updateArmStatus()
+    }
+
+    private fun refreshFrame() {
+        refreshHandState()
+        val frame = FrameStore.latest
+        if (frame == null) { status.text = "Нет кадра. ${FrameStore.captureError}"; return }
+        preview.setImageBitmap(BitmapFactory.decodeByteArray(frame.jpeg, 0, frame.jpeg.size))
+        val age = SystemClock.elapsedRealtime() - frame.capturedAtMs
+        status.text = "Внешний кадр (приложение-источник не подтверждено). JPEG ${frame.jpeg.size / 1024} КиБ · ${frame.width}×${frame.height} · возраст ${age} мс"
+    }
+
+    private fun inspectFrameOnPhone() {
+        val frame = FrameStore.latest
+        val health = FrameStore.localFrameHealth
+        val age = frame?.let { SystemClock.elapsedRealtime() - it.capturedAtMs }
+        if (health == null || age == null) { status.text = "Свежий кадр отсутствует"; return }
+        val usable = health.usable && age in 0L..8000L && !OperatorStopStore.isStopped(this)
+        status.text = "${if (usable) "Кадр различим" else "Кадр непригоден"}; " +
+            "причина: ${if (age > 8000L) "stale_frame" else health.reason}; " +
+            "яркость ${health.meanLuma}, контраст ${health.contrast}, " +
+            "тёмных ${health.darkPercent}%, возраст ${age} мс"
+    }
+
+    private fun recognizeTextOnPhone() {
+        if (OperatorStopStore.isStopped(this)) { status.text = "STOP: распознавание выключено"; return }
+        val frame = FrameStore.latest
+        val health = FrameStore.localFrameHealth
+        if (frame == null || health?.usable != true ||
+            SystemClock.elapsedRealtime() - frame.capturedAtMs !in 0L..8000L) {
+            status.text = "Нужен свежий различимый кадр"
+            return
+        }
+        val epoch = FrameStore.captureEpoch
+        val originAtRequest = FrameStore.windowOrigin
+        val ticket = OcrFrameProvenance.ticket(frame, originAtRequest)
+        if (OcrFrameProvenance.check(ticket, frame, originAtRequest, epoch,
+                SystemClock.elapsedRealtime(), OperatorStopStore.isStopped(this)) != OcrFrameCheck.VALID_DIAGNOSTIC) {
+            ocrConsensus.reset()
+            identityGuard.reset()
+            status.text = "OCR отменено: кадр и поколение окна не совпадают"
+            return
+        }
+        status.text = "Локальное OCR на Android…"
+        OnDeviceTextRecognition.inspectStructured(frame.jpeg.copyOf()) { response ->
+            runOnUiThread {
+                // Race-safe final check: a same-package modal changes windowGeneration.
+                val check = OcrFrameProvenance.check(ticket, FrameStore.latest,
+                    FrameStore.windowOrigin, FrameStore.captureEpoch,
+                    SystemClock.elapsedRealtime(), OperatorStopStore.isStopped(this))
+                if (check != OcrFrameCheck.VALID_DIAGNOSTIC) {
+                    ocrConsensus.reset()
+                    identityGuard.reset()
+                    result.text = ""
+                    status.text = "OCR отменено: STOP, смена окна или устаревший кадр"
+                } else result.text = response.fold(
+                    onSuccess = {
+                        val agreement = ocrConsensus.observe(ticket, FrameTextEvidence.parse(it.lines))
+                        // No independently authenticated table+hand producer is wired here.
+                        // Never infer a table ID from the observed Android package, cards or OCR.
+                        val binding = identityGuard.inspect(null, ticket, agreement,
+                            SystemClock.elapsedRealtime(), OperatorStopStore.isStopped(this))
+                        it.summary() + "\n\nПроверка двух кадров: ${agreement.reason}" +
+                            "\nПривязка к столу/раздаче: ${binding.reason}"
+                    },
+                    onFailure = {
+                        ocrConsensus.reset()
+                        identityGuard.reset()
+                        "OCR ошибка: ${it.message}"
+                    })
+            }
+        }
+    }
+
+    override fun onStart() {
+        // Called before the Activity becomes visible; block new capture publications.
+        AppVisibilityGate.onActivityVisible()
+        super.onStart()
+    }
+
+    override fun onStop() {
+        // A new background generation allows read-only capture in another app.
+        // This does NOT establish that the other app is the intended poker table.
+        AppVisibilityGate.onActivityHidden()
+        super.onStop()
+    }
+
+    override fun onPause() {
+        cloudHandler.removeCallbacks(cloudUiTick)
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        cloudHandler.removeCallbacks(cloudUiTick)
+        cloudHandler.post(cloudUiTick)
+        if (::cloudStatus.isInitialized) cloudStatus.text = ChatGptCloudBridge.statusDetail(this)
+        // Never leave a previously displayed external screenshot in the operator UI.
+        if (::preview.isInitialized) preview.setImageDrawable(null)
+        updateArmStatus()
+    }
+}

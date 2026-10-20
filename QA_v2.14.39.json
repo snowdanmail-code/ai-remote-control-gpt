@@ -1,0 +1,21 @@
+{
+  "version": "2.14.39",
+  "artifact": "source_release_candidate_only",
+  "android_apk_produced": false,
+  "real_android_oauth_verified": false,
+  "real_chatgpt_reply_verified": false,
+  "python_source_tests": {"passed": 284, "total": 284, "status": "PASS"},
+  "full_pure_kotlin_jvm_suite": "PASS",
+  "new_kotlin_identity_policy": {"passed": 20, "total": 20, "status": "PASS"},
+  "new_kotlin_dns_preflight": {"passed": 7, "total": 7, "status": "PASS"},
+  "kotlin_cloud_module_android_stub_compilation": "PASS",
+  "github_actions_yaml_parsed": true,
+  "confirmed_fix": ["do_not_collapse_JWKS_network_failure_to_BAD_IDENTITY", "optional_JWT_typ_header", "bounded_DNS_before_auth_POST_only", "no_oauth_code_replay", "empty_ci_env_removed"],
+  "android_sdk_gradle_build": "NOT_RUN",
+  "application_id_debug": "com.example.airemote.dev",
+  "version_code": 73,
+  "previous_installed_signer_sha256_v2_14_36": "511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c",
+  "prior_signing_keystore_available": false,
+  "automatic_live_taps_verified": false,
+  "blocking_requirements": ["Android SDK/Gradle CI build", "original signing keystore and certificate verification", "actual device OAuth with 2FA", "actual model response"]
+}

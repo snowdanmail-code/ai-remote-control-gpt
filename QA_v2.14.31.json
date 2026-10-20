@@ -1,0 +1,20 @@
+{
+  "version": "2.14.31",
+  "artifact_type": "android_source_archive_only",
+  "date": "2026-10-18",
+  "checks": {
+    "full_kotlin_jvm_suite": "passed",
+    "new_hero_turn_lifecycle_assertions": 49,
+    "python_unittest": {"passed": 235, "failed": 0},
+    "android_gradle_junit": "not_run_sdk_unavailable",
+    "apk_assembly": "not_run",
+    "device_installation": "not_tested",
+    "live_1win_gestures": "not_tested"
+  },
+  "security_properties": [
+    "visual episode ordinal is not a verified hand/turn ID",
+    "visual lifecycle does not authorize tap",
+    "fail-closed on STOP, invalid window, frame replay, epoch change",
+    "full gesture execution still requires separate independently verified context and coordinates"
+  ]
+}

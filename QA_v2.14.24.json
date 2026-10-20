@@ -1,0 +1,27 @@
+{
+  "version": "2.14.24",
+  "base_version": "2.14.23",
+  "release_type": "source_only",
+  "feature": "calibrated, diagnostic-only seat OCR observations; no opponent identity or action verification",
+  "local_tests": {
+    "kotlin_seat_visual_checks": 44,
+    "kotlin_previous_suite": "passed",
+    "python_unit_tests": 193,
+    "android_gradle_tests": "not_run",
+    "android_junit_added_not_run": 4
+  },
+  "validated": {
+    "source_archive_sha256": "provided_in_companion_sha256_file",
+    "independent_table_hand_id": "not_connected",
+    "screen_layout_calibration": "not_configured",
+    "real_1win_cv_accuracy": "unmeasured",
+    "automated_gestures": "blocked",
+    "apk_built": false
+  },
+  "limitations": [
+    "no confirmed player identities",
+    "no action transition detector",
+    "no annotated target video frames",
+    "Android SDK/Gradle not available"
+  ]
+}
