@@ -35,7 +35,16 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Python contract and source tests
-        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
+        run: |
+          python3 -m pip install 'Pillow==11.3.0'
+          python3 -m unittest discover -s tools -p 'test_*.py' -v
+      - name: Install pinned Kotlin compiler from its upstream release
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --output "$RUNNER_TEMP/kotlin.zip" https://github.com/JetBrains/kotlin/releases/download/v1.9.24/kotlin-compiler-1.9.24.zip
+          unzip -q "$RUNNER_TEMP/kotlin.zip" -d "$RUNNER_TEMP/t042-kotlin"
+          echo "$RUNNER_TEMP/t042-kotlin/kotlinc/bin" >> "$GITHUB_PATH"
       - name: Kotlin JVM scenario tests
         run: bash tools/run_jvm_tests.sh
       - name: Android unit tests and instrumentation compilation
