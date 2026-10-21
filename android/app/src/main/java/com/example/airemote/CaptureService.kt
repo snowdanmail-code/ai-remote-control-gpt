@@ -294,11 +294,15 @@ class CaptureService : Service() {
                                             lastProfile = profile
                                         }) {
                                             // This read-only pipeline consumes only the committed JPEG.
-                                            FrameStore.latest?.let { committed ->
-                                                OnDeviceAutomaticOcr.offer(applicationContext,
-                                                    committed, origin) {
-                                                        !closing && windowStillMatches(origin, rootEvidence)
-                                                    }
+                                            if (!CaptureObservationMode.isSpectator()) {
+                                                // Existing player OCR is unchanged and is not
+                                                // allowed to consume spectator-only board evidence.
+                                                FrameStore.latest?.let { committed ->
+                                                    OnDeviceAutomaticOcr.offer(applicationContext,
+                                                        committed, origin) {
+                                                            !closing && windowStillMatches(origin, rootEvidence)
+                                                        }
+                                                }
                                             }
                                         } else if (jpeg.size > 650_000) {
                                             FrameStore.captureError = "Кадр превышает лимит размера"
