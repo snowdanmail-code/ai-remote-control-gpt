@@ -51,7 +51,8 @@ object SpectatorLearningJournal {
             .put("frame_sequence", frameSeq)
             .put("candidate", JSONArray(proposedCards))
             .put("operator_label", if (correctedCards == null) JSONObject.NULL else JSONArray(correctedCards))
-            .put("is_ground_truth", type == "OPERATOR_CONFIRMED" || type == "OPERATOR_CORRECTED")
+            .put("is_ground_truth", type == "OPERATOR_CONFIRMED" ||
+                type == "OPERATOR_CORRECTED" || type == "OPERATOR_LABELED_UNRECOGNIZED")
         val entries = JSONArray()
         val first = (old.length() - (LIMIT - 1)).coerceAtLeast(0)
         for (i in first until old.length()) entries.put(old.getJSONObject(i))
