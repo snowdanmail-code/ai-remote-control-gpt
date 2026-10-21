@@ -74,6 +74,10 @@ object FrameStore {
     @Volatile var localFrameHealth: OnDeviceFrameHealth? = null
     @Volatile var lastCards: CardVisionSignal? = null
     val cardConsensus = CardReadingConsistency()
+    /** Strictly read-only: separate from cardConsensus and all hero observations. */
+    val spectatorConsensus = SpectatorBoardConsensus()
+    @Volatile var spectatorBoard: StableSpectatorBoard? = null
+    @Volatile var spectatorBoardForPreview: StableSpectatorBoard? = null
     @Volatile var windowOrigin: WindowOriginAssessment? = null
     // Read-only display diagnostics; never a permission to send a tap.
     @Volatile var lastTurnVisual: TurnVisualSignal? = null
@@ -97,6 +101,8 @@ object FrameStore {
         confirmedCards = null
         lastConfirmedForPreview = null
         cardConsensus.reset()
+        spectatorBoard = null
+        spectatorConsensus.reset()
         lastTurnVisual = null
         confirmedTurnVisual = null
         turnConsensus.reset()
@@ -147,6 +153,8 @@ object FrameStore {
         confirmedCards = null
         lastConfirmedForPreview = null
         cardConsensus.reset()
+        spectatorBoard = null
+        spectatorConsensus.reset()
         lastTurnVisual = null
         confirmedTurnVisual = null
         turnConsensus.reset()
@@ -172,6 +180,7 @@ object FrameStore {
     @Synchronized fun clear() {
         epochCounter.incrementAndGet()
         operatorPreview = null
+        spectatorBoardForPreview = null
         receivedImages = 0L
         invalidateVisualEvidence()
         isCapturing = false
