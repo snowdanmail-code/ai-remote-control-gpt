@@ -289,7 +289,7 @@ class MainActivity : Activity() {
         Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
                 arrayOf("Баланс · 960px", "Детали · 1280px", "Точное · 1536px"))
-            setSelection(0)
+            setSelection(CaptureOptions.profile.coerceIn(0, 2))
             onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?,
@@ -299,7 +299,8 @@ class MainActivity : Activity() {
         }
         preview = ImageView(this).apply {
             adjustViewBounds = true
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 420)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.65f).toInt())
             scaleType = ImageView.ScaleType.FIT_CENTER
             advanced.addView(this)
         }
@@ -591,7 +592,9 @@ class MainActivity : Activity() {
         preview.setImageBitmap(BitmapFactory.decodeByteArray(frame.jpeg, 0, frame.jpeg.size))
         val age = now - frame.capturedAtMs
         status.text = "Последний снимок — ТОЛЬКО ПРОСМОТР, не текущее игровое состояние. " +
-            "JPEG ${frame.jpeg.size / 1024} КиБ · ${frame.width}×${frame.height} · возраст ${age} мс"
+            "ML Kit OCR получает этот JPEG ${frame.width}×${frame.height}; " +
+            "распознавание карт отдельно использует растр 540×1170 из полного экрана. " +
+            "JPEG ${frame.jpeg.size / 1024} КиБ · возраст ${age} мс"
     }
 
     private fun inspectFrameOnPhone() {
