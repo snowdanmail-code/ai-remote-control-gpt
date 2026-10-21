@@ -10,7 +10,8 @@ data class FrameInfo(val jpeg: ByteArray, val seq: Long, val width: Int,
 
 object CaptureOptions {
     /** On-device capture presets: 960, 1280, 1536px. */
-    @Volatile var profile: Int = 2
+    @Volatile var profile: Int = 0 // unchanged seated-player default
+    @Volatile var spectatorProfile: Int = 2 // independent high-detail observer preset
     val longEdges = intArrayOf(960, 1280, 1536)
     val qualities = intArrayOf(75, 88, 88)
 }
