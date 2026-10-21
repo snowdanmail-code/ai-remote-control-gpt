@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var result: TextView
     private lateinit var preview: ImageView
+    private lateinit var qualitySpinner: Spinner
     private lateinit var arm: Button
     private lateinit var handStateText: TextView
 
@@ -298,21 +299,26 @@ class MainActivity : Activity() {
         button("ПРОВЕРИТЬ КАЧЕСТВО КАДРА") { inspectFrameOnPhone() }
         button("РАСПОЗНАТЬ ТЕКСТ НА КАДРЕ") { recognizeTextOnPhone() }
         label("Качество изображения:")
-        Spinner(this).apply {
+        qualitySpinner = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
                 arrayOf("Баланс · 960px", "Детали · 1280px", "Точное · 1536px"))
-            setSelection(CaptureOptions.profile.coerceIn(0, 2))
+            setSelection((if (CaptureObservationMode.isSpectator())
+                CaptureOptions.spectatorProfile else CaptureOptions.profile).coerceIn(0, 2))
             onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?,
-                                            position: Int, id: Long) { CaptureOptions.profile = position }
+                                            position: Int, id: Long) {
+                    if (CaptureObservationMode.isSpectator()) CaptureOptions.spectatorProfile = position
+                    else CaptureOptions.profile = position
+                }
             }
             advanced.addView(this)
         }
         preview = ImageView(this).apply {
             adjustViewBounds = true
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                (resources.displayMetrics.heightPixels * 0.65f).toInt())
+                if (CaptureObservationMode.isSpectator())
+                    (resources.displayMetrics.heightPixels * 0.65f).toInt() else 420)
             scaleType = ImageView.ScaleType.FIT_CENTER
             advanced.addView(this)
         }
@@ -493,6 +499,11 @@ class MainActivity : Activity() {
             target, FrameStore.isCapturing, OperatorStopStore.isStopped(this))
         updateArmStatus()
         refreshHandState()
+        qualitySpinner.setSelection((if (CaptureObservationMode.isSpectator())
+            CaptureOptions.spectatorProfile else CaptureOptions.profile).coerceIn(0, 2))
+        preview.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            if (CaptureObservationMode.isSpectator())
+                (resources.displayMetrics.heightPixels * 0.65f).toInt() else 420)
         preview.setImageDrawable(null)
         result.text = ""
         status.text = if (selected) {
@@ -654,8 +665,11 @@ class MainActivity : Activity() {
         preview.setImageBitmap(BitmapFactory.decodeByteArray(frame.jpeg, 0, frame.jpeg.size))
         val age = now - frame.capturedAtMs
         status.text = "Последний снимок — ТОЛЬКО ПРОСМОТР, не текущее игровое состояние. " +
-            "ML Kit OCR получает этот JPEG ${frame.width}×${frame.height}; " +
-            "карты проверяются отдельно: сначала 540×1170, при неудаче 810×1755 из полного экрана. " +
+            (if (CaptureObservationMode.isSpectator())
+                "НАБЛЮДАТЕЛЬ: JPEG просмотра ${frame.width}×${frame.height}; " +
+                    "открытые общие карты читаются отдельно из полного экрана. "
+            else "ИГРОК: ML Kit OCR получает JPEG ${frame.width}×${frame.height}; " +
+                    "карты читаются прежним алгоритмом 540×1170. ") +
             "JPEG ${frame.jpeg.size / 1024} КиБ · возраст ${age} мс"
     }
 
