@@ -194,6 +194,25 @@ class CaptureService : Service() {
                                     AppVisibilityGate.canPublish(visibilityTicket) &&
                                     captureEpoch == FrameStore.captureEpoch) {
                                     lastCardInspectionAt = now
+                                    if (CaptureObservationMode.isSpectator()) {
+                                        // Read ONLY exposed community cards while spectating.
+                                        // Player-card consensus, stage, hero turn and gestures
+                                        // are intentionally NOT called in this branch.
+                                        val board = OnDeviceCardReader.inspectSpectator(screen)
+                                        FrameStore.commitIfCurrent(captureEpoch, origin, {
+                                            CaptureObservationMode.isSpectator() && !closing &&
+                                                !OperatorStopStore.isStopped(applicationContext) &&
+                                                AppVisibilityGate.canPublish(visibilityTicket) &&
+                                                windowStillMatches(origin, rootEvidence)
+                                        }) {
+                                            cardInspectionSeq += 1L
+                                            val stable = FrameStore.spectatorConsensus.accept(
+                                                board, captureEpoch, cardInspectionSeq, now,
+                                                SystemClock.elapsedRealtime(), origin.observedPackage)
+                                            FrameStore.spectatorBoard = stable
+                                            if (stable != null) FrameStore.spectatorBoardForPreview = stable
+                                        }
+                                    } else {
                                     val visual = OnDeviceCardReader.inspectAll(screen)
                                     val cards = visual.cards
                                     FrameStore.commitIfCurrent(captureEpoch, origin, {
@@ -232,6 +251,7 @@ class CaptureService : Service() {
                                             origin.windowGeneration, origin.safeForLocalDiagnostics,
                                             SystemClock.elapsedRealtime(),
                                             OperatorStopStore.isStopped(applicationContext))
+                                    }
                                     }
                                 }
                                 val profile = CaptureOptions.profile.coerceIn(0, 2)
