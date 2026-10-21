@@ -26,7 +26,9 @@ class ForegroundCaptureIntegrationTests(unittest.TestCase):
 
     def test_status_does_not_claim_known_game_origin(self):
         source = (BASE / 'MainActivity.kt').read_text()
-        self.assertIn('приложение-источник не подтверждено', source)
+        self.assertIn('appVerified = false', source)
+        self.assertIn('tableVerified = false', source)
+        self.assertIn('Внешние нажатия заблокированы до проверки условий', source)
 
     def test_insets_include_display_cutout(self):
         source = (BASE / 'MainActivity.kt').read_text()

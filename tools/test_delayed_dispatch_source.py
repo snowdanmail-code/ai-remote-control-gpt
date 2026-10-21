@@ -27,6 +27,6 @@ class TestDelayedDispatch(unittest.TestCase):
         self.assertIn('stopOccludesTarget',text)
     def test_debug_version_updated(self):
         self.assertRegex((BASE/'android/app/build.gradle.kts').read_text(), r'versionCode = (?:4[3-9]|[5-9][0-9])')
-        self.assertRegex((SRC/'MainActivity.kt').read_text(), r'AI Remote Control v2\.14\.\d+')
+        self.assertIn('AI Remote Control v${packageManager.getPackageInfo(packageName, 0).versionName}', (SRC/'MainActivity.kt').read_text())
 
 if __name__ == '__main__': unittest.main()

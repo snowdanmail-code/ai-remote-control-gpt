@@ -50,7 +50,7 @@ class TestLiveAndroidTransport(unittest.TestCase):
         self.assertIn('OperatorStopStore.stop(applicationContext)',self.service)
         self.assertIn('stopService(Intent(this, CaptureService::class.java))',self.service)
     def test_version(self):
-        self.assertRegex(self.activity, r'AI Remote Control v2\.14\.\d+')
+        self.assertIn('AI Remote Control v${packageManager.getPackageInfo(packageName, 0).versionName}', self.activity)
         self.assertRegex((BASE/'android/app/build.gradle.kts').read_text(), r'versionCode = (?:4[3-9]|[5-9][0-9])')
     def test_attribution(self):
         self.assertIn('Разработано в лаборатории Сноудена',self.activity)
