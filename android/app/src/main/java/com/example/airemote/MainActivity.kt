@@ -255,6 +255,9 @@ class MainActivity : Activity() {
         button("НАБЛЮДАТЕЛЬ — ПОДТВЕРДИТЬ ИЛИ ИСПРАВИТЬ КАРТЫ") {
             reviewSpectatorExample()
         }
+        button("НАБЛЮДАТЕЛЬ — РАЗМЕТИТЬ НЕРАСПОЗНАННЫЕ КАРТЫ") {
+            labelUnrecognizedSpectatorBoard()
+        }
         button("НАБЛЮДАТЕЛЬ — ЭКСПОРТ ПРИМЕРОВ JSON") {
             if (!CaptureObservationMode.isSpectator()) {
                 status.text = "Сначала выберите режим наблюдателя при остановленном захвате."
@@ -418,6 +421,42 @@ class MainActivity : Activity() {
     }
 
     /** Human feedback is the ONLY source of ground-truth labels. */
+    private fun labelUnrecognizedSpectatorBoard() {
+        if (!CaptureObservationMode.isSpectator()) {
+            status.text = "Ручная разметка доступна только в режиме наблюдателя."
+            return
+        }
+        val now = SystemClock.elapsedRealtime()
+        val frame = FrameStore.previewForOperator(now, OperatorStopStore.isStopped(this))
+        if (frame == null || now < frame.capturedAtMs ||
+            now - frame.capturedAtMs > 60_000L) {
+            status.text = "Нет доступного кадра за последнюю минуту. " +
+                "Вернитесь к столу, дождитесь общих карт, потом откройте просмотр."
+            return
+        }
+        val entered = EditText(this).apply {
+            hint = "Пример: Ah Td 3c"
+            setSingleLine(true)
+            filters = arrayOf(android.text.InputFilter.LengthFilter(64))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Разметить общие карты последнего кадра")
+            .setMessage("Введите только карты, которые вы действительно видели на столе: " +
+                "3, 4 или 5. В формате Ah Td 3c. " +
+                "Изображение не сохраняется, стратегия игрока не меняется.")
+            .setView(entered)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить пример") { _, _ ->
+                val labels = SpectatorBoardLabels.parse(entered.text.toString())
+                status.text = if (labels == null) {
+                    "Неверный формат. Нужны 3–5 разных карт: например, Ah Td 3c."
+                } else if (SpectatorLearningJournal.operatorLabelUnrecognized(this, frame, labels)) {
+                    "Ручная разметка неопознанного кадра сохранена локально. " +
+                        "Распознаватель пока не изменён."
+                } else "Не удалось сохранить разметку: проверьте режим и захват."
+            }.show()
+    }
+
     private fun reviewSpectatorExample() {
         if (!CaptureObservationMode.isSpectator()) {
             status.text = "Подтверждение открытых карт доступно только наблюдателю."
