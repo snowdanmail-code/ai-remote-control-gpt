@@ -942,6 +942,45 @@ object CardVisionCore {
         else null
     }
 
+    /**
+     * Spectator mode: ONLY the visible community-card row. No hole-card requirement.
+     * Before the flop, absence of cards is normal and is not an OCR failure.
+     * This return value cannot feed the authoritative hero-card/gesture pipeline.
+     */
+    fun readVisibleCommunity(r: VisionRaster): VisibleCommunityReading {
+        val ratio = r.width.toDouble() / r.height
+        if (r.height < 780 || ratio !in 0.45..0.48) {
+            return VisibleCommunityReading(emptyList(), false,
+                "Неподдерживаемая геометрия кадра наблюдателя")
+        }
+        val boxes = cardRow(r, intArrayOf(65, 477, 502, 664), true)
+            ?: emptyList()
+        if (boxes.size !in 3..5) {
+            return VisibleCommunityReading(emptyList(), false,
+                "Общие карты ещё не появились (до флопа) или область стола не обнаружена")
+        }
+        if (boxes.any { it.width < 20 || it.height < 35 }) {
+            return VisibleCommunityReading(emptyList(), false,
+                "Область общих карт обрезана")
+        }
+        val values = boxes.map { box ->
+            val rank = classifyRank(r, box)
+            val suit = classifySuit(r, box)
+            if (rank == null || suit == null) null else "${rank.rank}${suit.suit}"
+        }
+        if (values.any { it == null }) {
+            return VisibleCommunityReading(values, false,
+                "Общие карты видны, но часть номиналов или мастей не подтверждена")
+        }
+        val complete = values.filterNotNull()
+        if (complete.toSet().size != complete.size) {
+            return VisibleCommunityReading(values, false,
+                "Обнаружены повторяющиеся карты: отбрасываем результат")
+        }
+        return VisibleCommunityReading(values, true,
+            "Общие карты распознаны локально; раздача и приложение не подтверждены")
+    }
+
     fun readCards(r: VisionRaster): CardReading {
         val zones = detect(r)
         if (!zones.usable) return CardReading(emptyList(), emptyList(), false, 0.0, zones.reason)
