@@ -25,6 +25,7 @@ class MainActivity : Activity() {
     private val notificationRequest = 502
     private val incidentExportRequest = 503
     private val layoutImportRequest = 504
+    private val spectatorExportRequest = 505
     private lateinit var cloudStatus: TextView
     private val cloudControls = mutableListOf<Button>()
     private val cloudHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -243,6 +244,30 @@ class MainActivity : Activity() {
                     "Последняя историческая диагностика, НЕ разрешение на действия: " +
                     OnDeviceAutonomousRuntime.diagnostic()
         }
+        button("НАБЛЮДАТЕЛЬ — СТАТИСТИКА РАСПОЗНАВАНИЯ") {
+            if (!CaptureObservationMode.isSpectator()) {
+                status.text = "Статистика только для режима наблюдателя. Режим игрока не изменён."
+            } else {
+                refreshHandState()
+                status.text = SpectatorLearningJournal.summary(this@MainActivity)
+            }
+        }
+        button("НАБЛЮДАТЕЛЬ — ПОДТВЕРДИТЬ ИЛИ ИСПРАВИТЬ КАРТЫ") {
+            reviewSpectatorExample()
+        }
+        button("НАБЛЮДАТЕЛЬ — ЭКСПОРТ ПРИМЕРОВ JSON") {
+            if (!CaptureObservationMode.isSpectator()) {
+                status.text = "Сначала выберите режим наблюдателя при остановленном захвате."
+            } else {
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_TITLE, "t042-spectator-observations.json")
+                }
+                @Suppress("DEPRECATION")
+                startActivityForResult(intent, spectatorExportRequest)
+            }
+        }
         label("AUTO: можно разрешить транспорт касаний для виртуальных фишек. " +
             "Для реального действия всё равно обязательны достоверные стол, раздача, " +
             "свой ход и кнопка. Неизвестные данные не дают права нажимать.")
@@ -389,6 +414,59 @@ class MainActivity : Activity() {
                             "До подтверждения каждого хода касаний не будет."
                     else "Разрешение не удалось включить"
                 }
+            }.show()
+    }
+
+    /** Human feedback is the ONLY source of ground-truth labels. */
+    private fun reviewSpectatorExample() {
+        if (!CaptureObservationMode.isSpectator()) {
+            status.text = "Подтверждение открытых карт доступно только наблюдателю."
+            return
+        }
+        val sample = FrameStore.spectatorBoardForPreview
+        val now = SystemClock.elapsedRealtime()
+        if (sample == null || sample.captureEpoch != FrameStore.captureEpoch ||
+            now < sample.capturedAtMs || now - sample.capturedAtMs > 60_000L) {
+            status.text = "Нет свежего исторического результата за последнюю минуту. " +
+                "Откройте стол и дождитесь флопа, затем вернитесь сюда."
+            return
+        }
+        val observed = sample.cards.joinToString(" ")
+        AlertDialog.Builder(this)
+            .setTitle("Проверка ОБЩИХ карт наблюдателем")
+            .setMessage("Последние предполагаемые карты: $observed. " +
+                "Сравните с тем, что действительно было открыто на столе. " +
+                "Совпадение двух кадров ещё не доказывает правильность.")
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Да, верно") { _, _ ->
+                val ok = SpectatorLearningJournal.operatorFeedback(this, sample, sample.cards)
+                status.text = if (ok) "Подтверждение сохранено в локальном журнале." +
+                    " Алгоритм игрока не изменён."
+                else "Не удалось сохранить подтверждение. Проверьте режим и журнал."
+            }
+            .setNeutralButton("Исправить") { _, _ ->
+                val entered = EditText(this).apply {
+                    setSingleLine(true)
+                    hint = "Например: Ah Td 3c"
+                    setText(observed)
+                    filters = arrayOf(android.text.InputFilter.LengthFilter(64))
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("Ввести правильные общие карты")
+                    .setMessage("Используйте Ah Td 3c, например. " +
+                        "Число карт должно совпадать с исходным результатом: 3, 4 или 5. " +
+                        "Исправление хранится локально и не меняет алгоритм.")
+                    .setView(entered)
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Сохранить исправление") { _, _ ->
+                        val corrected = SpectatorBoardLabels.parse(entered.text.toString())
+                        status.text = if (corrected == null ||
+                            corrected.size != sample.cards.size) {
+                            "Не сохранено: формат Ah Td 3c, без повторов, правильное число карт."
+                        } else if (SpectatorLearningJournal.operatorFeedback(this, sample, corrected)) {
+                            "Исправленный пример сохранён только для последующего анализа."
+                        } else "Ошибка сохранения исправленного примера."
+                    }.show()
             }.show()
     }
 
@@ -561,6 +639,22 @@ class MainActivity : Activity() {
                 } catch (_: Exception) {
                     OnDeviceRealFrameRegions.clear()
                     status.text = "Файл калибровки отклонён. Проверьте схему, пакет и координаты."
+                }
+            }
+            return
+        }
+        if (requestCode == spectatorExportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val payload = SpectatorLearningJournal.exportJson(this)
+                        .toByteArray(Charsets.UTF_8)
+                    contentResolver.openOutputStream(requireNotNull(data.data), "w")
+                        ?.use { it.write(payload) }
+                        ?: error("Файл для экспорта не открылся")
+                    status.text = "Примеры наблюдателя сохранены (${payload.size} байт). " +
+                        "Можно прикрепить JSON в чат для анализа ошибок распознавания."
+                } catch (_: Exception) {
+                    status.text = "Не удалось экспортировать журнал. Локальные данные сохранены."
                 }
             }
             return
