@@ -84,9 +84,11 @@ internal object ChatGptDohTransport {
         require(maxBytes in 1..1_000_000)
 
         val addresses = resolve(target.host)
-        val pinnedDns = Dns { host ->
-            if (host != target.host) throw UnknownHostException("Unexpected DNS hostname")
-            addresses
+        val pinnedDns = object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> {
+                if (hostname != target.host) throw UnknownHostException("Unexpected DNS hostname")
+                return addresses
+            }
         }
         val client = OkHttpClient.Builder()
             .dns(pinnedDns)
