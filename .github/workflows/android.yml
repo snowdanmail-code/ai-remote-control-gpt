@@ -214,14 +214,14 @@ jobs:
           PYCODE
           cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-DoH-Samsung-Code77.apk
           cd artifacts
-          sha256sum AI-Remote-Control-GPT-T042-Samsung-Prototype.apk > AI-Remote-Control-GPT-T042-Samsung-Prototype.apk.sha256
+          sha256sum AI-Remote-Control-GPT-T042-DoH-Samsung-Code77.apk > AI-Remote-Control-GPT-T042-DoH-Samsung-Code77.apk.sha256
       - name: Save candidate only after signature, package, version and integrity gates
         uses: actions/upload-artifact@v4
         with:
           name: ai-remote-control-t042-doh-samsung-code77
           path: |
-            artifacts/AI-Remote-Control-GPT-T042-Samsung-Prototype.apk
-            artifacts/AI-Remote-Control-GPT-T042-Samsung-Prototype.apk.sha256
+            artifacts/AI-Remote-Control-GPT-T042-DoH-Samsung-Code77.apk
+            artifacts/AI-Remote-Control-GPT-T042-DoH-Samsung-Code77.apk.sha256
             artifacts/T042-upgrade-verification.json
             artifacts/T042-device-test-status.json
           retention-days: 14
