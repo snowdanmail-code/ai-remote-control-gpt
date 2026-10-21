@@ -254,7 +254,9 @@ class CaptureService : Service() {
                                     }
                                     }
                                 }
-                                val profile = CaptureOptions.profile.coerceIn(0, 2)
+                                val profile = if (CaptureObservationMode.isSpectator())
+                                    CaptureOptions.spectatorProfile.coerceIn(0, 2)
+                                else CaptureOptions.profile.coerceIn(0, 2)
                                 val refresh = (now - lastEncode >= 8000L) || profile != lastProfile
                                 // New JPEG must not invalidate the in-flight ML Kit ticket
                                 // every 300 ms. Raw capture and card/turn inspection continue.
