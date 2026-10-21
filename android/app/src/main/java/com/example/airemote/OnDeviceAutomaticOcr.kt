@@ -47,7 +47,7 @@ object OnDeviceAutomaticOcr {
                 try {
                     val finishedAt = SystemClock.elapsedRealtime()
                     // All mutations and final provenance checks serialize with STOP.
-                    val published = FrameStore.commitIfCurrent(ticket.captureEpoch, expectedOrigin, {
+                    val published = FrameStore.commitOcrIfCurrent(ticket, finishedAt, {
                         !OperatorStopStore.isStopped(app) && rootStillMatches() &&
                             OcrFrameProvenance.check(ticket, FrameStore.latest,
                                 FrameStore.windowOrigin, FrameStore.captureEpoch,
