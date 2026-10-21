@@ -19,6 +19,36 @@ object FrameStore {
     private val epochCounter = java.util.concurrent.atomic.AtomicLong(0L)
     val captureEpoch: Long get() = epochCounter.get()
     @Volatile var latest: FrameInfo? = null
+    // Historical operator preview only. NEVER consumed by OCR, strategy or gestures.
+    private var operatorPreview: FrameInfo? = null
+    @Volatile var receivedImages: Long = 0L
+
+    @Synchronized fun noteImage(expectedEpoch: Long) {
+        if (isCapturing && captureEpoch == expectedEpoch) receivedImages++
+    }
+
+    @Synchronized fun rememberOperatorPreview(frame: FrameInfo): Boolean {
+        if (!isCapturing || frame.captureEpoch != captureEpoch || latest !== frame) return false
+        operatorPreview = frame
+        return true
+    }
+
+    @Synchronized fun previewForOperator(nowMs: Long, stopped: Boolean): FrameInfo? {
+        val frame = operatorPreview ?: return null
+        return frame.takeIf { !stopped && isCapturing && it.captureEpoch == captureEpoch &&
+            nowMs >= it.capturedAtMs && nowMs - it.capturedAtMs <= 60_000L }
+    }
+
+    /** OCR is tied to the exact JPEG and window generation, not the allocation
+     * identity of a root assessment refreshed by the next raw image callback. */
+    @Synchronized fun commitOcrIfCurrent(
+        ticket: OcrFrameTicket, nowMs: Long, allowed: () -> Boolean, publish: () -> Unit
+    ): Boolean {
+        if (!isCapturing || OcrFrameProvenance.check(ticket, latest, windowOrigin,
+                captureEpoch, nowMs, false) != OcrFrameCheck.VALID_DIAGNOSTIC || !allowed()) return false
+        publish()
+        return true
+    }
     @Volatile var lastAutomaticOcr: AutomaticOcrEvidence? = null
     @Volatile var lastSeatVisual: SeatVisualReport? = null
     @Volatile var lastRealFrameRegions: RegionObservationReport? = null
@@ -128,6 +158,8 @@ object FrameStore {
 
     @Synchronized fun clear() {
         epochCounter.incrementAndGet()
+        operatorPreview = null
+        receivedImages = 0L
         invalidateVisualEvidence()
         isCapturing = false
     }
