@@ -38,6 +38,6 @@ class SeatTransitionSourceTests(unittest.TestCase):
         self.assertTrue((ROOT/'tools/SeatTransitionScenarios.kt').exists())
         self.assertTrue((APP.parents[4]/'test/java/com/example/airemote/SeatActionTransitionJvmTest.kt').exists())
         self.assertGreaterEqual(int(re.search(r"versionCode\s*=\s*(\d+)", (ROOT/'android/app/build.gradle.kts').read_text()).group(1)), 60)
-        self.assertIn('AI-Remote-Control-GPT-T042-Capture-Samsung-Code78.apk', (ROOT/'.github/workflows/android.yml').read_text())
+        self.assertIn('AI-Remote-Control-GPT-T042-Capture-Samsung-Code79.apk', (ROOT/'.github/workflows/android.yml').read_text())
 
 if __name__ == '__main__': unittest.main()

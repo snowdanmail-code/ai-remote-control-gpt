@@ -171,8 +171,8 @@ jobs:
           s = p.read_text()
           assert s.count('versionCode = 75') == 1
           assert s.count('versionName = "2.14.41-in-app-oauth-hardening"') == 1
-          s = s.replace('versionCode = 75', 'versionCode = 78', 1)
-          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-capture-preview"', 1)
+          s = s.replace('versionCode = 75', 'versionCode = 79', 1)
+          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-capture-preview-hires"', 1)
           p.write_text(s)
           Path('artifacts/T042-device-test-status.json').write_text(json.dumps({
               'status': 'EXPERIMENTAL_DEVICE_TEST_CANDIDATE',
@@ -206,22 +206,22 @@ jobs:
           from pathlib import Path
           p = Path('artifacts/T042-upgrade-verification.json')
           v = json.loads(p.read_text())
-          assert v['version_code'] >= 78, 'Code77 already distributed; refuse downgrade/equal update'
+          assert v['version_code'] >= 79, 'Code78 already distributed; refuse downgrade/equal update'
           assert v['package'] == 'com.example.airemote.dev'
-          v['additional_verified_baseline_version_code'] = 77
-          v['additional_baseline_apk_sha256'] = 'ed1da3c51a00d825e45b2e53b8e368edc9d61e7e9eb769a754e46f8ada3ec3d8'
+          v['additional_verified_baseline_version_code'] = 78
+          v['additional_baseline_apk_sha256'] = '446404d71f05c9db1779b8010fe2cdc91f43eb4a2883ca094d7b24019abf85aa'
           p.write_text(json.dumps(v, indent=2) + '\n')
           PYCODE
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Capture-Samsung-Code78.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Capture-Samsung-Code79.apk
           cd artifacts
-          sha256sum AI-Remote-Control-GPT-T042-Capture-Samsung-Code78.apk > AI-Remote-Control-GPT-T042-Capture-Samsung-Code78.apk.sha256
+          sha256sum AI-Remote-Control-GPT-T042-Capture-Samsung-Code79.apk > AI-Remote-Control-GPT-T042-Capture-Samsung-Code79.apk.sha256
       - name: Save candidate only after signature, package, version and integrity gates
         uses: actions/upload-artifact@v4
         with:
-          name: ai-remote-control-t042-capture-samsung-code78
+          name: ai-remote-control-t042-capture-samsung-code79
           path: |
-            artifacts/AI-Remote-Control-GPT-T042-Capture-Samsung-Code78.apk
-            artifacts/AI-Remote-Control-GPT-T042-Capture-Samsung-Code78.apk.sha256
+            artifacts/AI-Remote-Control-GPT-T042-Capture-Samsung-Code79.apk
+            artifacts/AI-Remote-Control-GPT-T042-Capture-Samsung-Code79.apk.sha256
             artifacts/T042-upgrade-verification.json
             artifacts/T042-device-test-status.json
           retention-days: 14
