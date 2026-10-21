@@ -6,7 +6,11 @@ import android.graphics.Bitmap
  * No HTTP or LLM queries. A bounded pass over 540x1170 RGBA pixels, running
  * on the existing capture worker thread (never on the Android UI thread).
  */
-data class OnDeviceTableReading(val cards: CardReading, val turn: TurnVisualReading)
+data class OnDeviceTableReading(
+    val cards: CardReading,
+    val turn: TurnVisualReading,
+    val spectatorBoard: VisibleCommunityReading
+)
 
 object OnDeviceCardReader {
     fun inspect(source: Bitmap): CardReading = inspectAll(source).cards
@@ -21,6 +25,7 @@ object OnDeviceCardReader {
             val raster = VisionRaster(scaled.width, scaled.height, pixels)
             var cards = CardVisionCore.readCards(raster)
             val turn = TurnControlsVision.read(raster)
+            var spectatorBoard = CardVisionCore.readVisibleCommunity(raster)
             // Keep the calibrated first pass; a larger independent pass is
             // diagnostic fallback only if the first reading was incomplete.
             if (!cards.complete && source.width >= 810 && source.height >= 1755 &&
@@ -30,13 +35,19 @@ object OnDeviceCardReader {
                     val pixelsLarge = IntArray(larger.width * larger.height)
                     larger.getPixels(pixelsLarge, 0, larger.width, 0, 0,
                         larger.width, larger.height)
-                    val candidate = CardVisionCore.readCards(
-                        VisionRaster(larger.width, larger.height, pixelsLarge))
-                    // Never promote unknown cards or uncertain OCR to a game action.
+                    val highResolutionRaster = VisionRaster(larger.width, larger.height, pixelsLarge)
+                    val candidate = CardVisionCore.readCards(highResolutionRaster)
+                    // Spectator board recognition is completely independent of
+                    // the two absent hero cards and of gesture authorization.
+                    if (!spectatorBoard.complete) {
+                        val highResolutionBoard =
+                            CardVisionCore.readVisibleCommunity(highResolutionRaster)
+                        if (highResolutionBoard.complete) spectatorBoard = highResolutionBoard
+                    }
                     if (candidate.complete) cards = candidate
                 } finally { if (larger !== source) larger.recycle() }
             }
-            return OnDeviceTableReading(cards, turn)
+            return OnDeviceTableReading(cards, turn, spectatorBoard)
         } finally {
             if (scaled !== source) scaled.recycle()
         }
