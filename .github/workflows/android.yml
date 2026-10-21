@@ -171,8 +171,8 @@ jobs:
           s = p.read_text()
           assert s.count('versionCode = 75') == 1
           assert s.count('versionName = "2.14.41-in-app-oauth-hardening"') == 1
-          s = s.replace('versionCode = 75', 'versionCode = 76', 1)
-          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-samsung-prototype"', 1)
+          s = s.replace('versionCode = 75', 'versionCode = 77', 1)
+          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-doh-samsung-prototype"', 1)
           p.write_text(s)
           Path('artifacts/T042-device-test-status.json').write_text(json.dumps({
               'status': 'EXPERIMENTAL_DEVICE_TEST_CANDIDATE',
@@ -183,13 +183,13 @@ jobs:
           }, indent=2) + '\n')
           PYCODE
           git diff --check
-      - name: Build compatible versionCode76 with ORIGINAL key
+      - name: Build compatible Samsung candidate with ORIGINAL key
         working-directory: android
         env:
           AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
           AI_REMOTE_SIGNING_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
           AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Fail-closed APK signature and update compatibility
         shell: bash
         run: |
@@ -201,13 +201,24 @@ jobs:
             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
             --baseline-metadata tools/reference_prior_apk_v2.14.41.json \
             --report artifacts/T042-upgrade-verification.json
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Samsung-Prototype.apk
+          python3 - <<'PYCODE'
+          import json
+          from pathlib import Path
+          p = Path('artifacts/T042-upgrade-verification.json')
+          v = json.loads(p.read_text())
+          assert v['version_code'] >= 77, 'Code76 already distributed; refuse downgrade/equal update'
+          assert v['package'] == 'com.example.airemote.dev'
+          v['additional_verified_baseline_version_code'] = 76
+          v['additional_baseline_apk_sha256'] = '677d6996ebc0ce9edb37c222e123610b7f7b419551fca7603d5ead9ff38e42da'
+          p.write_text(json.dumps(v, indent=2) + '\n')
+          PYCODE
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-DoH-Samsung-Code77.apk
           cd artifacts
           sha256sum AI-Remote-Control-GPT-T042-Samsung-Prototype.apk > AI-Remote-Control-GPT-T042-Samsung-Prototype.apk.sha256
       - name: Save candidate only after signature, package, version and integrity gates
         uses: actions/upload-artifact@v4
         with:
-          name: ai-remote-control-t042-samsung-prototype
+          name: ai-remote-control-t042-doh-samsung-code77
           path: |
             artifacts/AI-Remote-Control-GPT-T042-Samsung-Prototype.apk
             artifacts/AI-Remote-Control-GPT-T042-Samsung-Prototype.apk.sha256
