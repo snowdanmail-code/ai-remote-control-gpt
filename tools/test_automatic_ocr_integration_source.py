@@ -18,7 +18,7 @@ class BackgroundOcrIntegrationTest(unittest.TestCase):
         self.assertIn('INTERVAL_MS = 1_500L',self.engine)
         self.assertIn('OnDeviceTextRecognition.inspectStructured',self.engine)
     def test_overtime_and_changed_window_must_fail(self):
-        for snippet in ('FrameStore.commitIfCurrent(', 'rootStillMatches()',
+        for snippet in ('FrameStore.commitOcrIfCurrent(', 'rootStillMatches()',
                         'OcrFrameProvenance.check(', 'finishedAt - ticket.capturedAtMs in 0L..1_500L',
                         '!OperatorStopStore.isStopped(app)'):
             self.assertIn(snippet,self.engine)
