@@ -61,7 +61,8 @@ object OnDeviceAutonomousRuntime {
 
     @Synchronized fun startIfAuthorized(context: Context): Boolean {
         val generationAtStart = stopGeneration.get()
-        if (OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
+        if (CaptureObservationMode.isSpectator() ||
+            OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
             !LiveGamePermissionGate.permitted() || !LiveForegroundProbe.connected() ||
             strategy == null) return false
         val app = context.applicationContext
@@ -105,6 +106,10 @@ object OnDeviceAutonomousRuntime {
     /** Called only by an independently authenticated, frame-bound game state producer. */
     @Synchronized fun acceptVerifiedObservation(context: Context, obs: AutonomousObservation?,
                                                 sourceProof: ExternalTurnAttestation? = null): AutonomousLoopResult {
+        if (CaptureObservationMode.isSpectator()) {
+            stop("Режим наблюдателя: любые игровые действия запрещены")
+            return lastStatus
+        }
         val loop = controller ?: return lastStatus
         val frame = FrameStore.latest
         val origin = FrameStore.windowOrigin
@@ -210,6 +215,7 @@ object OnDeviceAutonomousRuntime {
     fun strategyInstalled(): Boolean = strategy != null
 
     fun readiness(context: Context): String = when {
+        CaptureObservationMode.isSpectator() -> "Режим наблюдателя: игровые касания отключены"
         OperatorStopStore.isStopped(context) -> "Включён STOP: нужен ARM оператора"
         !FrameStore.isCapturing -> "Нет действующего захвата MediaProjection"
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
