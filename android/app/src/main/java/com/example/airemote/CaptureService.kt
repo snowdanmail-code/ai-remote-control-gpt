@@ -199,7 +199,9 @@ class CaptureService : Service() {
                                         // Player-card consensus, stage, hero turn and gestures
                                         // are intentionally NOT called in this branch.
                                         val board = OnDeviceCardReader.inspectSpectator(screen)
-                                        FrameStore.commitIfCurrent(captureEpoch, origin, {
+                                        var publishedSequence = -1L
+                                        var publishedStable: StableSpectatorBoard? = null
+                                        val published = FrameStore.commitIfCurrent(captureEpoch, origin, {
                                             CaptureObservationMode.isSpectator() && !closing &&
                                                 !OperatorStopStore.isStopped(applicationContext) &&
                                                 AppVisibilityGate.canPublish(visibilityTicket) &&
@@ -211,6 +213,18 @@ class CaptureService : Service() {
                                                 SystemClock.elapsedRealtime(), origin.observedPackage)
                                             FrameStore.spectatorBoard = stable
                                             if (stable != null) FrameStore.spectatorBoardForPreview = stable
+                                            publishedSequence = cardInspectionSeq
+                                            publishedStable = stable
+                                        }
+                                        // Write small, bounded training diagnostics OUTSIDE
+                                        // the capture/STOP publication lock. Never export
+                                        // screen images, player details or cloud credentials.
+                                        if (published && publishedSequence > 0L &&
+                                            captureEpoch == FrameStore.captureEpoch &&
+                                            CaptureObservationMode.isSpectator() &&
+                                            !OperatorStopStore.isStopped(applicationContext)) {
+                                            SpectatorLearningJournal.observe(applicationContext,
+                                                board, publishedStable, now, publishedSequence)
                                         }
                                     } else {
                                     val visual = OnDeviceCardReader.inspectAll(screen)
