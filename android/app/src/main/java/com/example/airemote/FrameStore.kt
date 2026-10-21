@@ -10,9 +10,9 @@ data class FrameInfo(val jpeg: ByteArray, val seq: Long, val width: Int,
 
 object CaptureOptions {
     /** On-device capture presets: 960, 1280, 1536px. */
-    @Volatile var profile: Int = 0
+    @Volatile var profile: Int = 2
     val longEdges = intArrayOf(960, 1280, 1536)
-    val qualities = intArrayOf(75, 88, 75)
+    val qualities = intArrayOf(75, 88, 88)
 }
 
 /**
