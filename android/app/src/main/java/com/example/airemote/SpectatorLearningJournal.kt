@@ -3,7 +3,6 @@ package com.example.airemote
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
 /**
  * Bounded, local-only spectator dataset. Never used by the PLAYER reader,
@@ -141,6 +140,30 @@ object SpectatorLearningJournal {
         }
     }
 
+    /**
+     * An observer may manually label the visible board even when OCR/card
+     * recognition failed. This is a user-provided annotation, not inferred
+     * from the image; the original screen image is never stored.
+     */
+    @Synchronized fun operatorLabelUnrecognized(context: Context, frame: FrameInfo,
+                                                correctCards: List<String>): Boolean {
+        if (!CaptureObservationMode.isSpectator() ||
+            !FrameStore.isCapturing || FrameStore.captureEpoch != frame.captureEpoch ||
+            !SpectatorBoardLabels.isValid(correctCards)) return false
+        return try {
+            val root = read(context)
+            count(root, "operator_labeled_unrecognized")
+            append(root, "OPERATOR_LABELED_UNRECOGNIZED", System.currentTimeMillis(),
+                frame.seq, emptyList(), correctCards)
+            save(context, root)
+            storageFailure = false
+            true
+        } catch (_: Exception) {
+            storageFailure = true
+            false
+        }
+    }
+
     @Synchronized fun summary(context: Context): String = try {
         val root = read(context)
         val records = root.optJSONArray("examples")?.length() ?: 0
@@ -153,6 +176,7 @@ object SpectatorLearningJournal {
             "смена предполагаемых карт: ${root.optLong("candidate_changes")}.\n" +
             "Оператор подтвердил: ${root.optLong("operator_confirmed")}; " +
             "исправил: ${root.optLong("operator_corrected")}; " +
+            "разметил неопознанные: ${root.optLong("operator_labeled_unrecognized")}; " +
             "сохранено последних примеров: $records из $LIMIT.\n" +
             "Совпадение двух кадров НЕ является доказательством правильной карты. " +
             "Алгоритм и стратегия автоматически НЕ изменяются." +
@@ -173,6 +197,7 @@ object SpectatorLearningJournal {
             .put("candidate_changes", root.optLong("candidate_changes"))
             .put("operator_confirmed", root.optLong("operator_confirmed"))
             .put("operator_corrected", root.optLong("operator_corrected"))
+            .put("operator_labeled_unrecognized", root.optLong("operator_labeled_unrecognized"))
             .put("examples", root.optJSONArray("examples") ?: JSONArray())
         return out.toString(2)
     }
