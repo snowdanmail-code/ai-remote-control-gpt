@@ -35,6 +35,15 @@ class MainActivity : Activity() {
             cloudControls.forEach { it.isEnabled = !ChatGptCloudBridge.isBusy() }
             if (::cloudStatus.isInitialized && (authorizing || wasAuthorizing))
                 cloudStatus.text = ChatGptCloudBridge.statusDetail(this@MainActivity)
+            if (::status.isInitialized && status.text.toString().startsWith("Захват запускается")) {
+                status.text = if (FrameStore.isCapturing)
+                    "Захват активен. Изображений: ${FrameStore.receivedImages}. ${FrameStore.captureError}"
+                else if (FrameStore.captureError.isNotBlank())
+                    "Захват не запущен: ${FrameStore.captureError}"
+                else status.text
+            }
+            if (::preview.isInitialized && OperatorStopStore.isStopped(this@MainActivity))
+                preview.setImageDrawable(null)
             wasAuthorizing = authorizing
             cloudHandler.postDelayed(this, 400)
         }
@@ -124,7 +133,7 @@ class MainActivity : Activity() {
         }
         advanced.addView(arm, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        label("AI Remote Control v2.14.41 — Android + ChatGPT")
+        label("AI Remote Control v${packageManager.getPackageInfo(packageName, 0).versionName} — Android + ChatGPT")
         label("Захват и OCR локально. Windows-сервер и его настройки удалены. " +
             "Локальная стратегия сохранена. Подключение ChatGPT проверяется через защищённую вкладку OpenAI. " +
             "Исполнитель Android-касаний доступен после разрешения оператора, проверки игрового состояния и кнопок.")
@@ -561,11 +570,18 @@ class MainActivity : Activity() {
 
     private fun refreshFrame() {
         refreshHandState()
-        val frame = FrameStore.latest
-        if (frame == null) { status.text = "Нет кадра. ${FrameStore.captureError}"; return }
+        val now = SystemClock.elapsedRealtime()
+        val frame = FrameStore.previewForOperator(now, OperatorStopStore.isStopped(this))
+        if (frame == null) {
+            preview.setImageDrawable(null)
+            status.text = "Нет снимка для просмотра. Захват: ${FrameStore.isCapturing}; " +
+                "изображений: ${FrameStore.receivedImages}. ${FrameStore.captureError}"
+            return
+        }
         preview.setImageBitmap(BitmapFactory.decodeByteArray(frame.jpeg, 0, frame.jpeg.size))
-        val age = SystemClock.elapsedRealtime() - frame.capturedAtMs
-        status.text = "Внешний кадр (приложение-источник не подтверждено). JPEG ${frame.jpeg.size / 1024} КиБ · ${frame.width}×${frame.height} · возраст ${age} мс"
+        val age = now - frame.capturedAtMs
+        status.text = "Последний снимок — ТОЛЬКО ПРОСМОТР, не текущее игровое состояние. " +
+            "JPEG ${frame.jpeg.size / 1024} КиБ · ${frame.width}×${frame.height} · возраст ${age} мс"
     }
 
     private fun inspectFrameOnPhone() {
