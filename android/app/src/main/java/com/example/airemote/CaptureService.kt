@@ -123,9 +123,13 @@ class CaptureService : Service() {
             reader!!.setOnImageAvailableListener({ images ->
                 val image = images.acquireLatestImage() ?: return@setOnImageAvailableListener
                 try {
+                    FrameStore.noteImage(requestedEpoch)
                     val now = SystemClock.elapsedRealtime()
                     val visibilityTicket = AppVisibilityGate.acquireTicket()
                     val captureEpoch = FrameStore.captureEpoch
+                    if (visibilityTicket == null) {
+                        FrameStore.captureError = "Кадры поступают; экран оператора видим — игровая обработка приостановлена"
+                    }
                     if (!closing && visibilityTicket != null &&
                         !OperatorStopStore.isStopped(applicationContext) && now - lastCheck >= 300L) {
                         lastCheck = now
@@ -140,6 +144,9 @@ class CaptureService : Service() {
                         if (!FrameStore.observeWindow(captureEpoch, origin))
                             return@setOnImageAvailableListener
                         if (!origin.safeForLocalDiagnostics) {
+                            FrameStore.captureError = if (!LiveForegroundProbe.connected())
+                                "Кадры поступают; служба Accessibility не подключена"
+                            else "Кадры поступают; ожидаем стабильное внешнее окно"
                             // observeWindow has already erased stale visual evidence.
                             // The new external window must start with a fresh visual signature.
                             lastSignature = null
@@ -164,6 +171,7 @@ class CaptureService : Service() {
                                     screen.getPixel(x, y)
                                 }
                                 if (surface.status != RecordedSurfaceStatus.TABLE_LIKE) {
+                                    FrameStore.captureError = "Кадры поступают; экран не прошёл фильтр игрового стола"
                                     val invalidated = FrameStore.invalidateOccludedSurface(captureEpoch, origin)
                                     if (invalidated) {
                                         OnDeviceAutomaticOcr.reset()
@@ -253,6 +261,8 @@ class CaptureService : Service() {
                                             FrameStore.latest = FrameInfo(jpeg, seq, w, h,
                                                 CaptureOptions.qualities[profile], profile, now,
                                                 captureEpoch, origin.observedPackage, origin.windowGeneration)
+                                            FrameStore.rememberOperatorPreview(requireNotNull(FrameStore.latest))
+                                            FrameStore.captureError = ""
                                             FrameStore.localFrameHealth = frameHealth
                                             FrameStore.frameSequence = seq
                                             lastSignature = sig
