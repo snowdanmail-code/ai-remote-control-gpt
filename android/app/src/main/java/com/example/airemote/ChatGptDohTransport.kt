@@ -62,7 +62,8 @@ internal object ChatGptDohTransport {
                 if (addresses.isNotEmpty()) {
                     // A single connection per request: choose an IPv4 answer
                     // when available; otherwise use the first IPv6 address.
-                    return addresses.filterIsInstance<Inet4Address>().ifEmpty { addresses }.take(1)
+                    val ipv4: List<InetAddress> = addresses.filterIsInstance<Inet4Address>()
+                    return (if (ipv4.isNotEmpty()) ipv4 else addresses).take(1)
                 }
             } catch (ex: Exception) { last = ex }
         }
