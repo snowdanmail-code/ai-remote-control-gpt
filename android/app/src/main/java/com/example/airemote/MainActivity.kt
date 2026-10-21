@@ -190,6 +190,14 @@ class MainActivity : Activity() {
             "Реальные касания в 1win не разрешаются результатом тестового запроса.")
         status = TextView(this).apply { textSize = 16f; text = "Захват выключен"; content.addView(this) }
         handStateText = TextView(this).apply { textSize = 15f; advanced.addView(this) }
+        label("Режим по умолчанию — ИГРОК. Наблюдатель считывает только общие " +
+            "карты и никогда не включает автоматические игровые касания.")
+        button("ВЫБРАТЬ РЕЖИМ НАБЛЮДАТЕЛЯ (БЕЗ КАСАНИЙ)") {
+            selectCaptureRole(CaptureRole.SPECTATOR)
+        }
+        button("ВЕРНУТЬ РЕЖИМ ИГРОКА (БЕЗ ИЗМЕНЕНИЯ СТРАТЕГИИ)") {
+            selectCaptureRole(CaptureRole.PLAYER)
+        }
         refreshHandState()
         label("Фоновое OCR обрабатывает кадры захвата локально. Данные диагностики не подтверждают стол/раздачу и не разрешают касаний.")
         label("Калибровка: только из вручную размеченного кадра оригинального приложения. " +
@@ -260,6 +268,10 @@ class MainActivity : Activity() {
                 "Готовность: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
         }
         button("ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)") {
+            if (CaptureObservationMode.isSpectator()) {
+                status.text = "Режим НАБЛЮДАТЕЛЯ: AUTO заблокирован; только чтение карт."
+                return@button
+            }
             val enabled = OnDeviceAutonomousRuntime.startIfAuthorized(this@MainActivity)
             status.text = if (enabled) "AUTO включён, ждёт подтверждённый ход и точные кнопки. STOP доступен всегда."
                 else "AUTO заблокирован: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
@@ -326,6 +338,10 @@ class MainActivity : Activity() {
      * A virtual-chip label is not itself evidence of platform permission.
      */
     private fun requestAutomationAuthorization() {
+        if (CaptureObservationMode.isSpectator()) {
+            status.text = "Наблюдатель: запрет игровых касаний. Перейдите в режим игрока только после STOP."
+            return
+        }
         val seen = LiveForegroundProbe.lastExternalPackage()
         val target = seen?.packageName ?: "не определён"
         val message = "Последнее наблюдаемое приложение: $target.\n\n" +
@@ -376,6 +392,21 @@ class MainActivity : Activity() {
 
     private fun refreshHandState() {
         if (!::handStateText.isInitialized) return
+        if (CaptureObservationMode.isSpectator()) {
+            val live = FrameStore.spectatorBoard
+            val observed = live ?: FrameStore.spectatorBoardForPreview
+            handStateText.text = if (observed == null) {
+                "РЕЖИМ НАБЛЮДАТЕЛЯ: ждём общие карты флопа, тёрна или ривера. " +
+                    "Две карты игрока не требуются. Игровые касания отключены."
+            } else {
+                "РЕЖИМ НАБЛЮДАТЕЛЯ: " +
+                    (if (live == null) "последние исторические карты: " else "общие карты: ") +
+                    observed.cards.joinToString(" ") +
+                    ". Подтверждено двумя кадрами; не подтверждает раздачу или игру. " +
+                    "Никакие игровые касания не разрешены."
+            }
+            return
+        }
         val now = SystemClock.elapsedRealtime()
         val state = OnDeviceHandState.snapshot(now)
         val cards = FrameStore.cardConsensus.current(now)
@@ -440,6 +471,37 @@ class MainActivity : Activity() {
             "Служба жестов: ${if (LiveForegroundProbe.connected()) "включена" else "не включена"}. " +
             "Последний внешний пакет: $lastExternal (не подтверждён). " +
             "Внешние нажатия заблокированы до проверки условий."
+    }
+
+    private fun selectCaptureRole(target: CaptureRole) {
+        if (FrameStore.isCapturing || !OnDeviceCaptureLifecycle.gate.mayRequestNewCapture()) {
+            status.text = "Сначала остановите захват экрана. Режим нельзя менять посреди сеанса."
+            return
+        }
+        // Explicit transition: revoke any existing action permission BEFORE switching.
+        // The operator must separately ARM the next read-only capture.
+        OperatorStopStore.stop(this)
+        OnDeviceAutonomousRuntime.stop("Смена роли захвата: STOP")
+        OnDeviceLiveActionControl.stop()
+        LiveGamePermissionGate.revoke()
+        FrameStore.clear()
+        ocrConsensus.reset()
+        identityGuard.reset()
+        OnDeviceHandState.reset("Смена режима захвата")
+        OnDeviceStageBridge.reset("Смена режима захвата")
+        val selected = CaptureObservationMode.select(
+            target, FrameStore.isCapturing, OperatorStopStore.isStopped(this))
+        updateArmStatus()
+        refreshHandState()
+        preview.setImageDrawable(null)
+        result.text = ""
+        status.text = if (selected) {
+            if (target == CaptureRole.SPECTATOR)
+                "НАБЛЮДАТЕЛЬ выбран. Только общие карты, без касаний. " +
+                    "Для захвата нажмите «Разрешить новую сессию», затем «Начать захват экрана»."
+            else "ИГРОК выбран: исходный распознаватель и стратегия сохранены. " +
+                "STOP активен, для новой сессии потребуется отдельное разрешение."
+        } else "Не удалось сменить режим: STOP или захват активен."
     }
 
     private fun requestCapture() {
