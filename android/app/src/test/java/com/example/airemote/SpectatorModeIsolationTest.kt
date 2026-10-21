@@ -9,6 +9,16 @@ class SpectatorModeIsolationTest {
         CaptureObservationMode.select(CaptureRole.PLAYER, false, true)
     }
 
+    @Test fun spectatorManualLabelsMustBePlausibleAndUnique() {
+        assertEquals(listOf("Ah", "Td", "3c"), SpectatorBoardLabels.parse("Ah Td 3c"))
+        assertEquals(listOf("Th", "Ad", "3c"), SpectatorBoardLabels.parse("10h,Ad,3c"))
+        assertNull(SpectatorBoardLabels.parse("Ah Td"))
+        assertNull(SpectatorBoardLabels.parse("Ah Td 3c 4s 5h 6d"))
+        assertNull(SpectatorBoardLabels.parse("Ah Ah 3c"))
+        assertNull(SpectatorBoardLabels.parse("Ah zz 3c"))
+        assertNull(SpectatorBoardLabels.parse("Ah Td ?c"))
+    }
+
     @Test fun roleCannotChangeWhileCaptureActiveOrStopReleased() {
         assertFalse(CaptureObservationMode.select(CaptureRole.SPECTATOR, true, true))
         assertFalse(CaptureObservationMode.select(CaptureRole.SPECTATOR, false, false))
