@@ -574,8 +574,18 @@ class MainActivity : Activity() {
         val frame = FrameStore.previewForOperator(now, OperatorStopStore.isStopped(this))
         if (frame == null) {
             preview.setImageDrawable(null)
-            status.text = "Нет снимка для просмотра. Захват: ${FrameStore.isCapturing}; " +
-                "изображений: ${FrameStore.receivedImages}. ${FrameStore.captureError}"
+            val reason = when {
+                OperatorStopStore.isStopped(this) -> "STOP включён: просмотр скрыт"
+                !FrameStore.isCapturing -> "Служба захвата остановлена"
+                FrameStore.receivedImages == 0L ->
+                    "MediaProjection пока не передал изображения"
+                FrameStore.latest == null ->
+                    "Изображения поступают, но текущий JPEG отклонён проверкой окна/поверхности"
+                else -> "Последний JPEG недоступен для просмотра или устарел"
+            }
+            status.text = "Нет снимка. $reason. Захват: ${FrameStore.isCapturing}; " +
+                "получено изображений: ${FrameStore.receivedImages}; " +
+                "текущий JPEG: ${FrameStore.latest?.seq ?: "нет"}. ${FrameStore.captureError}"
             return
         }
         preview.setImageBitmap(BitmapFactory.decodeByteArray(frame.jpeg, 0, frame.jpeg.size))

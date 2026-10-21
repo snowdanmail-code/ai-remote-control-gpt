@@ -65,6 +65,15 @@ class CapturePreviewRegressionTest {
         assertFalse(FrameStore.commitOcrIfCurrent(ticket, 1612, { true }) { fail("old epoch") })
         assertFalse(FrameStore.rememberOperatorPreview(frame))
     }
+    @Test fun jpegCadencePreventsOcrReplacementDuringCallback() {
+        assertTrue(CapturePreviewCadence.mayReplace(1000L, 0L, false))
+        assertFalse(CapturePreviewCadence.mayReplace(1300L, 1000L, false))
+        assertFalse(CapturePreviewCadence.mayReplace(1612L, 1000L, false))
+        assertTrue(CapturePreviewCadence.mayReplace(2800L, 1000L, false))
+        assertTrue(CapturePreviewCadence.mayReplace(1300L, 1000L, true))
+        assertFalse(CapturePreviewCadence.mayReplace(900L, 1000L, false))
+    }
+
     @Test fun rawImageCounterIsEpochScopedAndDoesNotArmOrCreateJpeg() {
         FrameStore.noteImage(epoch)
         assertEquals(1L, FrameStore.receivedImages)

@@ -236,7 +236,11 @@ class CaptureService : Service() {
                                 }
                                 val profile = CaptureOptions.profile.coerceIn(0, 2)
                                 val refresh = (now - lastEncode >= 8000L) || profile != lastProfile
-                                if (origin.safeForLocalDiagnostics &&
+                                // New JPEG must not invalidate the in-flight ML Kit ticket
+                                // every 300 ms. Raw capture and card/turn inspection continue.
+                                val jpegCadenceReady = CapturePreviewCadence.mayReplace(
+                                    now, lastEncode, profile != lastProfile)
+                                if (origin.safeForLocalDiagnostics && jpegCadenceReady &&
                                     (refresh || FrameDifference.changed(lastSignature, sig))) {
                                     val longEdge = CaptureOptions.longEdges[profile]
                                     val scale = minOf(1.0, longEdge.toDouble() / maxOf(width, height))

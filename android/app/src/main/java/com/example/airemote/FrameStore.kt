@@ -15,6 +15,19 @@ object CaptureOptions {
     val qualities = intArrayOf(75, 88, 75)
 }
 
+/**
+ * A JPEG backing a live ML Kit job must remain current long enough to finish.
+ * Raw ImageReader callbacks and card/turn inspection continue independently.
+ * OCR is bounded to 1500 ms; replacement JPEGs wait at least 1800 ms.
+ */
+object CapturePreviewCadence {
+    const val MIN_JPEG_REPLACEMENT_MS = 1_800L
+
+    fun mayReplace(nowMs: Long, lastEncodeMs: Long, profileChanged: Boolean): Boolean =
+        profileChanged || lastEncodeMs <= 0L ||
+            (nowMs >= lastEncodeMs && nowMs - lastEncodeMs >= MIN_JPEG_REPLACEMENT_MS)
+}
+
 object FrameStore {
     private val epochCounter = java.util.concurrent.atomic.AtomicLong(0L)
     val captureEpoch: Long get() = epochCounter.get()
