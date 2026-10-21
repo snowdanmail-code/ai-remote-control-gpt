@@ -382,7 +382,16 @@ object ChatGptCloudBridge {
                 trace.bodyStarted = true
                 conn.outputStream.use { trace.phase = ChatGptTransportTrace.Phase.BODY_WRITE; it.write(body) }
                 emit(null)
-            } catch (ex: Exception) { emit(ex); conn.disconnect(); throw ex }
+            } catch (ex: Exception) {
+                emit(ex)
+                conn.disconnect()
+                // postForm may use DoH only for a pre-body UnknownHostException.
+                // Once outputStream was attempted, preserve the DNS cause but
+                // prevent the outer fallback from replaying this one-use grant.
+                if (ex is java.net.UnknownHostException)
+                    throw java.io.IOException("OAuth body transmission started; replay forbidden", ex)
+                throw ex
+            }
         }
         return conn
     }
