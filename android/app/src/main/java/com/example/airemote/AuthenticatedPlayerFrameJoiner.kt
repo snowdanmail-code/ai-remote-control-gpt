@@ -22,7 +22,9 @@ data class IndependentlyAuthenticatedPokerFrame(
     val selectedBetHundredths: Long? = null,
     val minBetHundredths: Long? = null,
     val maxBetHundredths: Long? = null,
-    val equity: FrameBoundEquity? = null
+    val equity: FrameBoundEquity? = null,
+    /** Count verified by authorized provider; unknown does NOT mean one. */
+    val verifiedActiveOpponentCount: Int? = null
 )
 
 data class VerifiedPlayerJoinResult(
@@ -121,10 +123,30 @@ class AuthenticatedPlayerFrameJoiner(
         val view = VerifiedLiveView(frame.captureEpoch, frame.seq, frame.capturedAtMs,
             p.handId, authenticated.stateFingerprint, true, true, true, true,
             authenticated.legalActions)
-        val boundEquity = authenticated.equity?.takeIf {
+        val sourceEquity = authenticated.equity?.takeIf {
             it.externallyVerified && it.handId == p.handId && it.turnId == p.turnId &&
                 it.captureEpoch == frame.captureEpoch && it.frameSequence == frame.seq
         }
+        // If the authenticated provider also proves the number of active
+        // opponents, a uniform-unknown baseline can be calculated locally.
+        // It is NOT an opponent-range read or a guaranteed win probability.
+        // Without this verified count, no paid action gets an equity estimate.
+        val modelCount = authenticated.verifiedActiveOpponentCount
+        val modeledEquity = if (sourceEquity == null && modelCount != null &&
+            modelCount in 1..5) try {
+            val sampled = UniformUnknownPokerEquity.compute(
+                cards.hole.map(PokerCard::parse),
+                cards.community.map(PokerCard::parse),
+                modelCount, samples = 300,
+                seed = (p.handId + ":" + p.turnId).hashCode())
+            FrameBoundEquity(p.handId, p.turnId, frame.captureEpoch,
+                frame.seq, sampled.potShareEquity, sampled.runouts,
+                externallyVerified = true, exactEnumeration = false,
+                provenance = "UNIFORM_UNKNOWN_CARDS_SIGNED_SOURCE")
+        } catch (_: IllegalArgumentException) { null }
+          catch (_: IllegalStateException) { null }
+        else null
+        val boundEquity = sourceEquity ?: modeledEquity
         val obs = AutonomousObservation(view, p.tableId, p.handId, p.turnId,
             p.packageName, p.windowGeneration, true, true,
             authenticated.stage, authenticated.timerRemainingMs,
