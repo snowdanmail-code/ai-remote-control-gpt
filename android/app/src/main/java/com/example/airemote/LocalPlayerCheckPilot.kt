@@ -96,6 +96,13 @@ class LocalVisualCheckGate {
         screenHeight: Int
     ): LocalCheckTicket? {
         if (locked) return null
+        // Canvas-only games have no native nodes. A periodic empty native scan
+        // must not erase a still-unclaimed candidate corroborated by TWO real
+        // OCR JPEGs; otherwise the Android sampler races with the OCR callback.
+        // Once a command is claimed, native disappearance scans still advance
+        // the no-retry latch below.
+        if (pending?.source == LocalCheckSource.VISUAL_OCR_CALIBRATED &&
+            !awaitingDisappearance) return null
         val validNative = PlayerNativeControlEvidence.verify(native, expectedPackage,
             windowGeneration, nowMs, screenWidth, screenHeight)
         val nativeCheck = native?.buttons?.singleOrNull { it.action == LiveAction.CHECK }
@@ -192,6 +199,11 @@ class LocalVisualCheckGate {
             ocr.ticket.sourcePackage.isBlank() ||
             ocr.ticket.capturedAtMs !in (nowMs - 1_500L)..nowMs ||
             cards.capturedAtMs !in (nowMs - 1_200L)..nowMs ||
+            // The button OCR and two-frame cards MUST describe the same
+            // recent game state. Never combine a next-hand card observation
+            // with a stale CHECK label from a previous JPEG.
+            cards.capturedAtMs !in (ocr.ticket.capturedAtMs - 650L)..(ocr.ticket.capturedAtMs + 250L) ||
+            cards.frameSequence > ocr.ticket.frameSequence ||
             cards.hole.size != 2 || cards.community.size !in listOf(0,3,4,5) ||
             cards.minimumSimilarity < .78 ||
             // Require exact Android pixel mapping; no crop/rotation guessing.
