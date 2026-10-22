@@ -62,6 +62,28 @@ object SignedPokerProviderScenarios {
         ok(verifier.verify(sign(state.copy(attestation=p.copy(
             frameSequence=14,proofId="proof-b")))),
             "new legitimate signed frame is acceptable")
+        val command=PostActionReceipt("authorized-fixture","proof-effect","cmd-1",
+            "hand-1",LiveAction.CHECK,7,5,16,1600,"state-after",
+            true,false,10,10,120,120)
+        fun signEffect(e:PostActionReceipt):SignedProviderEffect {
+            val sign=Signature.getInstance("Ed25519")
+            sign.initSign(pair.private)
+            sign.update(SignedPokerFrameEncoding.encodeEffect(e))
+            return SignedProviderEffect(e,sign.sign())
+        }
+        val signedEffect=signEffect(command)
+        ok(verifier.verifyEffect(signedEffect),"legitimate causal effect signature")
+        ok(!verifier.verifyEffect(signedEffect.copy(
+            content=command.copy(commandId="cmd-2"))),
+            "signed receipt cannot confirm a different command")
+        ok(!verifier.verifyEffect(signedEffect.copy(
+            content=command.copy(potAfter=121))),
+            "a pot change cannot be substituted")
+        ok(!verifier.verifyEffect(signedEffect.copy(
+            content=command.copy(heroTurnClosed=false))),
+            "turn closure cannot be forged")
+        ok(!verifier.verifyEffect(SignedProviderEffect(command,good.signature)),
+            "a state signature cannot be reused as an effect signature")
         println("SignedPokerProviderScenarios: $n/$n passed")
     }
 }
