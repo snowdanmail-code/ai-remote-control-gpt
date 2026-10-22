@@ -63,7 +63,9 @@ object LiveTapSafety {
         return when (action) {
             LiveAction.FOLD -> normalized in setOf("FOLD", "СБРОС", "ПАС")
             LiveAction.CHECK -> normalized in setOf("CHECK", "ЧЕК", "ПРОПУСТИТЬ")
-            LiveAction.CALL -> normalized in setOf("CALL", "КОЛЛ", "УРАВНЯТЬ")
+            LiveAction.CALL -> normalized in setOf("CALL", "КОЛЛ", "УРАВНЯТЬ") ||
+                VirtualChipDisplayParser.parseLabel(label)
+                    ?.let { it.kind == NumericCandidateKind.CALL_AMOUNT } == true
             LiveAction.BET -> normalized in setOf("BET", "СТАВКА", "ПОСТАВИТЬ")
             LiveAction.RAISE -> normalized in setOf("RAISE", "РЕЙЗ", "ПОВЫСИТЬ")
         }
