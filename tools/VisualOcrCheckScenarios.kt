@@ -15,7 +15,7 @@ object VisualOcrCheckScenarios {
             return AutomaticOcrEvidence(t,FrameTextInterpretation(listOf(line),emptyList(),emptyList()),
                 OcrDiagnosticResult(if(agreed)OcrDiagnosticStatus.CONSISTENT_DIAGNOSTIC_ONLY
                     else OcrDiagnosticStatus.WAITING_SECOND_FRAME,""),
-                TableHandBindingResult(TableHandBindingStatus.UNVERIFIED,""),
+                TableHandBindingResult(TableHandBindingStatus.UNVERIFIED_IDENTITY,""),
                 HandStage.FLOP,if(ready) TurnDisplayState.READY else TurnDisplayState.WAITING,at+90)
         }
         val pilot=LocalVisualCheckGate()
