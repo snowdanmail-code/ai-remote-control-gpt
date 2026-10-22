@@ -75,8 +75,21 @@ object ActionControlScenarios {
         ck(gate.inspect(ticket(14,5700),1080,2340,5770,duplicate,turn(at=5620),false).status ==
             ActionStripStatus.REJECTED, "two OCR strings in same button")
         ck(gate.inspect(ticket(15,6010),1080,2340,6060,lines("fold", "call 0.17 $", "bet"),
-            turn(at=5920),false).status == ActionStripStatus.REJECTED,
-            "compound text cannot be assumed an exact button label")
+            turn(at=5920),false).status == ActionStripStatus.COLLECTING,
+            "exact fractional virtual-chip CALL first frame needs second observation")
+        val decorated = ActionControlDiagnostics()
+        ck(decorated.configure(p),"separate decimal control calibration")
+        ck(decorated.inspect(ticket(1,7000),1080,2340,7060,
+            lines("fold","Колл 0.02 $","bet"),turn(at=6990),false)
+            .status == ActionStripStatus.COLLECTING, "decorated call needs second JPEG")
+        val decimalCall=decorated.inspect(ticket(2,7330),1080,2340,7360,
+            lines("fold","Колл 0.02 $","bet"),turn(at=7290),false)
+        ck(decimalCall.status == ActionStripStatus.STABLE_DIAGNOSTIC &&
+            decimalCall.stable.any { it.action == ExactActionCandidate.CALL },
+            "exact fractional CALL label confirmed after two independent frames")
+        ck(decorated.inspect(ticket(3,7640),1080,2340,7680,
+            lines("fold","Колл 0.021 $","bet"),turn(at=7610),false)
+            .status == ActionStripStatus.REJECTED, "three decimal digits never rounded")
         ck(gate.inspect(ticket(16,6300),1080,2340,6350,lines("fold", "raise", "bet"),
             turn(at=6200),false).status == ActionStripStatus.REJECTED,
             "wrong lane action")
