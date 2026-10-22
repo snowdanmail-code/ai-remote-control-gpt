@@ -26,6 +26,7 @@ object OnDeviceAutonomousRuntime {
     @Volatile private var controller: AutonomousActionLoop? = null
     private val stopGeneration = java.util.concurrent.atomic.AtomicLong(0L)
     private var strategy: AutonomousStrategy? = null
+    private val modelProposals = TurnScopedProposalMailbox()
     @Volatile private var lastStatus = AutonomousLoopResult(AutoLoopState.STOPPED, "AUTO выключен")
     @Volatile private var lastDiagnostic: String = "Фоновое OCR ещё не поступало"
     // Independent, read-only turn lifecycle: diagnostic visibility is not a legal move.
@@ -49,6 +50,7 @@ object OnDeviceAutonomousRuntime {
         identityBinding?.reset()
         OnDeviceVerifiedDispatchAdmission.clear()
         latestTurnCycle = turnTimeline.snapshot(SystemClock.elapsedRealtime())
+        modelProposals.clear()
         strategy = verifiedSource
         lastStatus = AutonomousLoopResult(AutoLoopState.STOPPED,
             "Стратегия подключена; ожидается ARM и проверенный источник игровых данных")
@@ -56,7 +58,18 @@ object OnDeviceAutonomousRuntime {
 
     /** Install local AI once; it never disables external permission/STOP checks. */
     @Synchronized fun ensureLocalStrategy() {
-        if (strategy == null && controller == null) strategy = VerifiedLocalPokerStrategy()
+        if (strategy == null && controller == null) strategy = ValidatedPlayerStrategy(
+            local = VerifiedLocalPokerStrategy(), proposals = modelProposals,
+            nowMs = { SystemClock.elapsedRealtime() })
+    }
+
+    /** Optional structured model advice. NEVER a gesture or a replacement
+     * for an independent provider. Absence of cloud simply uses local math. */
+    fun offerFrameBoundModelAdvice(context: Context, candidate: PlayerModelProposal): Boolean {
+        if (CaptureObservationMode.isSpectator() || OperatorStopStore.isStopped(context) ||
+            !FrameStore.isCapturing || !LiveGamePermissionGate.permitted() ||
+            identityBinding == null) return false
+        return modelProposals.offer(candidate)
     }
 
     @Synchronized fun startIfAuthorized(context: Context): Boolean {
@@ -222,6 +235,8 @@ object OnDeviceAutonomousRuntime {
     /** Nonblocking emergency cancellation: do not wait for a slow strategy. */
     fun stop(reason: String = "STOP"): AutonomousLoopResult {
         LocalPlayerCheckPilot.stop(reason)
+        modelProposals.clear()
+        OnDeviceAuthorizedPlayerCycle.clear(reason)
         stopGeneration.incrementAndGet()
         // The authorization is valid for ONE capture/autonomy session only;
         // do not reuse it after a crash, MediaProjection stop or interruption.
