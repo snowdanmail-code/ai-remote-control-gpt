@@ -106,12 +106,34 @@ object SpectatorEngineeringReport {
     private fun incidentSummary(incidents: JSONObject): JSONObject {
         val src = incidents.optJSONArray("events") ?: JSONArray()
         val counts = JSONObject()
+        val redactedEvents = JSONArray()
         var warning = 0
         var error = 0
         for (i in 0 until src.length()) {
             val event = src.optJSONObject(i) ?: continue
             val code = event.optString("code", "UNKNOWN")
             if (!Regex("^[A-Z_]{1,60}$").matches(code)) continue
+            // Reconstruct events from allow-listed, typed fields. An unknown
+            // field (including attacker text) must never leave the device.
+            val cleaned = JSONObject()
+            cleaned.put("code", code)
+            val severity = event.optString("severity")
+            if (severity in setOf("INFO", "WARNING", "ERROR", "CRITICAL"))
+                cleaned.put("severity", severity)
+            for (field in listOf("sequence", "elapsed_ms", "capture_epoch",
+                    "frame_sequence", "latency_ms", "pot_chips", "call_chips",
+                    "timer_remaining_ms")) {
+                val value = event.opt(field)
+                if (value is Number && value.toLong() >= 0L)
+                    cleaned.put(field, value.toLong())
+            }
+            val stage = event.optString("stage")
+            if (stage in setOf("PREFLOP", "FLOP", "TURN", "RIVER", "SHOWDOWN", "UNKNOWN"))
+                cleaned.put("stage", stage)
+            val action = event.optString("action")
+            if (action in setOf("FOLD", "CHECK", "CALL", "BET", "RAISE", "CONFIRM"))
+                cleaned.put("action", action)
+            redactedEvents.put(cleaned)
             counts.put(code, counts.optInt(code) + 1)
             if (event.optString("severity") == "WARNING") warning++
             if (event.optString("severity") in setOf("ERROR", "CRITICAL")) error++
@@ -121,7 +143,7 @@ object SpectatorEngineeringReport {
             .put("warnings", warning)
             .put("errors_and_critical", error)
             .put("by_code", counts)
-            .put("events", src)
+            .put("events", redactedEvents)
     }
 
     fun build(observations: JSONObject, incidents: JSONObject,
