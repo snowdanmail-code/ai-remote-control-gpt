@@ -338,9 +338,10 @@ class MainActivity : Activity() {
                 startActivityForResult(intent, spectatorExportRequest)
             }
         }
-        label("AUTO: можно разрешить транспорт касаний для виртуальных фишек. " +
-            "Для реального действия всё равно обязательны достоверные стол, раздача, " +
-            "свой ход и кнопка. Неизвестные данные не дают права нажимать.")
+        label("AUTO: без внешнего подтверждения раздачи доступен только " +
+            "ограниченный бесплатный CHECK при точной кнопке Android и свежих картах. " +
+            "CALL, FOLD, BET, RAISE НЕ выполняются. " +
+            "Полный ИИ-игрок потребует подтверждённого источника игровых данных.")
         button("РАЗРЕШИТЬ КАСАНИЯ ДЛЯ ПОДТВЕРЖДЁННОГО ПРИЛОЖЕНИЯ") {
             requestAutomationAuthorization()
         }
@@ -361,6 +362,8 @@ class MainActivity : Activity() {
         button("ПРОВЕРИТЬ ГОТОВНОСТЬ АВТО-РЕЖИМА") {
             val state = OnDeviceAutonomousRuntime.status()
             status.text = "AUTO: ${state.state} — ${state.explanation}. " +
+                "Реальные пробные CHECK: ${LocalPlayerCheckPilot.status().checkCount}; " +
+                "состояние: ${LocalPlayerCheckPilot.status().state}. " +
                 "Готовность: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
         }
         button("ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)") {
@@ -369,8 +372,9 @@ class MainActivity : Activity() {
                 return@button
             }
             val enabled = OnDeviceAutonomousRuntime.startIfAuthorized(this@MainActivity)
-            status.text = if (enabled) "AUTO включён, ждёт подтверждённый ход и точные кнопки. STOP доступен всегда."
-                else "AUTO заблокирован: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
+            status.text = if (enabled) {
+                OnDeviceAutonomousRuntime.status().explanation + " STOP доступен всегда."
+            } else "AUTO заблокирован: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
         }
         label("Диагностика ошибок: локальный журнал не содержит скриншотов, OCR-текст, имена игроков или ключи API.")
         button("ПОКАЗАТЬ СОСТОЯНИЕ ЖУРНАЛА") {
