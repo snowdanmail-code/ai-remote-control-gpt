@@ -109,8 +109,11 @@ data class CaptureViewport(
         contentWidth > 0 && contentHeight > 0 &&
         contentLeft.toLong() + contentWidth <= displayWidth &&
         contentTop.toLong() + contentHeight <= displayHeight &&
-        // Do not assume a crop or letterbox is identity-mapped.
-        jpegWidth.toLong() * contentHeight == jpegHeight.toLong() * contentWidth
+        // Bitmap downscaling rounds each dimension independently (e.g.
+        // 1080x2340 -> 443x960). Allow at most ONE scaled pixel of ratio
+        // quantization, never a materially cropped or letterboxed frame.
+        kotlin.math.abs(jpegWidth.toLong() * contentHeight -
+            jpegHeight.toLong() * contentWidth) <= maxOf(contentHeight, contentWidth)
 }
 
 object VerifiedScreenProjection {
