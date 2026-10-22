@@ -29,9 +29,14 @@ object LocalPlayerCheckScenarios {
         ok(gate.observe(board(1700,9),snap(2070,emptyList()),pkg,5,7,2070,1080,2340)==null,
             "second missing clears only retry latch")
         ok(gate.observe(board(2000,10),snap(2150),pkg,5,7,2150,1080,2340)==null,
-            "next turn needs two native scans")
-        ok(gate.observe(board(2000,10),snap(2430),pkg,5,7,2430,1080,2340)!=null,
-            "another visible CHECK allowed after disappearance")
+            "same street is never retried")
+        ok(gate.observe(board(2000,10),snap(2430),pkg,5,7,2430,1080,2340)==null,
+            "same cards still blocked even after UI flicker")
+        val nextStreet = board(2500,11).copy(community = listOf("3c","9s","Jh","6d"))
+        ok(gate.observe(nextStreet,snap(2600),pkg,5,7,2600,1080,2340)==null,
+            "a changed street needs first independent scan")
+        ok(gate.observe(nextStreet,snap(2880),pkg,5,7,2880,1080,2340)!=null,
+            "a second CHECK only possible on different publicly visible street")
         gate.stop("STOP")
         ok(gate.status().state==LocalCheckState.OFF,"hard stop")
         ok(gate.observe(board(2500),snap(2510),pkg,5,7,2510,1080,2340)==null,
