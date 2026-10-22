@@ -34,6 +34,8 @@ object PlayerVisionJournal {
                 root.put("last_source_height_px", sourceHeight)
             }
             if (reading.complete) inc("single_frame_candidates")
+            if (reading.complete && reading.reason.startsWith("ADAPTIVE_HERO_PAIR_UNVERIFIED"))
+                inc("adaptive_full_candidate_frames")
             else inc("incomplete")
             if (reading.hole.size != 2 || reading.hole.any { it == null })
                 inc("hole_cards_missing_or_partial")
@@ -94,6 +96,7 @@ object PlayerVisionJournal {
         JSONObject()
             .put("frames_inspected", root.optLong("frames_inspected"))
             .put("single_frame_candidates", root.optLong("single_frame_candidates"))
+            .put("adaptive_full_candidate_frames", root.optLong("adaptive_full_candidate_frames"))
             .put("incomplete", root.optLong("incomplete"))
             .put("hole_cards_missing_or_partial", root.optLong("hole_cards_missing_or_partial"))
             .put("community_cards_partial", root.optLong("community_cards_partial"))

@@ -244,6 +244,12 @@ object SpectatorEngineeringReport {
         val report = build(observations, incidents, version, Build.VERSION.SDK_INT,
             System.currentTimeMillis())
         report.put("device_health", SpectatorDeviceHealth.snapshot(context))
+        // Code82 engineering export previously included only spectator KPIs.
+        // Embed strictly aggregate PLAYER counters, explicitly separated
+        // from observer data; no screenshots, hand values or raw OCR strings.
+        report.put("player_vision_read_only", PlayerVisionJournal.snapshot(context))
+        report.put("player_vision_independent_of_spectator_quality_kpis", true)
+        report.put("player_actions_authorized_by_report", false)
         return report.toString(2)
     }
 

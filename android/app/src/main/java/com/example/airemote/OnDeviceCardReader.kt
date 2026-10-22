@@ -48,7 +48,13 @@ object OnDeviceCardReader {
             val pixels = IntArray(scaled.width * scaled.height)
             scaled.getPixels(pixels, 0, scaled.width, 0, 0, scaled.width, scaled.height)
             val raster = VisionRaster(scaled.width, scaled.height, pixels)
-            return OnDeviceTableReading(CardVisionCore.readCards(raster), TurnControlsVision.read(raster))
+            val original = CardVisionCore.readCards(raster)
+            // New independent silhouette locator is only a candidate fallback.
+            // If the legacy reader has a full hand it wins; contradictory
+            // partial evidence also rejects the fallback. No extra gestures.
+            val adaptive = if (original.complete) null else AdaptivePlayerCardReader.read(raster)
+            val reading = AdaptiveCardCandidateResolver.choose(original, adaptive)
+            return OnDeviceTableReading(reading, TurnControlsVision.read(raster))
         } finally {
             if (scaled !== source) scaled.recycle()
         }
