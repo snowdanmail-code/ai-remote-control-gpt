@@ -113,6 +113,9 @@ class AuthenticatedActionEffects(
 /** Not armed in production until an independent provider is configured. */
 object OnDeviceEffectAuthority {
     @Volatile private var gate: AuthenticatedActionEffects? = null
+    /** Real effect verification must be present BEFORE any automatic paid action.
+     * STOP clears this authority; no invisible resurrection on the next ARM. */
+    fun configured(): Boolean = gate != null
     @Synchronized fun install(verifier: IndependentEffectVerifier) { gate?.reset(); gate = AuthenticatedActionEffects(verifier) }
     @Synchronized fun clear() { gate?.reset(); gate = null }
     fun inspect(command: LiveCommand, receipt: PostActionReceipt?, nowMs: Long, stopped: Boolean): EffectGateReport =
