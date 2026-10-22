@@ -42,7 +42,7 @@ class EngineeringReviewTest(unittest.TestCase):
         self.assertIn("NOT_AVAILABLE", output)
 
     def test_baseline_gates_small_sample(self):
-        self.assertIn("INSUFFICIENT_SAMPLES", compare(self.make(), self.make())[0])
+        self.assertIn("INSUFFICIENT_SAMPLES", compare(self.make(n=19), self.make(n=19))[0])
         a, b = self.make(n=100, unknown=30, stable=25), self.make(n=100, unknown=40, stable=20)
         result = compare(a,b)
         self.assertTrue(any("baseline 40.0%, current 30.0%" in x for x in result))
