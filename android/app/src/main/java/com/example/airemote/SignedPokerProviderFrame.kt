@@ -20,6 +20,13 @@ data class SignedPokerProviderFrame(
     val signature: ByteArray
 )
 
+/** Separately authenticated post-action receipt. No Android callback may
+ * create one. Signature binds the causal event and unique command identity. */
+data class SignedProviderEffect(
+    val content: PostActionReceipt,
+    val signature: ByteArray
+)
+
 object SignedPokerFrameEncoding {
     fun encode(packet: IndependentlyAuthenticatedPokerFrame): ByteArray {
         val out=ByteArrayOutputStream(2048)
@@ -64,6 +71,26 @@ object SignedPokerFrameEncoding {
         }
         return out.toByteArray()
     }
+
+    fun encodeEffect(receipt: PostActionReceipt): ByteArray {
+        val out=ByteArrayOutputStream(512)
+        DataOutputStream(out).use { d ->
+            fun str(s:String){ require(s.length<=2048); d.writeUTF(s) }
+            str("T042_SIGNED_EFFECT_V1")
+            str(receipt.providerId); str(receipt.proofId); str(receipt.commandId)
+            str(receipt.handKey); str(receipt.action.name)
+            d.writeLong(receipt.epoch); d.writeLong(receipt.windowGeneration)
+            d.writeLong(receipt.frameSequence); d.writeLong(receipt.capturedAtMs)
+            str(receipt.fingerprint)
+            d.writeBoolean(receipt.heroTurnClosed)
+            d.writeBoolean(receipt.heroFolded)
+            d.writeLong(receipt.contributionBefore)
+            d.writeLong(receipt.contributionAfter)
+            d.writeLong(receipt.potBefore)
+            d.writeLong(receipt.potAfter)
+        }
+        return out.toByteArray()
+    }
 }
 
 /**
@@ -74,12 +101,20 @@ object SignedPokerFrameEncoding {
 class Ed25519PokerPacketVerifier(publicKeyDer: ByteArray) {
     private val key=KeyFactory.getInstance("Ed25519").generatePublic(
         X509EncodedKeySpec(publicKeyDer.clone()))
-    fun verify(signed: SignedPokerProviderFrame): Boolean = try {
-        if (signed.signature.size != 64) false else {
+    private fun verifySignature(bytes: ByteArray, signature: ByteArray): Boolean = try {
+        if (signature.size != 64) false else {
             val v=Signature.getInstance("Ed25519")
             v.initVerify(key)
-            v.update(SignedPokerFrameEncoding.encode(signed.content))
-            v.verify(signed.signature)
+            v.update(bytes)
+            v.verify(signature)
         }
     } catch (_: Exception) { false }
+
+    fun verify(signed: SignedPokerProviderFrame): Boolean =
+        try { verifySignature(SignedPokerFrameEncoding.encode(signed.content),
+            signed.signature) } catch (_: Exception) { false }
+
+    fun verifyEffect(signed: SignedProviderEffect): Boolean =
+        try { verifySignature(SignedPokerFrameEncoding.encodeEffect(signed.content),
+            signed.signature) } catch (_: Exception) { false }
 }
