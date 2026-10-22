@@ -68,3 +68,17 @@ object PlayerNativeControlEvidence {
             snapshot.buttons.map { it.action }.toSet().size
     }
 }
+
+/** Latest full native-node snapshot is per-window, volatile, not persistent. */
+object OnDevicePlayerNativeControls {
+    @Volatile private var latest: NativeControlSnapshot? = null
+    fun current(nowMs: Long, targetPackage: String?, generation: Long,
+                screenWidth: Int, screenHeight: Int): NativeControlSnapshot? {
+        val s = latest
+        return s?.takeIf { PlayerNativeControlEvidence.verify(it, targetPackage,
+            generation, nowMs, screenWidth, screenHeight) }
+    }
+    fun snapshot(): NativeControlSnapshot? = latest
+    @Synchronized fun publish(s: NativeControlSnapshot) { latest = s }
+    @Synchronized fun clear() { latest = null }
+}
