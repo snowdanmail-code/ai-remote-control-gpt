@@ -41,6 +41,7 @@ class LocalVisualCheckGate {
     private var commandSeq = 0L
     private var seenSession = ""
     private var lastEpoch = -1L
+    private var lastCompletedStreetKey: String? = null
 
     @Synchronized fun arm(): Boolean {
         if (!locked) return false
@@ -52,6 +53,7 @@ class LocalVisualCheckGate {
         reason = "Ждём свежие карты и независимую Android-кнопку CHECK"
         seenSession = ""
         lastEpoch = -1L
+        lastCompletedStreetKey = null
         return true
     }
 
@@ -123,6 +125,17 @@ class LocalVisualCheckGate {
         }
         val stable = requireNotNull(cards)
         val check = requireNotNull(nativeCheck)
+        val streetKey = listOf(expectedPackage, epoch.toString(),
+            stable.hole.joinToString(","), stable.community.joinToString(",")).joinToString("|")
+        // A native CHECK disappearing may be an animation or failed UI event,
+        // not a verified game effect. Never send another CHECK on the same
+        // hole+board street during this session.
+        if (lastCompletedStreetKey == streetKey) {
+            pending = null
+            confirmations = 0
+            reason = "Этот набор карт уже получил один CHECK; повтор запрещён"
+            return null
+        }
         val fingerprint = listOf(expectedPackage, windowGeneration.toString(),
             epoch.toString(), stable.hole.joinToString(","), stable.community.joinToString(","),
             check.left.toString(), check.top.toString(), check.right.toString(), check.bottom.toString()
@@ -154,6 +167,8 @@ class LocalVisualCheckGate {
             ticket.issuedAtMs > nowMs || nowMs - ticket.issuedAtMs > 350L)
             return false
         pending = null
+        lastCompletedStreetKey = listOf(ticket.packageName, ticket.captureEpoch.toString(),
+            ticket.hole.joinToString(","), ticket.board.joinToString(",")).joinToString("|")
         awaitingDisappearance = true
         missingSamples = 0
         confirmations = 0
