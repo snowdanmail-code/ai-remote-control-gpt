@@ -146,7 +146,11 @@ class LiveGestureAccessibilityService : AccessibilityService() {
             origin?.windowGeneration != ticket.windowGeneration ||
             origin?.safeForLocalDiagnostics != true ||
             cards?.captureEpoch != ticket.captureEpoch ||
-            cards.frameSequence != ticket.cardSequence ||
+            // Card readings continue while asynchronous JPEG OCR runs.
+            // They have their own sequence; a MORE RECENT card scan with
+            // the same exact cards is safe to compare, an older or changed
+            // one is not. Never compare card sequence with JPEG sequence.
+            cards.frameSequence < ticket.cardSequence ||
             cards.hole != ticket.hole || cards.community != ticket.board ||
             !when (ticket.source) {
                 LocalCheckSource.ANDROID_NATIVE ->
