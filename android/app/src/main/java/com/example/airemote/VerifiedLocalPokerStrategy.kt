@@ -16,7 +16,9 @@ data class FrameBoundEquity(
     /** Exact enumeration can have fewer than 200 possible runouts (e.g. river). */
     /** True only if source independently verified cards and equity provenance. */
     val externallyVerified: Boolean,
-    val exactEnumeration: Boolean = false
+    val exactEnumeration: Boolean = false,
+    /** Explicit model assumption: a signed input does not reveal hidden opponents. */
+    val provenance: String = "EXTERNALLY_VERIFIED_EQUITY"
 ) {
     fun matches(observation: AutonomousObservation): Boolean =
         externallyVerified && independentSampleCount >= (if (exactEnumeration) 1 else 200) &&
