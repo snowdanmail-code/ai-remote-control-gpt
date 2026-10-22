@@ -65,6 +65,15 @@ object OnDeviceAutonomousRuntime {
             OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
             !LiveGamePermissionGate.permitted() || !LiveForegroundProbe.connected() ||
             strategy == null) return false
+        // Auth to ChatGPT and visually reading a button are NOT an
+        // authenticated 1win hand/turn source. Fail closed instead of
+        // presenting AUTO as running when every gesture would be rejected.
+        if (identityBinding == null) {
+            lastStatus = AutonomousLoopResult(AutoLoopState.WAITING_FOR_PROOF,
+                "ИИ-игрок: нет независимого источника подтверждения стола, раздачи и хода. " +
+                    "Диагностика карт работает, но автоматические действия не активируются.")
+            return false
+        }
         val app = context.applicationContext
         val loop = AutonomousActionLoop(strategy!!, VerifiedAndroidTransport(app),
             diagnosticSink = { e ->
@@ -221,7 +230,8 @@ object OnDeviceAutonomousRuntime {
         !FrameStore.isCapturing -> "Нет действующего захвата MediaProjection"
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
         !LiveGamePermissionGate.permitted() -> "Разрешите касания для недавно открытого 1win в панели оператора"
-        strategy == null -> "Профессиональная стратегия/ChatGPT не подключена"
+        strategy == null -> "Локальная стратегия не подключена"
+        identityBinding == null -> "Нет независимо подтверждённого источника 1win: AUTO не запускается; доступен безопасный анализ карт"
         else -> "Касания разрешены; автоцикл ждёт независимое подтверждение стола, раздачи, хода и точных кнопок"
     }
 
