@@ -28,6 +28,7 @@ data class AuthorizedCycleStatus(
 
 object OnDeviceAuthorizedPlayerCycle {
     @Volatile private var sourceVerifier: ExternalAttestationVerifier? = null
+    private var packetVerifier: Ed25519PokerPacketVerifier? = null
     private var joiner: AuthenticatedPlayerFrameJoiner? = null
     private var resultFrameGate: AuthorizedPostActionFrameGate? = null
     private var activeTableId: String? = null
@@ -47,11 +48,13 @@ object OnDeviceAuthorizedPlayerCycle {
     @Synchronized fun configure(
         context: Context,
         providerVerifier: ExternalAttestationVerifier,
-        effectVerifier: IndependentEffectVerifier
+        effectVerifier: IndependentEffectVerifier,
+        gamePacketVerifier: Ed25519PokerPacketVerifier
     ): Boolean {
         if (!OperatorStopStore.isStopped(context) || FrameStore.isCapturing) return false
         OnDeviceAutonomousRuntime.stop("Подключение внешнего источника")
         sourceVerifier = null
+        packetVerifier = null
         joiner = null
         resultFrameGate = null
         OnDeviceEffectAuthority.clear()
@@ -60,6 +63,7 @@ object OnDeviceAuthorizedPlayerCycle {
         OnDeviceAutonomousRuntime.installExternalIdentityVerifier(providerVerifier)
         OnDeviceEffectAuthority.install(effectVerifier)
         sourceVerifier = providerVerifier
+        packetVerifier = gamePacketVerifier
         joiner = AuthenticatedPlayerFrameJoiner(providerVerifier)
         resultFrameGate = AuthorizedPostActionFrameGate(providerVerifier)
         last = AuthorizedCycleStatus(AuthorizedCycleStage.STOPPED,
@@ -74,11 +78,15 @@ object OnDeviceAuthorizedPlayerCycle {
      */
     @Synchronized fun acceptCurrentTurn(
         context: Context,
-        packet: IndependentlyAuthenticatedPokerFrame,
+        signed: SignedPokerProviderFrame,
         measuredViewport: CaptureViewport
     ): AuthorizedCycleStatus {
         val validator = joiner ?: return update(AuthorizedCycleStage.NOT_CONFIGURED,
             "Отсутствует подтверждённый поставщик состояния 1win")
+        if (packetVerifier?.verify(signed) != true)
+            return update(AuthorizedCycleStage.FRAME_REJECTED,
+                "Полная подпись карт, сумм, действий и хода не прошла проверку")
+        val packet = signed.content
         if (CaptureObservationMode.isSpectator() ||
             OperatorStopStore.isStopped(context) || !FrameStore.isCapturing)
             return update(AuthorizedCycleStage.STOPPED, "STOP или нет захвата")
@@ -116,11 +124,15 @@ object OnDeviceAuthorizedPlayerCycle {
      */
     @Synchronized fun acceptIndependentResult(
         context: Context,
-        packet: IndependentlyAuthenticatedPokerFrame,
+        signed: SignedPokerProviderFrame,
         effect: PostActionReceipt
     ): AuthorizedCycleStatus {
         val gate = resultFrameGate ?: return update(
             AuthorizedCycleStage.NOT_CONFIGURED, "Нет аутентифицированного источника")
+        if (packetVerifier?.verify(signed) != true)
+            return update(AuthorizedCycleStage.RESULT_REJECTED,
+                "Неверная подпись послеигрового состояния")
+        val packet = signed.content
         if (CaptureObservationMode.isSpectator() ||
             OperatorStopStore.isStopped(context) || !FrameStore.isCapturing)
             return update(AuthorizedCycleStage.STOPPED, "STOP или нет захвата")
@@ -162,6 +174,7 @@ object OnDeviceAuthorizedPlayerCycle {
         joiner = null
         resultFrameGate = null
         sourceVerifier = null
+        packetVerifier = null
         last = AuthorizedCycleStatus(AuthorizedCycleStage.STOPPED, reason)
     }
 
