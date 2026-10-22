@@ -75,10 +75,11 @@ class Ed25519PokerPacketVerifier(publicKeyDer: ByteArray) {
     private val key=KeyFactory.getInstance("Ed25519").generatePublic(
         X509EncodedKeySpec(publicKeyDer.clone()))
     fun verify(signed: SignedPokerProviderFrame): Boolean = try {
-        if (signed.signature.size != 64) return false
-        val v=Signature.getInstance("Ed25519")
-        v.initVerify(key)
-        v.update(SignedPokerFrameEncoding.encode(signed.content))
-        v.verify(signed.signature)
+        if (signed.signature.size != 64) false else {
+            val v=Signature.getInstance("Ed25519")
+            v.initVerify(key)
+            v.update(SignedPokerFrameEncoding.encode(signed.content))
+            v.verify(signed.signature)
+        }
     } catch (_: Exception) { false }
 }
