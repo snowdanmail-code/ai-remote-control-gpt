@@ -3,24 +3,6 @@ package com.example.airemote
 import android.content.Context
 import android.os.SystemClock
 
-/** Unverified, read-only chips shown on the public table. NOT an opponent
- * attribution, betting event, hand identity, or action permission. */
-data class SpectatorNumericHint(
-    val captureEpoch: Long,
-    val frameSequence: Long,
-    val potCandidateChips: Long?,
-    val callLabelCandidateChips: Long?,
-    val rejectedLabels: Int,
-    val completedAtMs: Long
-) {
-    val authorizesAction: Boolean get() = false
-    fun summary(): String = "Наблюдатель: банк (OCR, НЕ подтверждён) " +
-        (potCandidateChips?.toString() ?: "?") +
-        "; числовая подпись CALL (НЕ действие) " +
-        (callLabelCandidateChips?.toString() ?: "?") +
-        "; отброшено неоднозначных чисел: $rejectedLabels. Без касаний."
-}
-
 /**
  * Completely separate ML Kit branch. Spectator OCR cannot assemble player
  * observations, identify opponent actions or feed AutonomyRuntime.
