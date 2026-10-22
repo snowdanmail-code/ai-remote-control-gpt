@@ -198,12 +198,11 @@ class LocalVisualCheckGate {
             ocr.ticket.windowGeneration < 0L ||
             ocr.ticket.sourcePackage.isBlank() ||
             ocr.ticket.capturedAtMs !in (nowMs - 1_500L)..nowMs ||
-            cards.capturedAtMs !in (nowMs - 1_200L)..nowMs ||
-            // The button OCR and two-frame cards MUST describe the same
-            // recent game state. Never combine a next-hand card observation
-            // with a stale CHECK label from a previous JPEG.
-            cards.capturedAtMs !in (ocr.ticket.capturedAtMs - 650L)..(ocr.ticket.capturedAtMs + 250L) ||
-            cards.frameSequence > ocr.ticket.frameSequence ||
+            // Card scans and JPEGs have DIFFERENT sequence counters and
+            // capture cadences. The caller provides the card snapshot bound
+            // to this JPEG, not the latest state when slow ML Kit completes.
+            cards.capturedAtMs !in (ocr.ticket.capturedAtMs - 1_400L)..ocr.ticket.capturedAtMs ||
+            cards.frameSequence <= 0L ||
             cards.hole.size != 2 || cards.community.size !in listOf(0,3,4,5) ||
             cards.minimumSimilarity < .78 ||
             // Require exact Android pixel mapping; no crop/rotation guessing.
