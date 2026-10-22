@@ -69,8 +69,9 @@ class VerifiedTurnBinding(
             proof.epoch < 0L || proof.windowGeneration < 0L || proof.frameSequence <= 0L ||
             nowMs < proof.capturedAtMs || nowMs - proof.capturedAtMs > maxAgeMs ||
             proof.expiresAtMs < nowMs || proof.expiresAtMs <= proof.capturedAtMs ||
-            !view.foregroundVerified || !view.stageVerified || !view.turnVerified ||
-            !view.exactLabelsVerified || view.legalActions.isEmpty() ||
+            !view.foregroundVerified || !view.stageVerified ||
+            (!awaitingAuthenticatedEffect &&
+                (!view.turnVerified || !view.exactLabelsVerified || view.legalActions.isEmpty())) ||
             (!awaitingAuthenticatedEffect &&
                 (visualTurn?.phase != TurnCyclePhase.VISIBLE_DIAGNOSTIC ||
                  visualTurn.latestFrame != proof.frameSequence)) ||
