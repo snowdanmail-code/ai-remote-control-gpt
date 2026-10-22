@@ -20,6 +20,7 @@ HandStateScenarios
 com.example.airemote.LiveDispatchFreshnessScenariosKt
 com.example.airemote.AutonomousActionScenariosKt
 com.example.airemote.VerifiedLocalPokerStrategyScenarios
+com.example.airemote.UniformUnknownEquityScenarios
 com.example.airemote.PlayerModelDecisionScenarios
 com.example.airemote.LocalPlayerCheckScenarios
 com.example.airemote.VisualOcrCheckScenarios
