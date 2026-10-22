@@ -236,9 +236,22 @@ class MainActivity : Activity() {
                 ?: "Нет двух подтверждённых кадров для анализа границ хода."
         }
         button("ПРОВЕРКА РЕАЛЬНЫХ КНОПОК (ДВА КАДРА)") {
-            status.text = FrameStore.lastActionStrip?.summary()
-                ?: "Нужны вручную измеренные три области HERO_FOLD, HERO_CHECK_CALL, HERO_BET_RAISE, " +
-                    "свежее OCR и реальная активная панель. Это не разрешение на касание."
+            val root = LiveForegroundProbe.snapshot()
+            val seen = OnDevicePlayerNativeControls.snapshot()
+            val native = if (root != null && seen != null &&
+                PlayerNativeControlEvidence.verify(seen, root.packageName,
+                    root.windowGeneration, SystemClock.elapsedRealtime(),
+                    resources.displayMetrics.widthPixels,
+                    resources.displayMetrics.heightPixels))
+                "Android видит точные элементы: " +
+                    seen.buttons.map { it.action.name }.joinToString(", ") +
+                    ". Это независимые UI-кнопки, но ещё НЕ подтверждение раздачи."
+            else "Android не дал пригодных подтверждённых кнопок из дерева UI. " +
+                "Возможно, интерфейс нарисован Canvas/WebGL."
+            status.text = native + "\\n" +
+                (FrameStore.lastActionStrip?.summary()
+                    ?: "Согласованных OCR-кнопок пока нет.") +
+                "\\nНикаких касаний без подтверждённого хода."
         }
         button("ПОКАЗАТЬ ФОНОВОЕ OCR") {
             status.text = FrameStore.lastAutomaticOcr?.summary()
