@@ -63,7 +63,7 @@ object PlayerNativeControlEvidence {
                 b.right > b.left && b.bottom > b.top &&
                 b.right <= screenWidth && b.bottom <= screenHeight &&
                 b.top >= (screenHeight * 0.07).toInt() &&
-                b.bottom <= (screenHeight * 0.94).toInt()
+                b.bottom <= (screenHeight * 0.975).toInt()
         } && snapshot.buttons.map { it.action }.size ==
             snapshot.buttons.map { it.action }.toSet().size
     }
