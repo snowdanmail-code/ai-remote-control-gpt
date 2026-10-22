@@ -241,8 +241,10 @@ object SpectatorEngineeringReport {
         val version = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
         } catch (_: Exception) { "unknown" }
-        return build(observations, incidents, version, Build.VERSION.SDK_INT,
-            System.currentTimeMillis()).toString(2)
+        val report = build(observations, incidents, version, Build.VERSION.SDK_INT,
+            System.currentTimeMillis())
+        report.put("device_health", SpectatorDeviceHealth.snapshot(context))
+        return report.toString(2)
     }
 
     fun brief(context: Context): String = try {
