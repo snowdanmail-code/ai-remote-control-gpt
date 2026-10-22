@@ -8,8 +8,8 @@ class CardV2BridgeTest(unittest.TestCase):
     def test_connected_to_existing_player_pipeline(self):
         src=(PACKAGE/"OnDeviceCardReader.kt").read_text()
         capture=(PACKAGE/"CaptureService.kt").read_text()
-        self.assertIn("AdaptivePlayerCardReader.read(raster)",src)
-        self.assertIn("AdaptiveCardCandidateResolver.choose(original, adaptive)",src)
+        self.assertIn("AdaptivePlayerCardReader.read(adaptiveRaster)",src)
+        self.assertIn("AdaptiveCardCandidateResolver.choose(base, adaptive)",src)
         self.assertIn("OnDeviceCardReader.inspectAll(screen)",capture)
         self.assertIn("FrameStore.cardConsensus.accept(",capture)
     def test_no_automatic_tap_or_cloud_work(self):
