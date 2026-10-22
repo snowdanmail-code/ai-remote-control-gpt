@@ -117,6 +117,10 @@ class LiveGameActionGuard(private val maximumFrameAgeMs: Long = 1_600L,
 
     @Synchronized fun status(): LiveCommandStatus = currentStatus
     @Synchronized fun hasUnconfirmedAction(): Boolean = pending != null
+    /** Read-only current command for an independently authenticated effect
+     * receipt. Never exposes a new dispatch capability. */
+    @Synchronized fun pendingCommandForEffect(): LiveCommand? =
+        pending?.takeIf { pendingSent && !emergencyStopped }
 
     /** Explicit operator reset after checking real game; never automated after timeout. */
     @Synchronized fun operatorResetAfterInspection() {
