@@ -125,7 +125,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
         val tap = VerifiedTapArea(b.left, b.top, b.right, b.bottom,
             (b.left + b.right) / 2, (b.top + b.bottom) / 2,
             resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels,
-            LiveAction.CHECK, b.exactLabel, ticket.packageName, ticket.windowGeneration)
+            LiveAction.CHECK, b.label, ticket.packageName, ticket.windowGeneration)
         val command = LiveCommand("local-check-${ticket.commandSequence}",
             "local-visual-only", LiveAction.CHECK,
             ticket.captureEpoch, ticket.cardSequence,
@@ -148,11 +148,31 @@ class LiveGestureAccessibilityService : AccessibilityService() {
             cards?.captureEpoch != ticket.captureEpoch ||
             cards.frameSequence != ticket.cardSequence ||
             cards.hole != ticket.hole || cards.community != ticket.board ||
-            native == null || native.buttons.singleOrNull {
-                it.action == LiveAction.CHECK && it.left == b.left &&
-                    it.top == b.top && it.right == b.right && it.bottom == b.bottom
-            } == null ||
-            native.buttons.any { it.action == LiveAction.CALL } ||
+            !when (ticket.source) {
+                LocalCheckSource.ANDROID_NATIVE ->
+                    native != null && native.buttons.singleOrNull {
+                        it.action == LiveAction.CHECK && it.left == b.left &&
+                            it.top == b.top && it.right == b.right && it.bottom == b.bottom
+                    } != null && native.buttons.none { it.action == LiveAction.CALL }
+                LocalCheckSource.VISUAL_OCR_CALIBRATED -> {
+                    val ocr = FrameStore.lastAutomaticOcr
+                    ocr != null && ocr.ticket.captureEpoch == ticket.captureEpoch &&
+                        ocr.ticket.sourcePackage == ticket.packageName &&
+                        ocr.ticket.windowGeneration == ticket.windowGeneration &&
+                        ocr.agreement.status == OcrDiagnosticStatus.CONSISTENT_DIAGNOSTIC_ONLY &&
+                        ocr.turnDisplay == TurnDisplayState.READY &&
+                        ocr.interpretation.actions.count {
+                            it.action == ExactActionCandidate.CHECK
+                        } == 1 &&
+                        ocr.interpretation.actions.none {
+                            it.action == ExactActionCandidate.CALL
+                        } &&
+                        b.left == 184 * tap.screenWidth / 540 &&
+                        b.right == 352 * tap.screenWidth / 540 &&
+                        b.top == 1108 * tap.screenHeight / 1170 &&
+                        b.bottom == 1138 * tap.screenHeight / 1170
+                }
+            } ||
             b.top < (tap.screenHeight * 0.74).toInt() ||
             occludedByStop ||
             LiveTapSafety.verify(tap, command, currentPackage,
@@ -188,6 +208,12 @@ class LiveGestureAccessibilityService : AccessibilityService() {
             if (sent) IncidentCode.COMMAND_DISPATCHED else IncidentCode.COMMAND_REJECTED,
             if (sent) IncidentSeverity.INFO else IncidentSeverity.WARNING,
             ticket.captureEpoch, ticket.cardSequence, action = "CHECK")
+    }
+
+    /** Called only after a new, valid, distinct Canvas OCR frame. */
+    internal fun offerScopedVisualCheck(ticket: LocalCheckTicket) {
+        if (ticket.source != LocalCheckSource.VISUAL_OCR_CALIBRATED) return
+        main.post { dispatchScopedLocalCheck(ticket) }
     }
 
     override fun onServiceConnected() {
