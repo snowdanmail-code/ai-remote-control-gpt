@@ -52,7 +52,9 @@ class VerifiedTurnBinding(
         activeWindowGeneration: Long?,
         visualTurn: TurnCycleReport?,
         nowMs: Long,
-        stopped: Boolean
+        stopped: Boolean,
+        /** Only after a submitted command: the button strip may be closed. */
+        awaitingAuthenticatedEffect: Boolean = false
     ): TurnBindingResult {
         fun reject(why: String): TurnBindingResult {
             reset(); return TurnBindingResult(TurnBindingStatus.REJECTED, why)
@@ -69,8 +71,9 @@ class VerifiedTurnBinding(
             proof.expiresAtMs < nowMs || proof.expiresAtMs <= proof.capturedAtMs ||
             !view.foregroundVerified || !view.stageVerified || !view.turnVerified ||
             !view.exactLabelsVerified || view.legalActions.isEmpty() ||
-            visualTurn?.phase != TurnCyclePhase.VISIBLE_DIAGNOSTIC ||
-            visualTurn.latestFrame != proof.frameSequence ||
+            (!awaitingAuthenticatedEffect &&
+                (visualTurn?.phase != TurnCyclePhase.VISIBLE_DIAGNOSTIC ||
+                 visualTurn.latestFrame != proof.frameSequence)) ||
             !verifier.verify(proof)) return reject("Attestation, frame or turn invalid")
         val old = prior
         if (old == null) {
