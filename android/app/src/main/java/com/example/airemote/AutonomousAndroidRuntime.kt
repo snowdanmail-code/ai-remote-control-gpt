@@ -30,7 +30,7 @@ object OnDeviceAutonomousRuntime {
     @Volatile private var lastDiagnostic: String = "Фоновое OCR ещё не поступало"
     // Independent, read-only turn lifecycle: diagnostic visibility is not a legal move.
     private val turnTimeline = VerifiedTurnLifecycle()
-    private var identityBinding: VerifiedTurnBinding? = null
+    @Volatile private var identityBinding: VerifiedTurnBinding? = null
 
     /** No production verifier is installed until a genuinely independent provider exists. */
     @Synchronized fun installExternalIdentityVerifier(verifier: ExternalAttestationVerifier) {
