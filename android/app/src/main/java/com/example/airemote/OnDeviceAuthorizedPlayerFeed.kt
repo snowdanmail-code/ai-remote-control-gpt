@@ -37,7 +37,13 @@ object OnDeviceAuthorizedPlayerFeed {
     @Volatile private var provider: AuthorizedVirtualPokerProvider? = null
     @Volatile private var joiner: AuthenticatedPlayerFrameJoiner? = null
 
-    @Synchronized fun install(authorized: AuthorizedVirtualPokerProvider) {
+    /**
+     * Trust may only be registered while the physical STOP is enabled and no
+     * MediaProjection capture is active. A user-visible ChatGPT login alone
+     * does not satisfy this interface.
+     */
+    @Synchronized fun install(context: Context, authorized: AuthorizedVirtualPokerProvider): Boolean {
+        if (!OperatorStopStore.isStopped(context) || FrameStore.isCapturing) return false
         OnDeviceAutonomousRuntime.stop("Замена авторизованного игрового источника")
         provider = authorized
         val verifier = ExternalAttestationVerifier { proof -> authorized.verifyTurnProof(proof) }
@@ -47,6 +53,13 @@ object OnDeviceAuthorizedPlayerFeed {
             authorized.verifyEffectProof(receipt)
         })
         OnDeviceAutonomousRuntime.ensureLocalStrategy()
+        return true
+    }
+
+    /** Called by the nonblocking global STOP; must not recursively call STOP. */
+    internal fun invalidateOnStop() {
+        provider = null
+        joiner = null
     }
 
     @Synchronized fun disconnect() {
@@ -84,6 +97,12 @@ object OnDeviceAuthorizedPlayerFeed {
                                  packet: IndependentlyAuthenticatedPokerFrame,
                                  displayWidth: Int, displayHeight: Int): PlayerFeedResult {
         val j = joiner ?: return PlayerFeedResult(PlayerFeedStatus.NO_PROVIDER, "Нет игрового источника")
+        // A second decision is forbidden until the first Android command's
+        // authenticated effect has been independently settled.
+        if (OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+            OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT)
+            return PlayerFeedResult(PlayerFeedStatus.WAITING_FOR_SECOND_EFFECT,
+                "Предыдущий ход ещё ожидает подписанных подтверждений; новые касания запрещены")
         val frame = FrameStore.latest
         val proof = packet.attestation
         if (!validSession(context, frame, proof))

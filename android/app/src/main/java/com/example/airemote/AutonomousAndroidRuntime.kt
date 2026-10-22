@@ -96,9 +96,14 @@ object OnDeviceAutonomousRuntime {
         // Full autonomy is possible ONLY through the installed provider
         // bridge that verifies the entire state + action effect signatures.
         // A bare identity verifier must not bypass the signed-packet gate.
-        if (!OnDeviceAuthorizedPlayerCycle.providerConnected()) {
+        val route = TrustedPlayerInputPolicy.route(
+            OnDeviceAuthorizedPlayerCycle.providerConnected(),
+            OnDeviceAuthorizedPlayerFeed.available())
+        if (route == TrustedPlayerInputRoute.NONE || route == TrustedPlayerInputRoute.CONFLICT) {
             lastStatus = AutonomousLoopResult(AutoLoopState.BLOCKED_CONTEXT,
-                "Нет проверенного подписанного источника всех карт, сумм и действий")
+                if (route == TrustedPlayerInputRoute.CONFLICT)
+                    "Конфликт двух источников игры; отключите их и подключите только один"
+                else "Нет проверенного источника полного состояния: карты, суммы и действия")
             return false
         }
         // STOP revokes result authority. Do not arm a verified multi-action
@@ -245,6 +250,7 @@ object OnDeviceAutonomousRuntime {
         LocalPlayerCheckPilot.stop(reason)
         modelProposals.clear()
         OnDeviceAuthorizedPlayerCycle.clear(reason)
+        OnDeviceAuthorizedPlayerFeed.invalidateOnStop()
         stopGeneration.incrementAndGet()
         // The authorization is valid for ONE capture/autonomy session only;
         // do not reuse it after a crash, MediaProjection stop or interruption.
@@ -254,6 +260,7 @@ object OnDeviceAutonomousRuntime {
         lastDiagnostic = "Данные очищены после STOP/завершения захвата"
         turnTimeline.reset(reason)
         identityBinding?.reset()
+        identityBinding = null
         latestTurnCycle = TurnCycleReport(TurnCyclePhase.UNKNOWN, 0L, -1L, reason)
         controller?.requestAbort()
         controller = null
@@ -277,8 +284,14 @@ object OnDeviceAutonomousRuntime {
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
         !LiveGamePermissionGate.permitted() -> "Разрешите касания для недавно открытого 1win в панели оператора"
         strategy == null -> "Локальная стратегия не подключена"
-        identityBinding != null && !OnDeviceAuthorizedPlayerCycle.providerConnected() ->
-            "Не подключён подписанный поток полного состояния игры; действия заблокированы"
+        identityBinding != null &&
+            TrustedPlayerInputPolicy.route(OnDeviceAuthorizedPlayerCycle.providerConnected(),
+                OnDeviceAuthorizedPlayerFeed.available()) == TrustedPlayerInputRoute.CONFLICT ->
+            "Два конфликтующих источника данных; игровые действия заблокированы"
+        identityBinding != null &&
+            TrustedPlayerInputPolicy.route(OnDeviceAuthorizedPlayerCycle.providerConnected(),
+                OnDeviceAuthorizedPlayerFeed.available()) == TrustedPlayerInputRoute.NONE ->
+            "Не подключён подтверждённый поток полного состояния игры; действия заблокированы"
         identityBinding != null && !OnDeviceEffectAuthority.configured() ->
             "После STOP требуется повторно подключить доверенное подтверждение результатов"
         identityBinding == null && LocalPlayerCheckPilot.isActive() ->
