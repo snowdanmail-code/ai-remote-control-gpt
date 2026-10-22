@@ -9,6 +9,10 @@ import android.os.SystemClock
  * sign-in to ChatGPT nor screenshots implement this interface.
  */
 interface AuthorizedVirtualPokerProvider {
+    /** Authenticate the COMPLETE state: board, action list, virtual chip
+     * amounts, count of active opponents and proof. Authenticating proofId
+     * alone does not authenticate the fields used by the strategy. */
+    fun verifyFullTurnState(state: IndependentlyAuthenticatedPokerFrame): Boolean
     fun verifyTurnProof(proof: ExternalTurnAttestation): Boolean
     fun verifyEffectProof(receipt: PostActionReceipt): Boolean
 }
@@ -84,6 +88,11 @@ object OnDeviceAuthorizedPlayerFeed {
         val proof = packet.attestation
         if (!validSession(context, frame, proof))
             return PlayerFeedResult(PlayerFeedStatus.STOPPED, "STOP, чужое окно или устаревший кадр")
+        val signedProvider = provider ?: return PlayerFeedResult(
+            PlayerFeedStatus.NO_PROVIDER, "Источник отключён")
+        if (!signedProvider.verifyFullTurnState(packet))
+            return PlayerFeedResult(PlayerFeedStatus.REJECTED,
+                "Полная игровая ситуация не подтверждена подписью источника")
         val f = requireNotNull(frame)
         val viewport = CaptureViewport(f.width, f.height,
             displayWidth, displayHeight, 0, 0, displayWidth, displayHeight)
