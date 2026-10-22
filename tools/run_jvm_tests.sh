@@ -21,6 +21,7 @@ com.example.airemote.LiveDispatchFreshnessScenariosKt
 com.example.airemote.AutonomousActionScenariosKt
 com.example.airemote.VerifiedLocalPokerStrategyScenarios
 com.example.airemote.PlayerModelDecisionScenarios
+com.example.airemote.LocalPlayerCheckScenarios
 com.example.airemote.OperatorAutomationAuthorizationScenariosKt
 com.example.airemote.IncidentJournalScenarios
 com.example.airemote.IncidentJournalFieldsScenarios
