@@ -49,6 +49,31 @@ object PlayerVisionJournal {
         } catch (_: Exception) { /* Never fail capture for a diagnostic */ }
     }
 
+    /** Candidate-only OCR aggregates. Never record raw text, button bounds or
+     *  personally identifying labels; they cannot authorize a game move. */
+    @Synchronized fun observeOcr(context: Context, result: FrameTextInterpretation,
+                                 expectedEpoch: Long) {
+        if (CaptureObservationMode.isSpectator() || !FrameStore.isCapturing ||
+            FrameStore.captureEpoch != expectedEpoch ||
+            OperatorStopStore.isStopped(context)) return
+        try {
+            val root = read(context)
+            fun inc(key: String) { root.put(key, root.optLong(key, 0L) + 1L) }
+            inc("ocr_frames")
+            if (result.actions.isEmpty()) inc("ocr_no_action_labels")
+            else inc("ocr_action_labels_seen")
+            if (result.numbers.any { it.kind == NumericCandidateKind.POT })
+                inc("ocr_pot_label_candidates")
+            if (result.numbers.any { it.kind == NumericCandidateKind.CALL_AMOUNT })
+                inc("ocr_call_label_candidates")
+            if (result.rejected.isNotEmpty()) inc("ocr_ambiguous_frames")
+            val output = root.toString()
+            if (output.length <= MAX_JSON_BYTES)
+                context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .edit().putString(KEY, output).apply()
+        } catch (_: Exception) { /* diagnostics only */ }
+    }
+
     @Synchronized fun snapshot(context: Context): JSONObject = try {
         val root = read(context)
         JSONObject()
@@ -58,6 +83,12 @@ object PlayerVisionJournal {
             .put("hole_cards_missing_or_partial", root.optLong("hole_cards_missing_or_partial"))
             .put("community_cards_partial", root.optLong("community_cards_partial"))
             .put("two_frame_agreements", root.optLong("two_frame_agreements"))
+            .put("ocr_frames", root.optLong("ocr_frames"))
+            .put("ocr_action_labels_seen", root.optLong("ocr_action_labels_seen"))
+            .put("ocr_no_action_labels", root.optLong("ocr_no_action_labels"))
+            .put("ocr_pot_label_candidates", root.optLong("ocr_pot_label_candidates"))
+            .put("ocr_call_label_candidates", root.optLong("ocr_call_label_candidates"))
+            .put("ocr_ambiguous_frames", root.optLong("ocr_ambiguous_frames"))
             .put("visible_board_counts_are_only_hints", JSONObject()
                 .put("preflop_zero", root.optLong("visible_board_count_0"))
                 .put("flop_three", root.optLong("visible_board_count_3"))
