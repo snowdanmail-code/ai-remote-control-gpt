@@ -124,11 +124,12 @@ object AuthorizedPlayerFullCycleScenarios {
         // After the first action is authentically confirmed, the same
         // autonomous session should process a DIFFERENT fresh turn. Previously
         // consumed turn-1 must never dispatch twice, even across callbacks.
-        val nextTurn = second.observation.copy(
-            turnId="turn-2",
-            view=second.observation.view.copy(frameSequence=17,
-                capturedAtMs=1900, stateFingerprint="turn-2-ready"))
-        val nextState = loop.onVerifiedObservation(nextTurn,1930,false,true,true)
+        val newBoard = board + "2d"
+        val nextFrame = joiner.combine(jpeg(17,1900),cards(1900,newBoard),controls(17),
+            packet(17,1900,turn="turn-2",stage=HandStage.TURN,boardCards=newBoard),
+            viewport,1930,false)
+        ok(nextFrame.accepted,"next turn has separate signed cards, table state and actions")
+        val nextState = loop.onVerifiedObservation(nextFrame.observation,1930,false,true,true)
         ok(nextState.state==AutoLoopState.WAITING_FOR_RESULT && submissions==2,
             "next independent turn can issue second distinct action")
         val nextCommand = requireNotNull(guard.pendingCommandForEffect())
@@ -139,19 +140,6 @@ object AuthorizedPlayerFullCycleScenarios {
             "wrong turn cannot confirm a previous command")
         ok(!resultGate.prepare(jpeg(16,1800),post(16,1800),receipt(16,1800),
             cmd,table,"turn-1",1840,true).accepted,"STOP refuses result processing")
-        // The same armed session must be able to make a NEW decision for the
-        // next independently verified turn, not stop after one simulated CHECK.
-        val newBoard = board + "2d"
-        val nextFrame = joiner.combine(jpeg(18,2050),cards(2050,newBoard),controls(18),
-            packet(18,2050,turn="turn-2",stage=HandStage.TURN,boardCards=newBoard),
-            viewport,2090,false)
-        ok(nextFrame.accepted,"new turn has its own signed frame and community cards")
-        val nextCommand = loop.onVerifiedObservation(nextFrame.observation,2090,
-            false,true,true)
-        ok(nextCommand.state==AutoLoopState.WAITING_FOR_RESULT && submissions==2,
-            "second distinct turn automatically reaches strategy and transport")
-        ok(guard.pendingCommandForEffect()?.id!=cmd.id,
-            "second command has a new unique action ID")
         loop.stop("STOP")
         ok(loop.onVerifiedObservation(second.observation,1800,true,false,false)
             .state==AutoLoopState.STOPPED,"STOP prevents all subsequent moves")
