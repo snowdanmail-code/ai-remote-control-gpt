@@ -45,9 +45,11 @@ object VisualOcrCheckScenarios {
             7,1550,1080,2340)==null,"card observation too old for OCR frame")
         ok(mixedFrame.observeOcr(cards(1650),ocr(13,1000,true),
             7,1700,1080,2340)==null,"next-hand cards cannot use previous OCR CHECK")
+        // JPEG and card detector increment DIFFERENT counters. The
+        // timestamp-linked snapshot may have a higher card sequence.
         val higherCardSeq=cards(1000).copy(frameSequence=21)
         ok(mixedFrame.observeOcr(higherCardSeq,ocr(13,1000,true),
-            7,1100,1080,2340)==null,"future card sequence cannot match older button OCR")
+            7,1100,1080,2340)!=null,"card snapshot is matched by JPEG capture time, not unrelated sequence")
         pilot.stop()
         ok(pilot.observeOcr(cards(1000),ocr(14,1110,true),7,1150,1080,2340)==null,
             "STOP cancels")
