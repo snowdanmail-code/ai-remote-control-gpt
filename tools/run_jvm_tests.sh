@@ -23,6 +23,7 @@ com.example.airemote.VerifiedLocalPokerStrategyScenarios
 com.example.airemote.PlayerModelDecisionScenarios
 com.example.airemote.LocalPlayerCheckScenarios
 com.example.airemote.VisualOcrCheckScenarios
+com.example.airemote.VirtualChipDisplayScenarios
 com.example.airemote.OperatorAutomationAuthorizationScenariosKt
 com.example.airemote.IncidentJournalScenarios
 com.example.airemote.IncidentJournalFieldsScenarios
