@@ -28,7 +28,8 @@ jobs:
   verify-android:
     # The PUSH path is authorized ONLY for this exact update commit; edits to
     # the workflow later will not silently run a signing job.
-    if: ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true || (github.event_name == 'push' && github.event.head_commit.message == 'T042: one-time signed Samsung code80 [t042-sign-once]') }}
+    if: >-
+      ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true || (github.event_name == 'push' && github.event.head_commit.message == 'T042 signed code80 pilot retry once') }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
