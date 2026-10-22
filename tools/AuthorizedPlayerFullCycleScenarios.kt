@@ -121,6 +121,18 @@ object AuthorizedPlayerFullCycleScenarios {
         ok(loop.onVerifiedObservation(second.observation,1750,false,true,true)
             .state!=AutoLoopState.WAITING_FOR_RESULT && submissions==1,
             "previous turn is never sent twice")
+        // After the first action is authentically confirmed, the same
+        // autonomous session should process a DIFFERENT fresh turn. Previously
+        // consumed turn-1 must never dispatch twice, even across callbacks.
+        val nextTurn = second.observation.copy(
+            turnId="turn-2",
+            view=second.observation.view.copy(frameSequence=17,
+                capturedAtMs=1900, stateFingerprint="turn-2-ready"))
+        val nextState = loop.onVerifiedObservation(nextTurn,1930,false,true,true)
+        ok(nextState.state==AutoLoopState.WAITING_FOR_RESULT && submissions==2,
+            "next independent turn can issue second distinct action")
+        val nextCommand = requireNotNull(guard.pendingCommandForEffect())
+        ok(nextCommand.id != cmd.id,"next turn generates a distinct command id")
         ok(!resultGate.prepare(jpeg(16,1800),post(16,1800).copy(
             attestation=proof(16,1800,"wrong-turn")),receipt(16,1800),
             cmd,table,"turn-1",1840,false).accepted,
