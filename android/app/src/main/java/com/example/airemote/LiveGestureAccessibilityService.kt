@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -15,6 +16,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.TextView
 import kotlin.math.abs
 
@@ -32,10 +34,58 @@ class LiveGestureAccessibilityService : AccessibilityService() {
     // Root identity is sampled periodically, not inferred from AccessibilityEvent.packageName.
     private val rootSampler = object : Runnable {
         override fun run() {
-            LiveForegroundProbe.recordRoot(
-                rootInActiveWindow?.packageName?.toString(), SystemClock.elapsedRealtime())
+            val now = SystemClock.elapsedRealtime()
+            val root = rootInActiveWindow
+            LiveForegroundProbe.recordRoot(root?.packageName?.toString(), now)
+            val foreground = LiveForegroundProbe.snapshot()
+            if (!CaptureObservationMode.isSpectator() &&
+                !OperatorStopStore.isStopped(applicationContext) &&
+                root != null && foreground != null &&
+                foreground.packageName != packageName &&
+                foreground.packageName == LiveGamePermissionGate.packageName()) {
+                sampleNativeActions(root, foreground, now)
+            } else OnDevicePlayerNativeControls.clear()
             main.postDelayed(this, 350L)
         }
+    }
+
+    /** Independent Android Accessibility UI-node scan: factual bounds and
+     * exact labels only. Some games provide zero nodes (Canvas/WebGL). Never
+     * infer missing controls or grant play permission from this scan. */
+    private fun sampleNativeActions(root: AccessibilityNodeInfo,
+                                    foreground: ForegroundPackageEvidence,
+                                    now: Long) {
+        try {
+            val queue = ArrayDeque<AccessibilityNodeInfo>()
+            queue.add(root)
+            val buttons = mutableListOf<NativeActionButton>()
+            var seen = 0
+            while (queue.isNotEmpty() && seen < PlayerNativeControlEvidence.MAX_SCANNED_NODES) {
+                val node = queue.removeFirst()
+                seen++
+                val words = node.text?.toString() ?: node.contentDescription?.toString()
+                val action = words?.let(PlayerNativeControlEvidence::classifyExactLabel)
+                if (action != null && node.isVisibleToUser && node.isEnabled) {
+                    val clickable = if (node.isClickable) node else node.parent
+                    if (clickable?.isClickable == true && clickable.isEnabled &&
+                        clickable.isVisibleToUser) {
+                        val rect = Rect()
+                        clickable.getBoundsInScreen(rect)
+                        buttons.add(NativeActionButton(action, words!!.trim(),
+                            rect.left, rect.top, rect.right, rect.bottom,
+                            foreground.packageName, foreground.windowGeneration, now))
+                    }
+                }
+                for (i in 0 until node.childCount) {
+                    node.getChild(i)?.let(queue::addLast)
+                }
+            }
+            val snapshot = NativeControlSnapshot(foreground.packageName,
+                foreground.windowGeneration, now, buttons.distinctBy { it.action },
+                seen, queue.isNotEmpty())
+            // Always replace, including empty: no historical stale buttons.
+            OnDevicePlayerNativeControls.publish(snapshot)
+        } catch (_: Exception) { OnDevicePlayerNativeControls.clear() }
     }
 
     override fun onServiceConnected() {
@@ -60,6 +110,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         main.removeCallbacks(rootSampler)
+        OnDevicePlayerNativeControls.clear()
         // An interrupted accessibility source must never retain armed gestures.
         LiveForegroundProbe.invalidate()
         OnDeviceAutonomousRuntime.stop("Accessibility прервана")
@@ -222,6 +273,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         main.removeCallbacks(rootSampler)
+        OnDevicePlayerNativeControls.clear()
         OnDeviceAutonomousRuntime.stop("Служба доступности отключена")
         OnDeviceLiveActionControl.stop()
         LiveForegroundProbe.detach(this)
