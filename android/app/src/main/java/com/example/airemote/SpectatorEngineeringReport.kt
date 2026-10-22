@@ -25,6 +25,7 @@ object SpectatorEngineeringReport {
             observations.optLong("operator_corrected")
         val corrections = observations.optLong("operator_corrected")
         val performance = observations.optJSONObject("performance") ?: JSONObject()
+        val numeric = observations.optJSONObject("numeric_ocr") ?: JSONObject()
         val timing = performance.optLong("sample_count")
         val expensive = performance.optLong("latency_over_1500")
         val incidentEvents = incidentReport.optJSONArray("events") ?: JSONArray()
@@ -71,6 +72,14 @@ object SpectatorEngineeringReport {
                 "Preflop, new hand, hidden table, or missed board area",
                 "Distinguish preflop from occluded/unknown frames before adjusting geometry",
                 "Preflop reliably stays empty; visible flop has three annotated public cards")
+        if (numeric.optLong("processed_frames") >= 8 &&
+            numeric.optLong("pot_candidates") == 0L)
+            add("T042-DIAG-008", "P2", "SPECTATOR_POT_OCR",
+                numeric.optLong("processed_frames"),
+                "Public pot OCR has zero candidates in the observed frames",
+                "Pot label may be absent, unreadable, or outside the text parser's region",
+                "Inspect a consented, redacted pot-label screenshot and calibrated ROI",
+                "Repeatable pot candidate on independently annotated images")
         if (verified == 0L)
             add("T042-DIAG-005", "P1", "GROUND_TRUTH", 0,
                 "No recognized boards were manually confirmed or corrected",
@@ -205,6 +214,7 @@ object SpectatorEngineeringReport {
                 .put("max_ms", perf.optLong("processing_ms_max"))
                 .put("bins", perf))
             .put("board_timeline", observations.optJSONObject("timeline") ?: JSONObject())
+            .put("spectator_numeric_ocr", observations.optJSONObject("numeric_ocr") ?: JSONObject())
             .put("global_incidents", incidentSummary(incidents))
             .put("prioritized_issues", issues)
             .put("spectator_examples", observations.optJSONArray("examples") ?: JSONArray())
