@@ -48,14 +48,19 @@ class SpectatorBoardTimeline {
  */
 enum class SpectatorShadowVerdict { AGREE, DISAGREE, INCOMPLETE, INVALID }
 object SpectatorShadowComparison {
+    private val cardPattern = Regex("^[2-9TJQKA][cdhs]$")
+    private fun valid(cards: List<String>): Boolean =
+        cards.size in 3..5 && cards.toSet().size == cards.size &&
+            cards.all { cardPattern.matches(it) }
+
     fun compare(baseline: VisibleCommunityReading, candidate: VisibleCommunityReading):
         SpectatorShadowVerdict {
         if (baseline.cards.size !in 3..5 || candidate.cards.size !in 3..5)
             return SpectatorShadowVerdict.INCOMPLETE
         val a = baseline.cards.filterNotNull()
         val b = candidate.cards.filterNotNull()
-        if ((baseline.complete && !SpectatorBoardLabels.isValid(a)) ||
-            (candidate.complete && !SpectatorBoardLabels.isValid(b)))
+        if ((baseline.complete && !valid(a)) ||
+            (candidate.complete && !valid(b)))
             return SpectatorShadowVerdict.INVALID
         if (!baseline.complete || !candidate.complete ||
             a.size != baseline.cards.size || b.size != candidate.cards.size)
