@@ -31,7 +31,7 @@ class AtomicFramePublicationSourceTest(unittest.TestCase):
         self.assertIn('FrameStore.lastCards = signal', self.service)
 
     def test_predicate_rechecks_stop_visibility_and_root(self):
-        self.assertEqual(self.service.count('windowStillMatches(origin, rootEvidence)'), 4)  # spectator adds its own root check
+        self.assertEqual(self.service.count('windowStillMatches(origin, rootEvidence)'), 5)  # spectator board and independent spectator OCR both check root
         self.assertGreaterEqual(self.service.count('AppVisibilityGate.canPublish(visibilityTicket)'), 3)
         self.assertIn('!OperatorStopStore.isStopped(applicationContext)', self.service)
 
