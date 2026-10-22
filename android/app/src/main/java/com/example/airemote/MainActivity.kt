@@ -27,6 +27,7 @@ class MainActivity : Activity() {
     private val layoutImportRequest = 504
     private val spectatorExportRequest = 505
     private val engineeringExportRequest = 506
+    private val playerEngineeringExportRequest = 507
     private lateinit var cloudStatus: TextView
     private val cloudControls = mutableListOf<Button>()
     private val cloudHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -244,6 +245,40 @@ class MainActivity : Activity() {
                 ?: "Сейчас нет актуального OCR (окно оператора сбрасывает игровое изображение). " +
                     "Последняя историческая диагностика, НЕ разрешение на действия: " +
                     OnDeviceAutonomousRuntime.diagnostic()
+        }
+        button("ИИ-ИГРОК — ДИАГНОСТИКА ГОТОВНОСТИ") {
+            if (CaptureObservationMode.isSpectator()) {
+                status.text = "Выбран наблюдатель. Для проверки игрока переключите режим " +
+                    "только после STOP и остановки захвата."
+            } else {
+                refreshHandState()
+                status.text = PlayerEngineeringReport.brief(this@MainActivity) +
+                    "\\n" + PlayerVisionJournal.summary(this@MainActivity)
+            }
+        }
+        button("ИИ-ИГРОК — ПОКАЗАТЬ ГОТОВУЮ КОМБИНАЦИЮ") {
+            val now = SystemClock.elapsedRealtime()
+            val previewCards = FrameStore.cardConsensus.current(now)
+            val evaluation = if (CaptureObservationMode.isSpectator()) null
+                else PlayerHandEvaluator.inspect(previewCards)
+            status.text = if (evaluation == null) {
+                "Нет свежей, дважды согласованной комбинации собственных карт и стола."
+            } else {
+                "Локальная оценка: ${evaluation.stage}; собственные карты " +
+                    "${evaluation.hole.joinToString(" ")}; стол " +
+                    "${evaluation.board.joinToString(" ")}; " +
+                    "готовая комбинация: ${evaluation.bestMadeHand ?: "до флопа не вычисляется"}. " +
+                    "Это НЕ equity и НЕ разрешение на игровые действия."
+            }
+        }
+        button("ИИ-ИГРОК — ЭКСПОРТ ДИАГНОСТИКИ (JSON)") {
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+                putExtra(Intent.EXTRA_TITLE, "T042-player-readiness.json")
+            }
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, playerEngineeringExportRequest)
         }
         button("НАБЛЮДАТЕЛЬ — СТАТИСТИКА РАСПОЗНАВАНИЯ") {
             if (!CaptureObservationMode.isSpectator()) {
@@ -697,6 +732,22 @@ class MainActivity : Activity() {
                 } catch (_: Exception) {
                     OnDeviceRealFrameRegions.clear()
                     status.text = "Файл калибровки отклонён. Проверьте схему, пакет и координаты."
+                }
+            }
+            return
+        }
+        if (requestCode == playerEngineeringExportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val payload = PlayerEngineeringReport.export(this)
+                        .toByteArray(Charsets.UTF_8)
+                    contentResolver.openOutputStream(requireNotNull(data.data), "w")
+                        ?.use { it.write(payload) }
+                        ?: error("Не удалось открыть файл")
+                    status.text = "Отчёт ИИ-игрока сохранён (${payload.size} байт). " +
+                        "Он содержит причины блокировки и статистику, но не скриншоты."
+                } catch (_: Exception) {
+                    status.text = "Ошибка экспорта отчёта ИИ-игрока. Данные приложения не удалены."
                 }
             }
             return
