@@ -69,10 +69,16 @@ object OnDeviceAutonomousRuntime {
         // authenticated 1win hand/turn source. Fail closed instead of
         // presenting AUTO as running when every gesture would be rejected.
         if (identityBinding == null) {
-            lastStatus = AutonomousLoopResult(AutoLoopState.WAITING_FOR_PROOF,
-                "ИИ-игрок: нет независимого источника подтверждения стола, раздачи и хода. " +
-                    "Диагностика карт работает, но автоматические действия не активируются.")
-            return false
+            // Actual but strictly limited fallback using independent native
+            // Android CHECK + fresh on-device cards. Does NOT claim full
+            // autonomy or allow CALL/FOLD/BET/RAISE without attestation.
+            val started = LocalPlayerCheckPilot.start()
+            lastStatus = AutonomousLoopResult(
+                if (started) AutoLoopState.WAITING_FOR_PROOF else AutoLoopState.BLOCKED_CONTEXT,
+                if (started) "Ограниченный ИИ-игрок: только бесплатный CHECK, " +
+                    "после 2 подтверждений Android-кнопки и свежих карт; нет CALL/BET/RAISE."
+                else "Режим CHECK уже активен; для нового сеанса нужен STOP и ARM")
+            return started
         }
         val app = context.applicationContext
         val loop = AutonomousActionLoop(strategy!!, VerifiedAndroidTransport(app),
@@ -205,6 +211,7 @@ object OnDeviceAutonomousRuntime {
 
     /** Nonblocking emergency cancellation: do not wait for a slow strategy. */
     fun stop(reason: String = "STOP"): AutonomousLoopResult {
+        LocalPlayerCheckPilot.stop(reason)
         stopGeneration.incrementAndGet()
         // The authorization is valid for ONE capture/autonomy session only;
         // do not reuse it after a crash, MediaProjection stop or interruption.
@@ -231,7 +238,10 @@ object OnDeviceAutonomousRuntime {
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
         !LiveGamePermissionGate.permitted() -> "Разрешите касания для недавно открытого 1win в панели оператора"
         strategy == null -> "Локальная стратегия не подключена"
-        identityBinding == null -> "Нет независимо подтверждённого источника 1win: AUTO не запускается; доступен безопасный анализ карт"
+        identityBinding == null && LocalPlayerCheckPilot.isActive() ->
+            "Ограниченный CHECK активен: только бесплатный ход через настоящую кнопку Android, не полноценная игра"
+        identityBinding == null ->
+            "Нет удостоверенного источника раздачи; разрешён только ограниченный CHECK при новом ARM"
         else -> "Касания разрешены; автоцикл ждёт независимое подтверждение стола, раздачи, хода и точных кнопок"
     }
 
