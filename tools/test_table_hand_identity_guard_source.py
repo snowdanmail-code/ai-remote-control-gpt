@@ -46,7 +46,7 @@ class TableHandBindingGuardSourceTest(unittest.TestCase):
         s=(BASE/'.github/workflows/android.yml').read_text()
         self.assertIn('workflow_dispatch:',s)
         self.assertIn('AI-Remote-Control-GPT-T042-Spectator-Reports-Code80.apk',s)
-        self.assertIn('ai-remote-control-t042-capture-samsung-code79',s)
+        self.assertIn('ai-remote-control-t042-spectator-reports-code80',s)
         self.assertNotIn('v2.14.13-WINDOW-ORIGIN',s)
 
     def test_no_external_dispatched_action_in_identity_module(self):
