@@ -43,6 +43,7 @@ com.example.airemote.DispatchAdmissionScenarios
 com.example.airemote.AutonomyEndToEndScenarios
 com.example.airemote.AuthorizedPlayerFullCycleScenarios
 com.example.airemote.TrustedPlayerInputScenarios
+com.example.airemote.LivePlayerModelContextScenarios
 com.example.airemote.SignedPokerProviderScenarios
 com.example.airemote.ChatGptAuthScenarios
 com.example.airemote.ChatGptLoginPreflightScenarios

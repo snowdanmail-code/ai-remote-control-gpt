@@ -133,6 +133,21 @@ object OnDeviceAutomaticOcr {
                                 LiveForegroundProbe.activeService()?.offerScopedVisualCheck(visualTicket)
                         }
                     }
+                    // Bind a real capture frame to its asynchronous OCR result.
+                    // Advisor input is read-only, not a game move or remote call.
+                    if (published && response.isSuccess && !CaptureObservationMode.isSpectator()) {
+                        synchronized(FrameStore) {
+                            val current = FrameStore.latest
+                            val ocr = FrameStore.lastAutomaticOcr
+                            if (current === frame && ocr?.ticket == ticket &&
+                                !OperatorStopStore.isStopped(app)) {
+                                LivePlayerModelContextAssembler.fromFrame(
+                                    frame, ocr, finishedAt, false)?.let { sample ->
+                                    OnDevicePlayerContextBuffer.memory.offer(sample)
+                                }
+                            }
+                        }
+                    }
                     if (published) {
                         // Forward the read-only observation to the autonomy coordinator,
                         // but never manufacture table/hand/turn identity or action rights.

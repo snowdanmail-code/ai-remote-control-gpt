@@ -122,6 +122,7 @@ class MainActivity : Activity() {
         val primaryActions = setOf(
             "ВОЙТИ ЧЕРЕЗ CHATGPT",
             "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ",
+            "АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ",
             "НАЧАТЬ ЗАХВАТ ЭКРАНА",
             "ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)"
         )
@@ -132,7 +133,8 @@ class MainActivity : Activity() {
         fun button(text: String, action: () -> Unit) {
             val target = if (text in primaryActions) content else advanced
             val control = Button(this).apply { this.text = text; setOnClickListener { action() } }
-            if (text in setOf("ВОЙТИ ЧЕРЕЗ CHATGPT", "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ", "СПРОСИТЬ ОБЛАЧНОГО ИИ — ТЕСТ")) cloudControls.add(control)
+            if (text in setOf("ВОЙТИ ЧЕРЕЗ CHATGPT", "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ", "СПРОСИТЬ ОБЛАЧНОГО ИИ — ТЕСТ",
+                "АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ")) cloudControls.add(control)
             target.addView(control)
         }
         advanced.addView(arm, LinearLayout.LayoutParams(
@@ -166,6 +168,26 @@ class MainActivity : Activity() {
             cloudStatus.text = "Проверяю модель и выполняю тестовый запрос…"
             ChatGptCloudBridge.testInference(this@MainActivity) { message ->
                 runOnUiThread { cloudStatus.text = message }
+            }
+        }
+        button("АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ") {
+            // Only the operator can request the latest sanitized context.
+            // No live control or automatic inference uses this answer.
+            if (OperatorStopStore.isStopped(this@MainActivity)) {
+                cloudStatus.text = "STOP: сначала разрешите новую сессию"
+            } else if (!ChatGptCloudBridge.connected(this@MainActivity)) {
+                cloudStatus.text = "Нет проверенного доступа к модели; проверьте ChatGPT."
+            } else {
+                val packet = OnDevicePlayerContextBuffer.memory.latest()
+                val prompt = packet?.advisorPrompt(SystemClock.elapsedRealtime())
+                if (prompt == null || prompt.length > 1600) {
+                    cloudStatus.text = "Нет недавнего кадра. Включите захват и откройте стол."
+                } else {
+                    cloudStatus.text = "Передаю в ИИ структурированный контекст без скриншота…"
+                    ChatGptCloudBridge.askPrompt(this@MainActivity, prompt) { message ->
+                        runOnUiThread { cloudStatus.text = message }
+                    }
+                }
             }
         }
         label("Тест общения: введи вопрос ИИ. Не отправляй пароли, личные данные или имена игроков.")

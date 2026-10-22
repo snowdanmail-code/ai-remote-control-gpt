@@ -110,6 +110,8 @@ object PlayerEngineeringReport {
             .put("exact_action_labels", false)
             .put("verified_equity", false)
             .put("automation_state", OnDeviceAutonomousRuntime.status().state.name)
+            .put("local_read_only_model_samples", OnDevicePlayerContextBuffer.memory.size())
+            .put("local_model_context_is_game_identity_proof", false)
     }
 
     fun export(context: Context): String {

@@ -185,6 +185,7 @@ object FrameStore {
     }
 
     @Synchronized fun clear() {
+        OnDevicePlayerContextBuffer.memory.clear()
         epochCounter.incrementAndGet()
         operatorPreview = null
         spectatorBoardForPreview = null

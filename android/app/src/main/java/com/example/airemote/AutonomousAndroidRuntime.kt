@@ -249,6 +249,7 @@ object OnDeviceAutonomousRuntime {
     fun stop(reason: String = "STOP"): AutonomousLoopResult {
         LocalPlayerCheckPilot.stop(reason)
         modelProposals.clear()
+        OnDevicePlayerContextBuffer.memory.clear()
         OnDeviceAuthorizedPlayerCycle.clear(reason)
         OnDeviceAuthorizedPlayerFeed.invalidateOnStop()
         stopGeneration.incrementAndGet()
