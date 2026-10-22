@@ -311,9 +311,15 @@ class CaptureService : Service() {
                                             val seq = FrameStore.frameSequence + 1L
                                             FrameStore.lastAutomaticOcr = null
                                             FrameStore.lastActionStrip = null
+                                            val sameRasterCards = if (CaptureObservationMode.isSpectator())
+                                                null else FrameStore.confirmedCards?.takeIf {
+                                                    it.captureEpoch == captureEpoch &&
+                                                        it.capturedAtMs in (now - 1_400L)..now
+                                                }
                                             FrameStore.latest = FrameInfo(jpeg, seq, w, h,
                                                 CaptureOptions.qualities[profile], profile, now,
-                                                captureEpoch, origin.observedPackage, origin.windowGeneration)
+                                                captureEpoch, origin.observedPackage,
+                                                origin.windowGeneration, sameRasterCards)
                                             FrameStore.rememberOperatorPreview(requireNotNull(FrameStore.latest))
                                             FrameStore.captureError = ""
                                             FrameStore.localFrameHealth = frameHealth
