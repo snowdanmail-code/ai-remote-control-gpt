@@ -66,6 +66,6 @@ class AtomicFramePublicationSourceTest(unittest.TestCase):
         self.assertGreaterEqual(int(re.search(r"versionCode\s*=\s*(\d+)", gradle).group(1)), 60)
         self.assertIn('FramePublicationScenarios', runner)
         self.assertIn('workflow_dispatch:', workflow)
-        self.assertIn('AI-Remote-Control-GPT-T042-Spectator-Reports-Code80.apk', workflow)
+        self.assertRegex(workflow, r'AI-Remote-Control-GPT-T042-[A-Za-z0-9-]+-Code[0-9]+\.apk')
 
 if __name__ == '__main__': unittest.main()

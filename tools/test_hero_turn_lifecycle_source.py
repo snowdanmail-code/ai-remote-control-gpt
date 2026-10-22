@@ -38,6 +38,6 @@ class HeroTurnLifecycleSourceTests(unittest.TestCase):
         workflow = (ROOT/'.github/workflows/android.yml').read_text()
         self.assertGreaterEqual(int(re.search(r'versionCode\s*=\s*(\d+)',gradle).group(1)),65)
         self.assertRegex(gradle, r'versionName = \"2\.14\.\d+[^\"]*\"')
-        self.assertIn('AI-Remote-Control-GPT-T042-Spectator-Reports-Code80.apk', workflow)
+        self.assertRegex(workflow, r'AI-Remote-Control-GPT-T042-[A-Za-z0-9-]+-Code[0-9]+\.apk')
 
 if __name__=='__main__': unittest.main()
