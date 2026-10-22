@@ -105,6 +105,31 @@ object OnDeviceAutomaticOcr {
                                 FrameTextEvidence.parse(snapshot.lines), ticket.captureEpoch)
                         }
                     }
+                    // Source validation is complete. Only a strictly zero-chip
+                    // CHECK may use the Canvas OCR+colour+cards pilot. No CALL,
+                    // FOLD, BET, RAISE, inferred hand ID or remote GPT command.
+                    if (published && response.isSuccess &&
+                        LocalPlayerCheckPilot.isActive() &&
+                        !CaptureObservationMode.isSpectator() &&
+                        LiveGamePermissionGate.permitted() &&
+                        !OperatorStopStore.isStopped(app) &&
+                        ticket.captureEpoch == FrameStore.captureEpoch) {
+                        val foreground = LiveForegroundProbe.snapshot()
+                        val origin = FrameStore.windowOrigin
+                        if (foreground != null && origin != null &&
+                            foreground.packageName == ticket.sourcePackage &&
+                            foreground.windowGeneration == ticket.windowGeneration &&
+                            origin.windowGeneration == ticket.windowGeneration &&
+                            LiveGamePermissionGate.packageName() == ticket.sourcePackage) {
+                            val visualTicket = LocalPlayerCheckPilot.offerVisualOcr(
+                                FrameStore.cardConsensus.current(finishedAt),
+                                FrameStore.lastAutomaticOcr, ticket.captureEpoch,
+                                finishedAt, app.resources.displayMetrics.widthPixels,
+                                app.resources.displayMetrics.heightPixels)
+                            if (visualTicket != null)
+                                LiveForegroundProbe.activeService()?.offerScopedVisualCheck(visualTicket)
+                        }
+                    }
                     if (published) {
                         // Forward the read-only observation to the autonomy coordinator,
                         // but never manufacture table/hand/turn identity or action rights.
