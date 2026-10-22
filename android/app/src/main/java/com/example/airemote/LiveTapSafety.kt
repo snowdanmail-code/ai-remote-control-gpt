@@ -50,7 +50,7 @@ object LiveTapSafety {
             return TapSafetyResult.INVALID_GEOMETRY
         // Never touch the Android status bar, camera cutout or navigation gestures.
         if (tap.top < (tap.screenHeight * 0.07).toInt() ||
-            tap.bottom > (tap.screenHeight * 0.94).toInt() ||
+            tap.bottom > (tap.screenHeight * 0.975).toInt() ||
             tap.left < (tap.screenWidth * 0.015).toInt() ||
             tap.right > (tap.screenWidth * 0.985).toInt())
             return TapSafetyResult.SYSTEM_UI_RISK
