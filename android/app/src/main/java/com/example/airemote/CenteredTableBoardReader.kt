@@ -154,7 +154,8 @@ object TableBoardCandidateSelector {
  */
 data class CenterTableAnchorEvidence(
     val bankLabelAbove: Boolean,
-    val chipAmountBelow: Boolean
+    val chipAmountBelow: Boolean,
+    val amountAbove: Boolean = false
 )
 object CenterTableAnchorText {
     private val bank = Regex("(?iu)^(?:банк|pot)\\s*[:：]?.*")
@@ -169,6 +170,13 @@ object CenterTableAnchorText {
             it.box.centerX() in 280..740 && it.box.centerY() in 540..690 &&
                 amount.matches(it.text.trim())
         }
-        return CenterTableAnchorEvidence(above, below)
+        // ML Kit's current Latin-script recognizer does not support Russian
+        // Cyrillic. The two decimal values are useful extra positional hints
+        // when the "Банк:" glyphs cannot be recognized at all.
+        val topAmount=valid.any {
+            it.box.centerX() in 280..740 && it.box.centerY() in 385..525 &&
+                amount.matches(it.text.trim())
+        }
+        return CenterTableAnchorEvidence(above, below, topAmount)
     }
 }

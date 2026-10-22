@@ -27,6 +27,16 @@ object PlayerVisionJournal {
         try {
             val root = read(context)
             fun inc(key: String) { root.put(key, root.optLong(key, 0L) + 1L) }
+            // The previous versions used cumulative SharedPreferences.
+            // Preserve them, but start an independent V85 baseline so the
+            // next report can isolate findings from THIS code revision.
+            if(root.optString("counter_revision") != "v85"){
+                root.put("counter_revision","v85")
+                for(k in listOf("frames_inspected","single_frame_candidates",
+                    "two_frame_agreements","ocr_frames","hole_cards_missing_or_partial",
+                    "centered_board_observations","adaptive_full_candidate_frames"))
+                    root.put("baseline_"+k,root.optLong(k))
+            }
             inc("frames_inspected")
             inc("card_failure_" + PlayerVisualIssueDiagnosis.cardFailure(reading).name)
             if (sourceWidth in 1..10000 && sourceHeight in 1..20000) {
@@ -37,7 +47,11 @@ object PlayerVisionJournal {
             if (reading.complete && reading.reason.startsWith("ADAPTIVE_HERO_PAIR_UNVERIFIED"))
                 inc("adaptive_full_candidate_frames")
             if (reading.reason.startsWith("CENTERED_")) inc("centered_board_observations")
-            else inc("incomplete")
+            if (reading.complete && reading.reason.startsWith("SEPARATE_HERO_PAIR_UNVERIFIED"))
+                inc("separate_hero_pair_candidates")
+            // Fix V84 precedence bug: previously this 'else' belonged to the
+            // CENTERED_ reason check instead of reading.complete.
+            if (!reading.complete) inc("incomplete")
             if (reading.hole.size != 2 || reading.hole.any { it == null })
                 inc("hole_cards_missing_or_partial")
             if (reading.community.any { it == null })
@@ -72,6 +86,7 @@ object PlayerVisionJournal {
             inc("ocr_frames")
             val geometry = PlayerOcrGeometryHints.inspect(positionedLines, result)
             val bank = CenterTableAnchorText.inspect(positionedLines)
+            if (bank.amountAbove) inc("ocr_amount_above_centered_board")
             if (bank.bankLabelAbove) inc("ocr_bank_label_above_centered_board")
             if (bank.chipAmountBelow) inc("ocr_chip_amount_below_centered_board")
             if (bank.bankLabelAbove && bank.chipAmountBelow) inc("ocr_both_board_anchors")
@@ -102,6 +117,20 @@ object PlayerVisionJournal {
             .put("frames_inspected", root.optLong("frames_inspected"))
             .put("single_frame_candidates", root.optLong("single_frame_candidates"))
             .put("adaptive_full_candidate_frames", root.optLong("adaptive_full_candidate_frames"))
+            .put("separate_hero_pair_candidates", root.optLong("separate_hero_pair_candidates"))
+            .put("revision_v85_only", JSONObject()
+                .put("revision", root.optString("counter_revision","legacy"))
+                .put("frames", (root.optLong("frames_inspected") -
+                    root.optLong("baseline_frames_inspected")).coerceAtLeast(0))
+                .put("full_card_candidates", (root.optLong("single_frame_candidates") -
+                    root.optLong("baseline_single_frame_candidates")).coerceAtLeast(0))
+                .put("two_frame_agreements", (root.optLong("two_frame_agreements") -
+                    root.optLong("baseline_two_frame_agreements")).coerceAtLeast(0))
+                .put("hole_missing_or_partial", (root.optLong("hole_cards_missing_or_partial") -
+                    root.optLong("baseline_hole_cards_missing_or_partial")).coerceAtLeast(0))
+                .put("centered_board_observations", (root.optLong("centered_board_observations") -
+                    root.optLong("baseline_centered_board_observations")).coerceAtLeast(0))
+                .put("separate_hero_pair_candidates", root.optLong("separate_hero_pair_candidates")))
             .put("centered_board_observations", root.optLong("centered_board_observations"))
             .put("incomplete", root.optLong("incomplete"))
             .put("hole_cards_missing_or_partial", root.optLong("hole_cards_missing_or_partial"))
@@ -129,6 +158,7 @@ object PlayerVisionJournal {
                 .put("frames_with_action_word_rejected_by_strict_parser", root.optLong("ocr_action_word_rejected_by_strict_parser"))
                 .put("frames_with_pot_word_anywhere", root.optLong("ocr_pot_word_anywhere"))
                 .put("frames_with_call_word_anywhere", root.optLong("ocr_call_word_anywhere"))
+                .put("amount_above_board", root.optLong("ocr_amount_above_centered_board"))
                 .put("bank_label_above_board", root.optLong("ocr_bank_label_above_centered_board"))
                 .put("chip_amount_below_board", root.optLong("ocr_chip_amount_below_centered_board"))
                 .put("both_bank_anchors", root.optLong("ocr_both_board_anchors")))

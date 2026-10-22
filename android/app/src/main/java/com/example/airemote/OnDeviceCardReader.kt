@@ -76,7 +76,14 @@ object OnDeviceCardReader {
             // directly contradict it.
             val base = CenteredPlayerBoardFusion.merge(original, centered)
             val adaptive = if (base.complete) null else AdaptivePlayerCardReader.read(adaptiveRaster)
-            val selected = AdaptiveCardCandidateResolver.choose(base, adaptive)
+            // Code85: cards may be TWO SEPARATE rectangles, not one merged pair.
+            val separate = if (base.complete) null else SeparateHeroCardReader.read(adaptiveRaster)
+            val legacyFallback = AdaptiveCardCandidateResolver.choose(base, adaptive)
+            val selected = if (adaptive?.complete == true && separate?.complete == true &&
+                (adaptive.hole != separate.hole || adaptive.community != separate.community)) {
+                // Two independently plausible visual candidates disagree: no guessing.
+                base
+            } else AdaptiveCardCandidateResolver.choose(legacyFallback, separate)
             return OnDeviceTableReading(selected, TurnControlsVision.read(raster))
         } finally {
             if (scaled !== source) scaled.recycle()

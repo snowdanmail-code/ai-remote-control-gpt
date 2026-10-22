@@ -173,6 +173,7 @@ object SpectatorLearningJournal {
         try {
             val root = read(context)
             count(root, "board_anchor_ocr_frames")
+            if (anchor.amountAbove) count(root, "bank_amount_above_board")
             if (anchor.bankLabelAbove) count(root, "bank_label_above_board")
             if (anchor.chipAmountBelow) count(root, "chip_amount_below_board")
             if (anchor.bankLabelAbove && anchor.chipAmountBelow)
@@ -271,6 +272,7 @@ object SpectatorLearningJournal {
             .put("operator_labeled_unrecognized", root.optLong("operator_labeled_unrecognized"))
             .put("board_anchor_ocr", JSONObject()
                 .put("processed_frames", root.optLong("board_anchor_ocr_frames"))
+                .put("amount_above", root.optLong("bank_amount_above_board"))
                 .put("bank_label_above", root.optLong("bank_label_above_board"))
                 .put("chip_amount_below", root.optLong("chip_amount_below_board"))
                 .put("both_anchors_on_frame", root.optLong("both_centered_board_anchors")))

@@ -1,0 +1,11 @@
+T042 after Code84 user Samsung report, 23 October 2026.
+
+Actual uploaded report app_version 2.14.41-t042-code84-centered-board-test Android 36. Persistent cumulative player counters: frames_inspected 752, single_frame_candidates 25, two_frame_agreements 19, incomplete 704, hole_cards_missing_or_partial 711, adaptive_full_candidate_frames 0, centered_board_observations 23, ocr_frames 568, ocr_action_labels_seen 0, bank_label_above_board 0, chip_amount_below_board 62. Legacy spectator quality counters still 21/1/0, spectator OCR processed frames 0. These counters are NOT scoped to Code84 and do NOT prove any of the 19 agreements were produced in Code84 or correct. The engineering JSON exposes no original cards or screenshot. STOP and permission boundaries remain.
+
+Found concrete metrics bug: in PlayerVisionJournal.observe, else inc("incomplete") bound to checking reason "CENTERED_", not to reading.complete. V85 corrects this and adds an initial baseline snapshot so the next report's "revision_v85_only" only covers V85 observations; past counters remain intact.
+
+There is a real OCR limitation: bundled com.google.mlkit:text-recognition:16.0.1 is the LATIN-script model; the screenshot's Russian 'Банк' is in Cyrillic and may not be read. Thus implement additional positional numeric OCR above center in CenterTableAnchorText without claiming the Cyrillic label. It remains a diagnostic anchor only, not proof of a table or stake. The displayed decimal currency strings are NOT converted to integer chips.
+
+New SeparateHeroCardReader detects TWO independent white card rectangles in lower half, rather than requiring an oversized joined blob. It reuses strict rank/suit templates and 2-frame CardReadConsensus; rejects incomplete/ambiguous glyphs, multiple possible pairs, duplicates and contradictory known cards. The old visual path remains primary; autonomous taps remain disabled in the absence of authenticated game-state provider.
+
+Acceptance: fresh V85 report has revision_v85_only, separate_hero_pair_candidates and amount_above_board values. At least one face-up hero screenshot with names removed is still required for true rank/suit calibration; Code84 screenshots earlier showed only public cards. Synthetic JVM PASS cannot prove actual Samsung recognition. No new signing key or broad uncontrolled auto-betting.
