@@ -64,8 +64,33 @@ object LiveTapSafety {
             LiveAction.FOLD -> normalized in setOf("FOLD", "СБРОС", "ПАС")
             LiveAction.CHECK -> normalized in setOf("CHECK", "ЧЕК", "ПРОПУСТИТЬ")
             LiveAction.CALL -> normalized in setOf("CALL", "КОЛЛ", "УРАВНЯТЬ") ||
-                VirtualChipDisplayParser.parseLabel(label)
-                    ?.let { it.kind == NumericCandidateKind.CALL_AMOUNT } == true
+                ((label.contains('
+            LiveAction.BET -> normalized in setOf("BET", "СТАВКА", "ПОСТАВИТЬ")
+            LiveAction.RAISE -> normalized in setOf("RAISE", "РЕЙЗ", "ПОВЫСИТЬ")
+        }
+    }
+}
+
+/** Deliberately unconfigured until exact installed package and permission are verified. */
+object LiveGamePermissionGate {
+    @Volatile private var permittedExternalAutomation = false
+    @Volatile private var verifiedInstalledPackage: String? = null
+
+    @Synchronized fun grantForVerifiedEnvironment(packageName: String, platformExplicitlyPermits: Boolean) {
+        val plausiblePackage = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
+        permittedExternalAutomation = platformExplicitlyPermits && plausiblePackage.matches(packageName)
+        verifiedInstalledPackage = if (permittedExternalAutomation) packageName else null
+    }
+    @Synchronized fun revoke() {
+        permittedExternalAutomation = false
+        verifiedInstalledPackage = null
+    }
+    fun permitted(): Boolean = permittedExternalAutomation
+    fun packageName(): String? = verifiedInstalledPackage
+}
+) || Regex("[0-9][.,][0-9]").containsMatchIn(label)) &&
+                    VirtualChipDisplayParser.parseLabel(label)
+                        ?.let { it.kind == NumericCandidateKind.CALL_AMOUNT } == true)
             LiveAction.BET -> normalized in setOf("BET", "СТАВКА", "ПОСТАВИТЬ")
             LiveAction.RAISE -> normalized in setOf("RAISE", "РЕЙЗ", "ПОВЫСИТЬ")
         }
