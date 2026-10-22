@@ -24,8 +24,7 @@ class AuthenticatedPlayerFrameJoinerTest {
         120L, 0L, 5500L, stable.hole, stable.community, "fp-auth-13")
     private val viewport = CaptureViewport(443,960,1080,2340,0,0,1080,2340)
     private val adapter = AuthenticatedPlayerFrameJoiner(
-        ExternalAttestationVerifier { it.providerId == "example-auth-provider" &&
-            it.proofId == "proof-13" })
+        ExternalAttestationVerifier { it == proof })
 
     @Test fun sourceAndImageMustMatchBeforeLocalStrategyMayDecide() {
         assertTrue(viewport.valid()) // rounded real 960px compressed JPEG
