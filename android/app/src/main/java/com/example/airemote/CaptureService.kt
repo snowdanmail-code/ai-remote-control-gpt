@@ -229,7 +229,9 @@ class CaptureService : Service() {
                                     } else {
                                     val visual = OnDeviceCardReader.inspectAll(screen)
                                     val cards = visual.cards
-                                    FrameStore.commitIfCurrent(captureEpoch, origin, {
+                                    var playerInspectionSequence = -1L
+                                    var playerInspectionStable: StableCardReading? = null
+                                    val playerPublished = FrameStore.commitIfCurrent(captureEpoch, origin, {
                                         !closing && !OperatorStopStore.isStopped(applicationContext) &&
                                             AppVisibilityGate.canPublish(visibilityTicket) &&
                                             windowStillMatches(origin, rootEvidence)
@@ -240,6 +242,8 @@ class CaptureService : Service() {
                                         val stable = FrameStore.cardConsensus.accept(
                                             signal, SystemClock.elapsedRealtime())
                                         FrameStore.confirmedCards = stable
+                                        playerInspectionSequence = cardInspectionSeq
+                                        playerInspectionStable = stable
                                         if (stable != null) FrameStore.lastConfirmedForPreview = stable
                                         // Combine observed cards with hand-stage logic on the
                                         // capture worker. Source proof is *intentionally null*:
@@ -265,6 +269,15 @@ class CaptureService : Service() {
                                             origin.windowGeneration, origin.safeForLocalDiagnostics,
                                             SystemClock.elapsedRealtime(),
                                             OperatorStopStore.isStopped(applicationContext))
+                                    }
+                                    // Never write disk under FrameStore's STOP lock.
+                                    // The PLAYER strategy/dispatcher does not consume this journal.
+                                    if (playerPublished && playerInspectionSequence > 0L &&
+                                        captureEpoch == FrameStore.captureEpoch &&
+                                        !CaptureObservationMode.isSpectator() &&
+                                        !OperatorStopStore.isStopped(applicationContext)) {
+                                        PlayerVisionJournal.observe(applicationContext, cards,
+                                            playerInspectionStable, captureEpoch, playerInspectionSequence)
                                     }
                                     }
                                 }
