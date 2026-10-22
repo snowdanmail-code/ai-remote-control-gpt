@@ -249,7 +249,10 @@ class MainActivity : Activity() {
                 status.text = "Статистика только для режима наблюдателя. Режим игрока не изменён."
             } else {
                 refreshHandState()
-                status.text = SpectatorLearningJournal.summary(this@MainActivity)
+                status.text = SpectatorLearningJournal.summary(this@MainActivity) +
+                    "\nОблачный лимит: 10% короткого периода и 10% недели. " +
+                    "Автооблако выключено, пока нет подтверждённой телеметрии лимитов. " +
+                    "Платные кредиты не используются."
             }
         }
         button("НАБЛЮДАТЕЛЬ — ПОДТВЕРДИТЬ ИЛИ ИСПРАВИТЬ КАРТЫ") {
