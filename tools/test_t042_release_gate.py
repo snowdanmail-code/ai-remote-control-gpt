@@ -50,7 +50,8 @@ class T042ProtectedReleaseGateTests(unittest.TestCase):
             with self.assertRaises(ValueError):stage(p,m)
     def test_manual_or_exactly_one_gated_push_not_uncontrolled_release(self):
         self.assertIn('workflow_dispatch:', self.w)
-        self.assertIn('paths:\\n      - .github/workflows/android.yml'.replace('\\n','\\n'), self.w)
+        self.assertIn('paths:', self.w)
+        self.assertIn('      - .github/workflows/android.yml', self.w)
         self.assertIn("github.event.head_commit.message == 'T042 signed code80 pilot retry once'", self.w)
         self.assertIn("inputs.promote_t042 == true || inputs.samsung_prototype == true", self.w)
         self.assertIn("!inputs.samsung_prototype && github.event_name != 'push'", self.w)
