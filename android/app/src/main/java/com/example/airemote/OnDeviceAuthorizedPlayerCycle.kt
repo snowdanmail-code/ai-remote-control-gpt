@@ -82,6 +82,13 @@ object OnDeviceAuthorizedPlayerCycle {
         if (CaptureObservationMode.isSpectator() ||
             OperatorStopStore.isStopped(context) || !FrameStore.isCapturing)
             return update(AuthorizedCycleStage.STOPPED, "STOP или нет захвата")
+        // Never overwrite the table/turn identity while a gesture may have
+        // happened but its authenticated game effect is still outstanding.
+        // Such a frame belongs to the result channel, not a new decision.
+        if (OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+            OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT)
+            return update(AuthorizedCycleStage.AWAITING_INDEPENDENT_RESULT,
+                "Предыдущий ход ожидает двух подписанных подтверждений, новая команда запрещена")
         val frame = FrameStore.latest ?: return update(
             AuthorizedCycleStage.FRAME_REJECTED, "Нет текущего JPEG")
         val result = validator.combine(frame, frame.playerCardsAtCapture,
