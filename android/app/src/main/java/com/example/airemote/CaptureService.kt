@@ -319,6 +319,15 @@ class CaptureService : Service() {
                                                             !closing && windowStillMatches(origin, rootEvidence)
                                                         }
                                                 }
+                                            } else {
+                                                // Spectator-only public numeric hints; no
+                                                // AutomaticOcr assembler and no player actions.
+                                                FrameStore.latest?.let { committed ->
+                                                    OnDeviceSpectatorOcr.offer(applicationContext,
+                                                        committed, origin) {
+                                                            !closing && windowStillMatches(origin, rootEvidence)
+                                                        }
+                                                }
                                             }
                                         } else if (jpeg.size > 650_000) {
                                             FrameStore.captureError = "Кадр превышает лимит размера"
