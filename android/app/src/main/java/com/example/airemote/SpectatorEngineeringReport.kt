@@ -60,10 +60,10 @@ object SpectatorEngineeringReport {
                 "Card region misaligned, unstable classification, short visibility, or game stage changes",
                 "Capture one consented, manually cropped board sample and annotate visible cards",
                 "Two consecutive fresh matching observations of a labeled 3/4/5-card board")
-        if (inspected >= 10 && unknown * 2 >= inspected)
-            add("T042-DIAG-003", "P1", "CARD_OCR", unknown,
-                "At least half the checks are incomplete or ambiguous",
-                "Nominal/suit glyph classifier, scaling or board ROI may be inaccurate",
+        if (inspected >= 10 && (unknown + none) * 2 >= inspected)
+            add("T042-DIAG-003", "P1", "CARD_OCR", unknown + none,
+                "At least half of checks have incomplete or undetected public cards; preflop may be legitimate",
+                "Preflop, nominal/suit glyph classifier, scaling or board ROI; none proven",
                 "Compare source screenshot with saved candidate and verified manual label; test a separate reader version",
                 "Measure completion and correction rates on held-out human-labeled examples")
         if (inspected >= 10 && none * 3 >= inspected)
