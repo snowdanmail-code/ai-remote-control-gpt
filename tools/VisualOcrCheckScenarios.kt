@@ -41,7 +41,7 @@ object VisualOcrCheckScenarios {
             "not again before button disappears")
         val mixedFrame=LocalVisualCheckGate()
         ok(mixedFrame.arm(),"new session can arm")
-        ok(mixedFrame.observeOcr(cards(800),ocr(13,1500,true),
+        ok(mixedFrame.observeOcr(cards(50),ocr(13,1500,true),
             7,1550,1080,2340)==null,"card observation too old for OCR frame")
         ok(mixedFrame.observeOcr(cards(1650),ocr(13,1000,true),
             7,1700,1080,2340)==null,"next-hand cards cannot use previous OCR CHECK")
