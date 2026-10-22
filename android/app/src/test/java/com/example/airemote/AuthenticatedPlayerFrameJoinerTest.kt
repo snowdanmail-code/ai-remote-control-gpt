@@ -63,6 +63,22 @@ class AuthenticatedPlayerFrameJoinerTest {
             contentWidth=900),1100L,false).accepted)
     }
 
+    @Test fun fractionalCallMustMatchAuthenticatedVirtualChipsExactly() {
+        val callButtons=controls.copy(stable=listOf(controls.stable.first(),
+            ActionStripCue(HeroControlLane.CHECK_CALL, ExactActionCandidate.CALL,
+                NormalizedTextBox(348,933,648,969),"Колл 0.02 $")))
+        val signed=data.copy(legalActions=setOf(LiveAction.FOLD,LiveAction.CALL),
+            callHundredths=2L)
+        val good=adapter.combine(frame,stable,callButtons,signed,viewport,1100L,false)
+        assertTrue(good.error, good.accepted)
+        assertFalse(adapter.combine(frame,stable,callButtons,signed.copy(
+            callHundredths=3L),viewport,1100L,false).accepted)
+        val corrupt=callButtons.copy(stable=callButtons.stable.dropLast(1) +
+            callButtons.stable.last().copy(observedText="Колл 0.021 $"))
+        assertFalse(adapter.combine(frame,stable,corrupt,signed,
+            viewport,1100L,false).accepted)
+    }
+
     @Test fun noBetOrRaiseWithoutAlreadyVerifiedSelectedRange() {
         val raise=controls.copy(stable=controls.stable + ActionStripCue(
             HeroControlLane.BET_RAISE,ExactActionCandidate.BET,
