@@ -26,6 +26,7 @@ class MainActivity : Activity() {
     private val incidentExportRequest = 503
     private val layoutImportRequest = 504
     private val spectatorExportRequest = 505
+    private val engineeringExportRequest = 506
     private lateinit var cloudStatus: TextView
     private val cloudControls = mutableListOf<Button>()
     private val cloudHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -255,6 +256,21 @@ class MainActivity : Activity() {
                     "Платные кредиты не используются."
             }
         }
+        button("ИНЖЕНЕРНЫЙ АНАЛИЗ — КАЧЕСТВО И ПРИЧИНЫ ОШИБОК") {
+            status.text = SpectatorEngineeringReport.brief(this@MainActivity)
+        }
+        button("ЭКСПОРТ ПРОФЕССИОНАЛЬНОГО ОТЧЁТА T042 (JSON)") {
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+                putExtra(Intent.EXTRA_TITLE, "T042-engineering-report.json")
+            }
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, engineeringExportRequest)
+        }
+        label("Отчёт содержит метрики распознавания, гипотезы причин ошибок, приоритеты P1/P2, " +
+            "план проверок, события и идентификатор версии. Без кадров, OCR-текста и имён игроков. " +
+            "Автоматической отправки данных пока нет.")
         button("НАБЛЮДАТЕЛЬ — ПОДТВЕРДИТЬ ИЛИ ИСПРАВИТЬ КАРТЫ") {
             reviewSpectatorExample()
         }
@@ -681,6 +697,23 @@ class MainActivity : Activity() {
                 } catch (_: Exception) {
                     OnDeviceRealFrameRegions.clear()
                     status.text = "Файл калибровки отклонён. Проверьте схему, пакет и координаты."
+                }
+            }
+            return
+        }
+        if (requestCode == engineeringExportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val bytes = SpectatorEngineeringReport.export(this)
+                        .toByteArray(Charsets.UTF_8)
+                    contentResolver.openOutputStream(requireNotNull(data.data), "w")
+                        ?.use { it.write(bytes) }
+                        ?: error("Документ недоступен")
+                    status.text = "Инженерный пакет T042 сохранён (${bytes.size} байт). " +
+                        "Можно передать JSON для анализа проблем и задач GitHub."
+                } catch (_: Exception) {
+                    status.text = "Не удалось экспортировать инженерный отчёт. " +
+                        "Журналы на устройстве сохранены."
                 }
             }
             return
