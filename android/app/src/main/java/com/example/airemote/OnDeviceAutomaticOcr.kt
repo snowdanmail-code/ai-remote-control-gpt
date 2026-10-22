@@ -121,8 +121,11 @@ object OnDeviceAutomaticOcr {
                             foreground.windowGeneration == ticket.windowGeneration &&
                             origin.windowGeneration == ticket.windowGeneration &&
                             LiveGamePermissionGate.packageName() == ticket.sourcePackage) {
+                            // Use the card consensus snapshotted alongside
+                            // THIS JPEG, not cards from an arbitrary newer raw
+                            // frame after the asynchronous ML Kit callback.
                             val visualTicket = LocalPlayerCheckPilot.offerVisualOcr(
-                                FrameStore.cardConsensus.current(finishedAt),
+                                frame.playerCardsAtCapture,
                                 FrameStore.lastAutomaticOcr, ticket.captureEpoch,
                                 finishedAt, app.resources.displayMetrics.widthPixels,
                                 app.resources.displayMetrics.heightPixels)
