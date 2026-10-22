@@ -9,6 +9,13 @@ package com.example.airemote
  * independent native scans + fresh on-device cards must agree.
  * No money/chip transfers, bet/raise/fold and no inference from button color.
  */
+enum class LocalCheckSource { ANDROID_NATIVE, VISUAL_OCR_CALIBRATED }
+
+data class LocalCheckTarget(
+    val action: LiveAction, val label: String,
+    val left: Int, val top: Int, val right: Int, val bottom: Int
+)
+
 data class LocalCheckTicket(
     val commandSequence: Long,
     val captureEpoch: Long,
@@ -17,7 +24,8 @@ data class LocalCheckTicket(
     val cardSequence: Long,
     val hole: List<String>,
     val board: List<String>,
-    val button: NativeActionButton,
+    val button: LocalCheckTarget,
+    val source: LocalCheckSource,
     val issuedAtMs: Long
 )
 
@@ -156,8 +164,65 @@ class LocalVisualCheckGate {
         commandSeq++
         val ticket = LocalCheckTicket(commandSeq, epoch, expectedPackage, windowGeneration,
             stable.frameSequence, stable.hole.toList(), stable.community.toList(),
-            check, nowMs)
+            LocalCheckTarget(check.action, check.exactLabel, check.left, check.top, check.right, check.bottom),
+            LocalCheckSource.ANDROID_NATIVE, nowMs)
         pending = ticket
+        return ticket
+    }
+
+    /**
+     * Alternative source for Canvas-rendered CHECK buttons. It requires TWO
+     * independent JPEGs (already checked by OcrDiagnosticConsensus), the
+     * verified fixed 540x1170 layout, exact OCR label, visual READY state,
+     * fresh separate card consensus, and a matching captured window.
+     * It certifies a VISIBLE free CHECK only, not table or hand identity.
+     */
+    @Synchronized fun observeOcr(
+        cards: StableCardReading?,
+        ocr: AutomaticOcrEvidence?,
+        epoch: Long, nowMs: Long,
+        displayWidth: Int, displayHeight: Int
+    ): LocalCheckTicket? {
+        if (locked || awaitingDisappearance || pending != null ||
+            cards == null || ocr == null ||
+            cards.captureEpoch != epoch || ocr.ticket.captureEpoch != epoch ||
+            ocr.agreement.status != OcrDiagnosticStatus.CONSISTENT_DIAGNOSTIC_ONLY ||
+            ocr.turnDisplay != TurnDisplayState.READY ||
+            ocr.ticket.windowGeneration < 0L ||
+            ocr.ticket.sourcePackage.isBlank() ||
+            ocr.ticket.capturedAtMs !in (nowMs - 1_500L)..nowMs ||
+            cards.capturedAtMs !in (nowMs - 1_200L)..nowMs ||
+            cards.hole.size != 2 || cards.community.size !in listOf(0,3,4,5) ||
+            cards.minimumSimilarity < .78 ||
+            // Require exact Android pixel mapping; no crop/rotation guessing.
+            displayWidth <= 0 || displayHeight <= 0 ||
+            displayWidth.toLong() * 1170 != displayHeight.toLong() * 540L)
+            return null
+        val actions = ocr.interpretation.actions
+        if (ocr.interpretation.rejected.isNotEmpty() ||
+            actions.count { it.action == ExactActionCandidate.CHECK } != 1 ||
+            actions.any { it.action == ExactActionCandidate.CALL ||
+                it.action == ExactActionCandidate.CONFIRM }) return null
+        val check = actions.single { it.action == ExactActionCandidate.CHECK }
+        if (check.box.centerX() !in 334..666 || check.box.centerY() !in 915..985)
+            return null
+        val streetKey = listOf(ocr.ticket.sourcePackage, epoch.toString(),
+            cards.hole.joinToString(","), cards.community.joinToString(",")).joinToString("|")
+        if (lastCompletedStreetKey == streetKey) return null
+        // From already tested real 1win action-strip fixtures. Do NOT
+        // expand OCR letter bounds or use guessed screen coordinates.
+        fun pxX(x: Int) = (x.toLong() * displayWidth / 540L).toInt()
+        fun pxY(y: Int) = (y.toLong() * displayHeight / 1170L).toInt()
+        val target = LocalCheckTarget(LiveAction.CHECK, check.text,
+            pxX(184), pxY(1108), pxX(352), pxY(1138))
+        commandSeq++
+        val ticket = LocalCheckTicket(commandSeq, epoch,
+            ocr.ticket.sourcePackage, ocr.ticket.windowGeneration,
+            cards.frameSequence, cards.hole.toList(), cards.community.toList(),
+            target, LocalCheckSource.VISUAL_OCR_CALIBRATED, nowMs)
+        pending = ticket
+        confirmations = 2  // verified two DIFFERENT OCR JPEGs by independent gate
+        reason = "CHECK по двум кадрам OCR + визуальная панель + карты"
         return ticket
     }
 
@@ -192,6 +257,9 @@ object LocalPlayerCheckPilot {
     fun observe(cards: StableCardReading?, native: NativeControlSnapshot?, pkg: String?,
                 window: Long, epoch: Long, now: Long, width: Int, height: Int) =
         gate.observe(cards, native, pkg, window, epoch, now, width, height)
+    fun offerVisualOcr(cards: StableCardReading?, ocr: AutomaticOcrEvidence?,
+                       epoch: Long, now: Long, width: Int, height: Int) =
+        gate.observeOcr(cards, ocr, epoch, now, width, height)
     fun claim(ticket: LocalCheckTicket, now: Long) = gate.claim(ticket, now)
     fun rejected() = gate.dispatchRejected()
 }
