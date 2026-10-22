@@ -93,6 +93,14 @@ object OnDeviceAutonomousRuntime {
                 else "Режим CHECK уже активен; для нового сеанса нужен STOP и ARM")
             return started
         }
+        // Full autonomy is possible ONLY through the installed provider
+        // bridge that verifies the entire state + action effect signatures.
+        // A bare identity verifier must not bypass the signed-packet gate.
+        if (!OnDeviceAuthorizedPlayerCycle.providerConnected()) {
+            lastStatus = AutonomousLoopResult(AutoLoopState.BLOCKED_CONTEXT,
+                "Нет проверенного подписанного источника всех карт, сумм и действий")
+            return false
+        }
         // STOP revokes result authority. Do not arm a verified multi-action
         // player while post-action confirmation has no authenticated verifier.
         if (!OnDeviceEffectAuthority.configured()) {
@@ -269,6 +277,8 @@ object OnDeviceAutonomousRuntime {
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
         !LiveGamePermissionGate.permitted() -> "Разрешите касания для недавно открытого 1win в панели оператора"
         strategy == null -> "Локальная стратегия не подключена"
+        identityBinding != null && !OnDeviceAuthorizedPlayerCycle.providerConnected() ->
+            "Не подключён подписанный поток полного состояния игры; действия заблокированы"
         identityBinding != null && !OnDeviceEffectAuthority.configured() ->
             "После STOP требуется повторно подключить доверенное подтверждение результатов"
         identityBinding == null && LocalPlayerCheckPilot.isActive() ->
