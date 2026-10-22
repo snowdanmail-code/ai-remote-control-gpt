@@ -79,6 +79,7 @@ object FrameStore {
     val spectatorConsensus = SpectatorBoardConsensus()
     @Volatile var spectatorBoard: StableSpectatorBoard? = null
     @Volatile var spectatorBoardForPreview: StableSpectatorBoard? = null
+    @Volatile var spectatorNumericHint: SpectatorNumericHint? = null
     @Volatile var windowOrigin: WindowOriginAssessment? = null
     // Read-only display diagnostics; never a permission to send a tap.
     @Volatile var lastTurnVisual: TurnVisualSignal? = null
@@ -103,6 +104,7 @@ object FrameStore {
         lastConfirmedForPreview = null
         cardConsensus.reset()
         spectatorBoard = null
+        spectatorNumericHint = null
         spectatorConsensus.reset()
         lastTurnVisual = null
         confirmedTurnVisual = null
@@ -155,6 +157,7 @@ object FrameStore {
         lastConfirmedForPreview = null
         cardConsensus.reset()
         spectatorBoard = null
+        spectatorNumericHint = null
         spectatorConsensus.reset()
         lastTurnVisual = null
         confirmedTurnVisual = null
