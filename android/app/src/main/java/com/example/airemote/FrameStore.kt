@@ -6,7 +6,10 @@ data class FrameInfo(val jpeg: ByteArray, val seq: Long, val width: Int,
                      val capturedAtMs: Long,
                      val captureEpoch: Long = -1L,
                      val sourcePackage: String? = null,
-                     val windowGeneration: Long? = null)
+                     val windowGeneration: Long? = null,
+                     /** In-memory player cards from the matching JPEG capture.
+                      * Never a table/hand identity or gesture authorization. */
+                     val playerCardsAtCapture: StableCardReading? = null)
 
 object CaptureOptions {
     /** On-device capture presets: 960, 1280, 1536px. */
