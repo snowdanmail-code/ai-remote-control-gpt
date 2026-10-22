@@ -17,14 +17,14 @@ data class VisibleCardOverlaySnapshot(
 
 object VisibleCardOverlayText {
     private val rank = mapOf(
-        'A' to "ТУЗ", 'K' to "КОРОЛЬ", 'Q' to "ДАМА",
-        'J' to "ВАЛЕТ", 'T' to "10", '9' to "9",
+        'A' to "Т", 'K' to "К", 'Q' to "Д",
+        'J' to "В", 'T' to "10", '9' to "9",
         '8' to "8", '7' to "7", '6' to "6",
         '5' to "5", '4' to "4", '3' to "3", '2' to "2"
     )
     private val suits = mapOf(
-        'h' to "♥ ЧЕРВИ", 's' to "♠ ПИКИ",
-        'd' to "♦ БУБНЫ", 'c' to "♣ КРЕСТИ"
+        'h' to "♥", 's' to "♠",
+        'd' to "♦", 'c' to "♣"
     )
 
     fun readable(code: String?): String {

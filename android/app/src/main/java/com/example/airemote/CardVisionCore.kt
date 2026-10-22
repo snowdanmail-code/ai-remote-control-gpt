@@ -935,11 +935,20 @@ object CardVisionCore {
 
     fun classifyRank(r: VisionRaster, card: VisionCardBox): RankCandidate? {
         val matches = rankScores(r, card)
-        val first = matches.firstOrNull() ?: return null
+        val first = matches.firstOrNull()
         val second = matches.getOrNull(1)?.second ?: 0.0
-        return if (first.second >= 0.93 && first.second - second >= 0.045)
-            RankCandidate(first.first, first.second)
-        else null
+        val legacy = if (first != null && first.second >= 0.93 &&
+            first.second - second >= 0.045)
+            RankCandidate(first.first, first.second) else null
+        // The second reader has a corrected glyph-only crop, and is trained
+        // ONLY from individually checked screenshots. A contradictory verdict
+        // is explicitly unknown rather than arbitrarily preferring a model.
+        val verified = VerifiedCardRankSamples.classify(r, card)
+        return when {
+            legacy != null && verified != null && legacy.rank != verified.rank -> null
+            legacy != null -> legacy
+            else -> verified
+        }
     }
 
     /**
