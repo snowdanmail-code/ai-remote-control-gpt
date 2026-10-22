@@ -40,9 +40,11 @@ class LiveGestureAccessibilityService : AccessibilityService() {
             val foreground = LiveForegroundProbe.snapshot()
             if (!CaptureObservationMode.isSpectator() &&
                 !OperatorStopStore.isStopped(applicationContext) &&
+                FrameStore.isCapturing &&
                 root != null && foreground != null &&
                 foreground.packageName != packageName &&
-                foreground.packageName == LiveGamePermissionGate.packageName()) {
+                foreground.packageName == FrameStore.windowOrigin?.observedPackage &&
+                FrameStore.windowOrigin?.safeForLocalDiagnostics == true) {
                 sampleNativeActions(root, foreground, now)
             } else OnDevicePlayerNativeControls.clear()
             main.postDelayed(this, 350L)
@@ -81,7 +83,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 }
             }
             val snapshot = NativeControlSnapshot(foreground.packageName,
-                foreground.windowGeneration, now, buttons.distinctBy { it.action },
+                foreground.windowGeneration, now, buttons,
                 seen, queue.isNotEmpty())
             // Always replace, including empty: no historical stale buttons.
             OnDevicePlayerNativeControls.publish(snapshot)
