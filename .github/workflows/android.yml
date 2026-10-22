@@ -1,6 +1,12 @@
 name: T042 protected Android 16 validation and compatible APK
-# Manual dispatch only. Release baseline is the signed v2.14.41 APK.
+# One-time, commit-message gated PUSH for Code80 prototype; manual dispatch remains supported.
+# Signing remains protected by the existing android-signing environment and legacy certificate.
 on:
+  push:
+    branches:
+      - t042-auth-doh-fallback
+    paths:
+      - .github/workflows/android.yml
   workflow_dispatch:
     inputs:
       samsung_prototype:
@@ -20,7 +26,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify-android:
-    if: ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true }}
+    # The PUSH path is authorized ONLY for this exact update commit; edits to
+    # the workflow later will not silently run a signing job.
+    if: ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true || (github.event_name == 'push' && github.event.head_commit.message == 'T042: one-time signed Samsung code80 [t042-sign-once]') }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
@@ -68,12 +76,12 @@ jobs:
           gradle-version: '8.9'
           cache-read-only: false
       - name: Python contract and source tests
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         run: |
           python3 -m pip install 'Pillow==11.3.0'
           python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Install pinned Kotlin compiler from its upstream release
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -81,10 +89,10 @@ jobs:
           unzip -q "$RUNNER_TEMP/kotlin.zip" -d "$RUNNER_TEMP/t042-kotlin"
           echo "$RUNNER_TEMP/t042-kotlin/kotlinc/bin" >> "$GITHUB_PATH"
       - name: Kotlin JVM scenario tests
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         run: bash tools/run_jvm_tests.sh
       - name: Android unit tests and instrumentation compilation
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         working-directory: android
         env:
           AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
@@ -94,7 +102,7 @@ jobs:
           gradle --no-daemon :app:testDebugUnitTest
           gradle --no-daemon :app:compileDebugAndroidTestKotlin
       - name: Build instrumentation pair with ORIGINAL signer before installation
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         working-directory: android
         env:
           AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
@@ -102,7 +110,7 @@ jobs:
           AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
       - name: Require original certificate on target AND test APK
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -114,7 +122,7 @@ jobs:
             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
             --report artifacts/T042-test-apk-identity.json
       - name: Hardware virtualization required (no slow/fake Android PASS)
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -124,7 +132,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           test -w /dev/kvm || { echo 'BLOCKED_KVM_PERMISSIONS'; exit 1; }
       - name: Android 16 API36 INSTRUMENTATION — release gate
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         uses: reactivecircus/android-emulator-runner@v2
         env:
           AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
@@ -150,18 +158,18 @@ jobs:
             gradle --no-daemon :app:connectedDebugAndroidTest
             adb shell pm path com.example.airemote.dev | grep -q '^package:'
       - name: Require all mandatory Android tests executed with zero skips
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         run: >-
           python3 tools/verify_t042_android_results.py
           --directory android/app/build/outputs/androidTest-results/connected
           --report artifacts/T042-android-execution-proof.json
       - name: Stage v2.14.42 ONLY AFTER Android tests PASSED
-        if: ${{ !inputs.samsung_prototype }}
+        if: ${{ !inputs.samsung_prototype && github.event_name != 'push' }}
         run: |
           python3 tools/prepare_t042_release.py
           git diff --check
       - name: Stage explicitly experimental Samsung prototype (runtime NOT_RUN)
-        if: ${{ inputs.samsung_prototype }}
+        if: ${{ inputs.samsung_prototype || github.event_name == 'push' }}
         shell: bash
         run: |
           python3 - <<'PYCODE'
@@ -172,12 +180,15 @@ jobs:
           assert s.count('versionCode = 75') == 1
           assert s.count('versionName = "2.14.41-in-app-oauth-hardening"') == 1
           s = s.replace('versionCode = 75', 'versionCode = 80', 1)
-          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-spectator-engineering"', 1)
+          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-player-integration-test"', 1)
           p.write_text(s)
           Path('artifacts/T042-device-test-status.json').write_text(json.dumps({
               'status': 'EXPERIMENTAL_DEVICE_TEST_CANDIDATE',
               'android16_instrumentation': 'NOT_RUN_IN_THIS_PROTOTYPE_BUILD',
               'samsung_oauth': 'NOT_TESTED',
+              'full_poker_player_live_test': 'NOT_RUN',
+              'independent_real_1win_provider': 'NOT_CONNECTED',
+              'player_gestures_beyond_check': 'REQUIRE_TRUSTED_STATE_AND_DEVICE_VERIFICATION',
               'not_final_v2_14_42': True,
               'reason': 'User authorized Samsung-first testing instead of emulator gate'
           }, indent=2) + '\n')
