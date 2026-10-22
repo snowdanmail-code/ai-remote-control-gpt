@@ -140,6 +140,31 @@ object SpectatorLearningJournal {
         }
     }
 
+    /** Numeric OCR: unverified public pot and CALL label candidates only.
+     *  Never interpret the CALL label as an opponent action. */
+    @Synchronized fun observeNumericHint(context: Context, hint: SpectatorNumericHint) {
+        if (!CaptureObservationMode.isSpectator() ||
+            hint.captureEpoch != FrameStore.captureEpoch) return
+        try {
+            val root = read(context)
+            count(root, "numeric_ocr_samples")
+            if (hint.potCandidateChips != null) {
+                count(root, "pot_candidate_samples")
+                val previous = root.optLong("last_pot_candidate", -1L)
+                if (previous >= 0L && previous != hint.potCandidateChips)
+                    count(root, "pot_changes_not_confirmed_bets")
+                root.put("last_pot_candidate", hint.potCandidateChips)
+            }
+            if (hint.callLabelCandidateChips != null) count(root, "call_label_samples")
+            if (hint.rejectedLabels > 0) {
+                count(root, "numeric_ocr_uncertain_samples")
+                root.put("numeric_ocr_rejected_total",
+                    root.optLong("numeric_ocr_rejected_total") + hint.rejectedLabels)
+            }
+            save(context, root)
+        } catch (_: Exception) { storageFailure = true }
+    }
+
     /** Explicit ground-truth annotation, never automatic self-training. */
     @Synchronized fun operatorFeedback(context: Context, candidate: StableSpectatorBoard,
                                        correctCards: List<String>): Boolean {
@@ -206,6 +231,8 @@ object SpectatorLearningJournal {
              else "не измерена") + ". " +
             "Переходы флоп→тёрн: ${root.optLong("timeline_possible_flop_to_turn")}, " +
             "тёрн→ривер: ${root.optLong("timeline_possible_turn_to_river")}.\\n" +
+            "Облачные запросы: отключены; OCR банка: " +
+            "${root.optLong("pot_candidate_samples")} возможных значений.\\n" +
             "Совпадение двух кадров НЕ является доказательством правильной карты. " +
             "Алгоритм и стратегия автоматически НЕ изменяются." +
             (if (storageFailure) " Ошибка последней записи журнала." else "")
@@ -226,6 +253,14 @@ object SpectatorLearningJournal {
             .put("operator_confirmed", root.optLong("operator_confirmed"))
             .put("operator_corrected", root.optLong("operator_corrected"))
             .put("operator_labeled_unrecognized", root.optLong("operator_labeled_unrecognized"))
+            .put("numeric_ocr", JSONObject()
+                .put("processed_frames", root.optLong("numeric_ocr_samples"))
+                .put("pot_candidates", root.optLong("pot_candidate_samples"))
+                .put("call_label_candidates", root.optLong("call_label_samples"))
+                .put("ambiguous", root.optLong("numeric_ocr_uncertain_samples"))
+                .put("rejected_total", root.optLong("numeric_ocr_rejected_total"))
+                .put("pot_changes_not_proven_bets",
+                    root.optLong("pot_changes_not_confirmed_bets")))
             .put("timeline", JSONObject()
                 .put("first_visible_flop", root.optLong("timeline_first_visible_flop"))
                 .put("first_visible_turn", root.optLong("timeline_first_visible_turn"))
