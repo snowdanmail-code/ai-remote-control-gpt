@@ -107,6 +107,19 @@ class AuthenticatedPlayerFrameJoiner(
             calibrated.any { it.first !in authenticated.legalActions })
             return refuse("Надписи, доступные действия и реальные области кнопок расходятся")
         val taps = calibrated.toMap()
+        // Decorated CALL 0.02 $ must exactly match the authenticated call
+        // amount (stored in hundredths). Do not round, invent a currency
+        // conversion, or silently ignore malformed displayed numbers.
+        val displayedCall = controlStrip.stable.singleOrNull {
+            it.action == ExactActionCandidate.CALL
+        }?.observedText
+        if (displayedCall != null &&
+            displayedCall.any { it.isDigit() }) {
+            val parsed = VirtualChipDisplayParser.parseLabel(displayedCall)
+            if (parsed?.kind != NumericCandidateKind.CALL_AMOUNT ||
+                parsed.hundredths != authenticated.callHundredths)
+                return refuse("Надпись CALL расходится с подписанной суммой условных фишек")
+        }
         val selected = authenticated.selectedBetHundredths
         val min = authenticated.minBetHundredths
         val max = authenticated.maxBetHundredths
