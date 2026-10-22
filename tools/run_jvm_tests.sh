@@ -22,6 +22,7 @@ com.example.airemote.AutonomousActionScenariosKt
 com.example.airemote.VerifiedLocalPokerStrategyScenarios
 com.example.airemote.UniformUnknownEquityScenarios
 com.example.airemote.PlayerModelDecisionScenarios
+com.example.airemote.ValidatedPlayerStrategyScenarios
 com.example.airemote.LocalPlayerCheckScenarios
 com.example.airemote.VisualOcrCheckScenarios
 com.example.airemote.VirtualChipDisplayScenarios
