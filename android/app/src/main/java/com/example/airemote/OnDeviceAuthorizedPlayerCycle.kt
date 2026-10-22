@@ -125,14 +125,16 @@ object OnDeviceAuthorizedPlayerCycle {
     @Synchronized fun acceptIndependentResult(
         context: Context,
         signed: SignedPokerProviderFrame,
-        effect: PostActionReceipt
+        signedEffect: SignedProviderEffect
     ): AuthorizedCycleStatus {
         val gate = resultFrameGate ?: return update(
             AuthorizedCycleStage.NOT_CONFIGURED, "Нет аутентифицированного источника")
-        if (packetVerifier?.verify(signed) != true)
+        if (packetVerifier?.verify(signed) != true ||
+            packetVerifier?.verifyEffect(signedEffect) != true)
             return update(AuthorizedCycleStage.RESULT_REJECTED,
-                "Неверная подпись послеигрового состояния")
+                "Неверная подпись послеигрового состояния или результата")
         val packet = signed.content
+        val effect = signedEffect.content
         if (CaptureObservationMode.isSpectator() ||
             OperatorStopStore.isStopped(context) || !FrameStore.isCapturing)
             return update(AuthorizedCycleStage.STOPPED, "STOP или нет захвата")
