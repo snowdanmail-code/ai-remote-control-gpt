@@ -31,6 +31,9 @@ class LiveGestureAccessibilityService : AccessibilityService() {
     private var manager: WindowManager? = null
     private var stopOverlay: TextView? = null
     private var params: WindowManager.LayoutParams? = null
+    // Purely informational, transparent labels above the user's cards.
+    // It cannot intercept touches or grant control privileges.
+    private val cardOverlay by lazy { VisibleCardOverlayController(this) }
     // Root identity is sampled periodically, not inferred from AccessibilityEvent.packageName.
     private val rootSampler = object : Runnable {
         override fun run() {
@@ -47,6 +50,26 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 FrameStore.windowOrigin?.safeForLocalDiagnostics == true) {
                 sampleNativeActions(root, foreground, now)
             } else OnDevicePlayerNativeControls.clear()
+            // Only show cards from a fresh PLAYER capture of the actual
+            // foreground window. Never display an old-hand preview as current.
+            val screenTrusted = !CaptureObservationMode.isSpectator() &&
+                !OperatorStopStore.isStopped(applicationContext) &&
+                FrameStore.isCapturing &&
+                root != null && foreground != null &&
+                foreground.packageName != packageName &&
+                foreground.packageName == FrameStore.windowOrigin?.observedPackage &&
+                FrameStore.windowOrigin?.safeForLocalDiagnostics == true
+            val signal = if (screenTrusted) FrameStore.lastCards else null
+            val visible = if (signal != null) VisibleCardOverlayText.project(
+                signal.reading, FrameStore.confirmedCards,
+                signal.captureEpoch, signal.frameSequence, signal.capturedAtMs,
+                now, FrameStore.isCapturing,
+                OperatorStopStore.isStopped(applicationContext), FrameStore.captureEpoch)
+                else null
+            if (visible != null) {
+                val dm = resources.displayMetrics
+                cardOverlay.show(visible, dm.widthPixels, dm.heightPixels)
+            } else cardOverlay.hide()
             main.postDelayed(this, 350L)
         }
     }
@@ -241,6 +264,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
+        cardOverlay.hide()
         main.removeCallbacks(rootSampler)
         OnDevicePlayerNativeControls.clear()
         // An interrupted accessibility source must never retain armed gestures.
@@ -404,6 +428,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        cardOverlay.dispose()
         main.removeCallbacks(rootSampler)
         OnDevicePlayerNativeControls.clear()
         OnDeviceAutonomousRuntime.stop("Служба доступности отключена")

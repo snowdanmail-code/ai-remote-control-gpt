@@ -1,0 +1,7 @@
+T042 Code86 card label overlay 2026-10-23.
+
+Owner wants two floating semitransparent labels above community cards and above private cards when the actual game screen is visible, with readable Russian ranks and full suit names plus colored suit symbols. The existing accessibility service uses two separate TYPE_ACCESSIBILITY_OVERLAY windows, FLAG_NOT_TOUCHABLE and FLAG_NOT_FOCUSABLE, positioned at top ratios 0.295 and 0.635 with left x ratio 0.04 and width ratio 0.78. They avoid visible cards and STOP in the screen examples. Color-coded symbols hearts/diamonds warm red, spades/clubs cyan; white text on translucent dark backing.
+
+The source is the local FrameStore.lastCards from the real on-device capture, not synthetic cards. Overlay is visible only while exact foreground and game-origin checks are met, PLAYER role selected and operator STOP clear. It explicitly labels one-frame guesses PRELIMINARY and only labels two-frame agreement when matched to the same current sample and epoch; it does not claim card accuracy or authorization. Missing/invalid cards are rendered as НЕ РАСПОЗНАНО. STOP, stale capture, app switch or capture cessation immediately hide all labels. No new Android SYSTEM_ALERT_WINDOW permission and no touch interception. The overlay windows are made invisible instead of recreated on each window event.
+
+No gameplay controls, cloud calls or history storage added. Whether the Accessibility overlay is captured in a device-native screenshot must be checked on the real Samsung. Automated CI tests are NOT device confirmation.
