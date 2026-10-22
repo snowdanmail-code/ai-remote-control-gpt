@@ -87,7 +87,107 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 seen, queue.isNotEmpty())
             // Always replace, including empty: no historical stale buttons.
             OnDevicePlayerNativeControls.publish(snapshot)
+            // Deliberately restricted pilot: only a free CHECK, no CALL/FOLD/BET/
+            // RAISE and no cloud decisions. Requires explicit existing operator
+            // authorization plus both native UI scans and fresh player cards.
+            val origin = FrameStore.windowOrigin
+            if (LocalPlayerCheckPilot.isActive() &&
+                !OperatorStopStore.isStopped(applicationContext) &&
+                LiveGamePermissionGate.permitted() &&
+                LiveGamePermissionGate.packageName() == foreground.packageName &&
+                origin?.windowGeneration == foreground.windowGeneration &&
+                origin.safeForLocalDiagnostics) {
+                val ticket = LocalPlayerCheckPilot.observe(
+                    FrameStore.cardConsensus.current(now), snapshot,
+                    foreground.packageName, foreground.windowGeneration,
+                    FrameStore.captureEpoch, now,
+                    resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
+                if (ticket != null) dispatchScopedLocalCheck(ticket)
+            }
         } catch (_: Exception) { OnDevicePlayerNativeControls.clear() }
+    }
+
+    /**
+     * Narrow production transport for zero-chip CHECK only. Independent from
+     * external authenticated-hand dispatch and NEVER available for paid actions.
+     * An OS callback is not proof the poker game accepted the move.
+     */
+    private fun dispatchScopedLocalCheck(ticket: LocalCheckTicket) {
+        val now = SystemClock.elapsedRealtime()
+        val currentPackage = rootInActiveWindow?.packageName?.toString()
+        val foreground = LiveForegroundProbe.snapshot()
+        val origin = FrameStore.windowOrigin
+        val cards = FrameStore.cardConsensus.current(now)
+        val native = OnDevicePlayerNativeControls.current(now, currentPackage,
+            ticket.windowGeneration, resources.displayMetrics.widthPixels,
+            resources.displayMetrics.heightPixels)
+        val b = ticket.button
+        val tap = VerifiedTapArea(b.left, b.top, b.right, b.bottom,
+            (b.left + b.right) / 2, (b.top + b.bottom) / 2,
+            resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels,
+            LiveAction.CHECK, b.exactLabel, ticket.packageName, ticket.windowGeneration)
+        val command = LiveCommand("local-check-${ticket.commandSequence}",
+            "local-visual-only", LiveAction.CHECK,
+            ticket.captureEpoch, ticket.cardSequence,
+            "unverified-visual-pilot", now, now, ticket.windowGeneration)
+        val stop = params
+        val occludedByStop = stop != null && stopOverlay != null &&
+            tap.centerX >= stop.x && tap.centerX < stop.x + stop.width &&
+            tap.centerY >= stop.y && tap.centerY < stop.y + stop.height
+        // Local pilot has NO authority for hand/turn IDs and MUST NEVER be
+        // promoted to the paid-action VerifiedDispatchAdmission by this code.
+        if (CaptureObservationMode.isSpectator() ||
+            OperatorStopStore.isStopped(applicationContext) ||
+            !LiveGamePermissionGate.permitted() ||
+            !FrameStore.isCapturing || FrameStore.captureEpoch != ticket.captureEpoch ||
+            currentPackage != ticket.packageName ||
+            LiveGamePermissionGate.packageName() != ticket.packageName ||
+            foreground?.windowGeneration != ticket.windowGeneration ||
+            origin?.windowGeneration != ticket.windowGeneration ||
+            origin?.safeForLocalDiagnostics != true ||
+            cards?.captureEpoch != ticket.captureEpoch ||
+            cards.frameSequence != ticket.cardSequence ||
+            cards.hole != ticket.hole || cards.community != ticket.board ||
+            native == null || native.buttons.singleOrNull {
+                it.action == LiveAction.CHECK && it.left == b.left &&
+                    it.top == b.top && it.right == b.right && it.bottom == b.bottom
+            } == null ||
+            native.buttons.any { it.action == LiveAction.CALL } ||
+            b.top < (tap.screenHeight * 0.74).toInt() ||
+            occludedByStop ||
+            LiveTapSafety.verify(tap, command, currentPackage,
+                foreground.atMs, now, tap.screenWidth, tap.screenHeight,
+                LiveGamePermissionGate.packageName()) != TapSafetyResult.VALID) {
+            LocalPlayerCheckPilot.rejected()
+            return
+        }
+        if (!LocalPlayerCheckPilot.claim(ticket, now) ||
+            OperatorStopStore.isStopped(applicationContext)) return
+        // No race with STOP touch dispatch on main Looper before this call.
+        val path = Path().apply {
+            moveTo(tap.centerX.toFloat(), tap.centerY.toFloat())
+        }
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, 65L)).build()
+        val sent = dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                // NEVER record success of the poker move on an OS callback.
+                OnDeviceIncidentRecorder.record(applicationContext,
+                    IncidentCode.GESTURE_COMPLETED_OS, captureEpoch = ticket.captureEpoch,
+                    frameSequence = ticket.cardSequence, action = "CHECK")
+            }
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                LocalPlayerCheckPilot.rejected()
+                OnDeviceIncidentRecorder.record(applicationContext,
+                    IncidentCode.COMMAND_REJECTED, IncidentSeverity.WARNING,
+                    ticket.captureEpoch, ticket.cardSequence, action = "CHECK")
+            }
+        }, main)
+        if (!sent) LocalPlayerCheckPilot.rejected()
+        OnDeviceIncidentRecorder.record(applicationContext,
+            if (sent) IncidentCode.COMMAND_DISPATCHED else IncidentCode.COMMAND_REJECTED,
+            if (sent) IncidentSeverity.INFO else IncidentSeverity.WARNING,
+            ticket.captureEpoch, ticket.cardSequence, action = "CHECK")
     }
 
     override fun onServiceConnected() {
