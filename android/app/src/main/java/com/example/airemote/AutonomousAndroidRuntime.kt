@@ -154,9 +154,11 @@ object OnDeviceAutonomousRuntime {
             obs.view.legalActions.all { action ->
                 actionStrip.stable.any { it.action.name == action.name }
             }
+        // This remains a VISUAL state only: TurnVisualSignal.sourceVerified
+        // is intentionally false for pixels. The separate authenticated
+        // provider MUST still pass VerifiedTurnBinding before any action.
         val visualState = if (turnVisual != null && obs != null &&
             turnVisual.captureEpoch == obs.view.captureEpoch &&
-            turnVisual.sourceVerified &&
             turnVisual.capturedAtMs <= obs.view.capturedAtMs &&
             obs.view.capturedAtMs - turnVisual.capturedAtMs <= 1_500L
         ) turnVisual.state else TurnDisplayState.UNKNOWN
@@ -176,14 +178,15 @@ object OnDeviceAutonomousRuntime {
                 actionLabelsConsistent = actionStrip?.status != ActionStripStatus.REJECTED
             ))
         }
+        val awaitingEffect = loop.status().state == AutoLoopState.WAITING_FOR_RESULT
         val sourceBinding = identityBinding?.inspect(sourceProof, obs?.view, foreground?.packageName,
-            foreground?.windowGeneration, latestTurnCycle, now, OperatorStopStore.isStopped(context))
+            foreground?.windowGeneration, latestTurnCycle, now,
+            OperatorStopStore.isStopped(context), awaitingEffect)
         val independentlyBound = sourceBinding?.status == TurnBindingStatus.CONSISTENT_READ_ONLY &&
             obs != null && sourceBinding.handId == obs.handId &&
             sourceBinding.tableId == obs.tableId && sourceBinding.turnId == obs.turnId
         // Observations during WAITING_FOR_RESULT verify effects after a gesture;
         // buttons may already be gone, so they do not require a fresh READY strip.
-        val awaitingEffect = loop.status().state == AutoLoopState.WAITING_FOR_RESULT
         val permittedByTurn = awaitingEffect ||
             (latestTurnCycle.phase == TurnCyclePhase.VISIBLE_DIAGNOSTIC &&
                 stableControlStrip && obs?.view?.turnVerified == true &&
@@ -226,6 +229,12 @@ object OnDeviceAutonomousRuntime {
         controller = null
         lastStatus = AutonomousLoopResult(AutoLoopState.STOPPED, reason)
         return lastStatus
+    }
+
+    @Synchronized fun clearExternalIdentityVerifier() {
+        stop("Проверенный источник отключён")
+        identityBinding?.reset()
+        identityBinding = null
     }
 
     fun verifiedSourceConfigured(): Boolean = identityBinding != null
