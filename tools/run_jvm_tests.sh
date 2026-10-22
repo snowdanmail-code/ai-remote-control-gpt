@@ -46,6 +46,7 @@ com.example.airemote.TrustedPlayerInputScenarios
 com.example.airemote.LivePlayerModelContextScenarios
 com.example.airemote.PlayerVisualIssueScenarios
 com.example.airemote.AdaptiveCardReaderScenarios
+com.example.airemote.CenteredBoardAnchorScenarios
 com.example.airemote.SignedPokerProviderScenarios
 com.example.airemote.ChatGptAuthScenarios
 com.example.airemote.ChatGptLoginPreflightScenarios

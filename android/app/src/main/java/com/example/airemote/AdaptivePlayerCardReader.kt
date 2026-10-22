@@ -46,7 +46,7 @@ object AdaptivePlayerCardReader {
      */
     fun locateHeroBoxes(r: VisionRaster): List<List<VisionCardBox>> {
         val ratio = r.width.toDouble() / r.height
-        if (r.height < 780 || ratio !in 0.45..0.48) return emptyList()
+        if (r.height < 780 || ratio !in 0.32..0.80) return emptyList()
         fun sx(ref: Int): Int = ref * r.width / REF_W
         fun sy(ref: Int): Int = ref * r.height / REF_H
         val left = sx(150); val right = sx(480).coerceAtMost(r.width)
@@ -89,7 +89,8 @@ object AdaptivePlayerCardReader {
     fun read(r: VisionRaster): CardReading? {
         val boxes = locateHeroBoxes(r)
         if (boxes.isEmpty()) return null
-        val publicBoard = CardVisionCore.readVisibleCommunity(r)
+        val publicBoard = TableBoardCandidateSelector.choose(
+            CardVisionCore.readVisibleCommunity(r), CenteredTableBoardReader.read(r))
         // An explicitly PARTIAL board cannot be silently called preflop.
         if (!publicBoard.complete && publicBoard.cards.isNotEmpty()) return null
         val community = if (publicBoard.complete) publicBoard.cards.filterNotNull()

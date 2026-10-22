@@ -40,6 +40,7 @@ object OnDeviceSpectatorOcr {
                 try {
                     val doneMs = SystemClock.elapsedRealtime()
                     var hint: SpectatorNumericHint? = null
+                    var tableAnchor: CenterTableAnchorEvidence? = null
                     val published = FrameStore.commitOcrIfCurrent(ticket, doneMs, {
                         CaptureObservationMode.isSpectator() &&
                             !OperatorStopStore.isStopped(app) &&
@@ -55,6 +56,9 @@ object OnDeviceSpectatorOcr {
                             hint = SpectatorNumericHint(ticket.captureEpoch,
                                 ticket.frameSequence, pot, call, parsed.rejected.size, doneMs)
                             FrameStore.spectatorNumericHint = hint
+                            // OCR anchor hints are private, read-only aggregates,
+                            // not exact stake values or permission to act.
+                            tableAnchor = CenterTableAnchorText.inspect(result.lines)
                         }
                     }
                     if (published && hint != null &&
@@ -62,6 +66,7 @@ object OnDeviceSpectatorOcr {
                         !OperatorStopStore.isStopped(app) &&
                         ticket.captureEpoch == FrameStore.captureEpoch) {
                         SpectatorLearningJournal.observeNumericHint(app, requireNotNull(hint))
+                        tableAnchor?.let { SpectatorLearningJournal.observeBoardAnchor(app, it) }
                     }
                     if (published && outcome.isFailure)
                         OnDeviceIncidentRecorder.record(app, IncidentCode.OCR_ENGINE_ERROR,

@@ -9,6 +9,18 @@ import android.graphics.Bitmap
 data class OnDeviceTableReading(val cards: CardReading, val turn: TurnVisualReading)
 
 object OnDeviceCardReader {
+    /** Preserve phone aspect ratio for the new centered-card detector. */
+    private fun centeredRaster(source: Bitmap, legacy: VisionRaster): VisionRaster {
+        val targetWidth = (source.width.toLong() * 1170L / source.height)
+            .toInt().coerceIn(320, 900)
+        if (kotlin.math.abs(targetWidth - legacy.width) <= 2) return legacy
+        val scaled = Bitmap.createScaledBitmap(source, targetWidth, 1170, true)
+        try {
+            val pixels = IntArray(targetWidth * 1170)
+            scaled.getPixels(pixels, 0, targetWidth, 0, 0, targetWidth, 1170)
+            return VisionRaster(targetWidth, 1170, pixels)
+        } finally { if (scaled !== source) scaled.recycle() }
+    }
     /**
      * Separate spectator-only reader. Never invoked from inspectAll() or hero strategy.
      * It only reads cards visibly dealt face-up in the shared board row.
@@ -20,8 +32,14 @@ object OnDeviceCardReader {
             val pixels = IntArray(reference.width * reference.height)
             reference.getPixels(pixels, 0, reference.width, 0, 0,
                 reference.width, reference.height)
-            var board = CardVisionCore.readVisibleCommunity(
-                VisionRaster(reference.width, reference.height, pixels))
+            val legacyRaster = VisionRaster(reference.width, reference.height, pixels)
+            val legacyBoard = CardVisionCore.readVisibleCommunity(legacyRaster)
+            // Locate the 3-5 real white card rectangles between the central
+            // upper "Банк" label and the lower chips/amount display.
+            // An absent/ambiguous row cannot produce a guessed board.
+            val centeredBoard = CenteredTableBoardReader.read(
+                centeredRaster(source, legacyRaster))
+            var board = TableBoardCandidateSelector.choose(legacyBoard, centeredBoard)
             if (!board.complete && source.width >= 810 && source.height >= 1755 &&
                 source.width.toDouble() / source.height in 0.45..0.48) {
                 val detail = Bitmap.createScaledBitmap(source, 810, 1755, true)
@@ -29,8 +47,10 @@ object OnDeviceCardReader {
                     val morePixels = IntArray(detail.width * detail.height)
                     detail.getPixels(morePixels, 0, detail.width, 0, 0,
                         detail.width, detail.height)
-                    val alternate = CardVisionCore.readVisibleCommunity(
-                        VisionRaster(detail.width, detail.height, morePixels))
+                    val detailRaster = VisionRaster(detail.width, detail.height, morePixels)
+                    val alternate = TableBoardCandidateSelector.choose(
+                        CardVisionCore.readVisibleCommunity(detailRaster),
+                        CenteredTableBoardReader.read(detailRaster))
                     if (alternate.complete) board = alternate
                 } finally { if (detail !== source) detail.recycle() }
             }
@@ -49,12 +69,15 @@ object OnDeviceCardReader {
             scaled.getPixels(pixels, 0, scaled.width, 0, 0, scaled.width, scaled.height)
             val raster = VisionRaster(scaled.width, scaled.height, pixels)
             val original = CardVisionCore.readCards(raster)
-            // New independent silhouette locator is only a candidate fallback.
-            // If the legacy reader has a full hand it wins; contradictory
-            // partial evidence also rejects the fallback. No extra gestures.
-            val adaptive = if (original.complete) null else AdaptivePlayerCardReader.read(raster)
-            val reading = AdaptiveCardCandidateResolver.choose(original, adaptive)
-            return OnDeviceTableReading(reading, TurnControlsVision.read(raster))
+            val adaptiveRaster = centeredRaster(source, raster)
+            val centered = CenteredTableBoardReader.read(adaptiveRaster)
+            // A complete hero hand from the old detector stays preferred, but
+            // cannot claim preflop when independent visible board rectangles
+            // directly contradict it.
+            val base = CenteredPlayerBoardFusion.merge(original, centered)
+            val adaptive = if (base.complete) null else AdaptivePlayerCardReader.read(adaptiveRaster)
+            val selected = AdaptiveCardCandidateResolver.choose(base, adaptive)
+            return OnDeviceTableReading(selected, TurnControlsVision.read(raster))
         } finally {
             if (scaled !== source) scaled.recycle()
         }

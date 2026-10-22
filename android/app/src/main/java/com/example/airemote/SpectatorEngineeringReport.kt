@@ -215,6 +215,7 @@ object SpectatorEngineeringReport {
                 .put("bins", perf))
             .put("board_timeline", observations.optJSONObject("timeline") ?: JSONObject())
             .put("spectator_numeric_ocr", observations.optJSONObject("numeric_ocr") ?: JSONObject())
+            .put("board_anchor_ocr", observations.optJSONObject("board_anchor_ocr") ?: JSONObject())
             .put("global_incidents", incidentSummary(incidents))
             .put("prioritized_issues", issues)
             .put("spectator_examples", observations.optJSONArray("examples") ?: JSONArray())
