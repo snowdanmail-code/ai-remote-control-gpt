@@ -42,6 +42,7 @@ com.example.airemote.AuthenticatedActionEffectsScenarios
 com.example.airemote.DispatchAdmissionScenarios
 com.example.airemote.AutonomyEndToEndScenarios
 com.example.airemote.AuthorizedPlayerFullCycleScenarios
+com.example.airemote.SignedPokerProviderScenarios
 com.example.airemote.ChatGptAuthScenarios
 com.example.airemote.ChatGptLoginPreflightScenarios
 com.example.airemote.ChatGptCloudDiagnosticScenarios
