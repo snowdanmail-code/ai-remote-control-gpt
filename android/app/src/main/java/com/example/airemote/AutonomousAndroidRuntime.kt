@@ -212,6 +212,7 @@ object OnDeviceAutonomousRuntime {
         return lastStatus
     }
 
+    fun verifiedSourceConfigured(): Boolean = identityBinding != null
     fun strategyInstalled(): Boolean = strategy != null
 
     fun readiness(context: Context): String = when {
