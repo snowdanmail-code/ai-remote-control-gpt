@@ -23,6 +23,12 @@ fun main() {
     test("same color not same label") { check(checkTap(target=t.copy(recognizedLabel="CHECK")) == TapSafetyResult.UNVERIFIED_LABEL) }
     test("empty label") { check(checkTap(target=t.copy(recognizedLabel="")) == TapSafetyResult.UNVERIFIED_LABEL) }
     test("uncertain call amount not trusted") { check(checkTap(target=t.copy(recognizedLabel="CALL 50")) == TapSafetyResult.UNVERIFIED_LABEL) }
+    test("exact virtual-chip decimal CALL is an accepted LABEL only") {
+        check(checkTap(target=t.copy(recognizedLabel="Колл 0.02 $")) == TapSafetyResult.VALID)
+    }
+    test("three fractional digits cannot be rounded") {
+        check(checkTap(target=t.copy(recognizedLabel="Колл 0.021 $")) == TapSafetyResult.UNVERIFIED_LABEL)
+    }
     test("correct case ignored") { check(checkTap(target=t.copy(recognizedLabel="call")) == TapSafetyResult.VALID) }
     test("wrong screen width") { check(checkTap(w=720) == TapSafetyResult.SCREEN_MISMATCH) }
     test("wrong screen height") { check(checkTap(h=1920) == TapSafetyResult.SCREEN_MISMATCH) }
