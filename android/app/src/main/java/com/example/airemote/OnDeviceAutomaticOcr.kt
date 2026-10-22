@@ -96,6 +96,15 @@ object OnDeviceAutomaticOcr {
                         OnDeviceIncidentRecorder.record(app, IncidentCode.OCR_CONFLICT,
                             IncidentSeverity.WARNING, ticket.captureEpoch, ticket.frameSequence)
                     }
+                    if (published && response.isSuccess &&
+                        !CaptureObservationMode.isSpectator() &&
+                        ticket.captureEpoch == FrameStore.captureEpoch &&
+                        !OperatorStopStore.isStopped(app)) {
+                        response.getOrNull()?.let { snapshot ->
+                            PlayerVisionJournal.observeOcr(app,
+                                FrameTextEvidence.parse(snapshot.lines), ticket.captureEpoch)
+                        }
+                    }
                     if (published) {
                         // Forward the read-only observation to the autonomy coordinator,
                         // but never manufacture table/hand/turn identity or action rights.
