@@ -1,6 +1,7 @@
 package com.example.airemote
 
 import android.content.Context
+import android.os.SystemClock
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -18,6 +19,7 @@ object SpectatorLearningJournal {
     private const val LIMIT = 80
     private const val MIN_UNCERTAIN_EVENT_GAP_MS = 15_000L
     private const val MIN_STABLE_EVENT_GAP_MS = 25_000L
+    private val boardTimeline = SpectatorBoardTimeline()
 
     @Volatile private var storageFailure = false
     @Volatile private var lastLoggedKind = ""
@@ -72,6 +74,19 @@ object SpectatorLearningJournal {
         try {
             val root = read(context)
             count(root, "inspections")
+            val processingMs = SystemClock.elapsedRealtime() - capturedAtMs
+            if (processingMs in 0L..15_000L) {
+                count(root, "latency_samples")
+                root.put("processing_ms_sum", root.optLong("processing_ms_sum") + processingMs)
+                root.put("processing_ms_max", maxOf(root.optLong("processing_ms_max"), processingMs))
+                count(root, when {
+                    processingMs <= 100 -> "latency_0_100"
+                    processingMs <= 300 -> "latency_101_300"
+                    processingMs <= 700 -> "latency_301_700"
+                    processingMs <= 1500 -> "latency_701_1500"
+                    else -> "latency_over_1500"
+                })
+            }
             val observedAtMs = System.currentTimeMillis()
             val token = reading.cards.joinToString(",") { it ?: "?" }
             val waitingForFlop = reading.cards.isEmpty() &&
@@ -103,6 +118,12 @@ object SpectatorLearningJournal {
                 lastLoggedAt = capturedAtMs
             }
             if (stable != null) {
+                val event = boardTimeline.observe(stable)
+                if (event != SpectatorBoardEvent.STABLE_UNCHANGED) {
+                    count(root, "timeline_" + event.name.lowercase())
+                    append(root, "BOARD_EVENT_" + event.name, observedAtMs,
+                        frameSeq, stable.cards)
+                }
                 val key = stable.cards.joinToString(",")
                 if (key != lastStableKey ||
                     capturedAtMs >= lastStableAt + MIN_STABLE_EVENT_GAP_MS) {
@@ -179,6 +200,12 @@ object SpectatorLearningJournal {
             "исправил: ${root.optLong("operator_corrected")}; " +
             "разметил неопознанные: ${root.optLong("operator_labeled_unrecognized")}; " +
             "сохранено последних примеров: $records из $LIMIT.\n" +
+            "Средняя задержка обработки: " +
+            (if (root.optLong("latency_samples") > 0)
+                "${root.optLong("processing_ms_sum") / root.optLong("latency_samples")} мс"
+             else "не измерена") + ". " +
+            "Переходы флоп→тёрн: ${root.optLong("timeline_possible_flop_to_turn")}, " +
+            "тёрн→ривер: ${root.optLong("timeline_possible_turn_to_river")}.\\n" +
             "Совпадение двух кадров НЕ является доказательством правильной карты. " +
             "Алгоритм и стратегия автоматически НЕ изменяются." +
             (if (storageFailure) " Ошибка последней записи журнала." else "")
@@ -199,6 +226,24 @@ object SpectatorLearningJournal {
             .put("operator_confirmed", root.optLong("operator_confirmed"))
             .put("operator_corrected", root.optLong("operator_corrected"))
             .put("operator_labeled_unrecognized", root.optLong("operator_labeled_unrecognized"))
+            .put("timeline", JSONObject()
+                .put("first_visible_flop", root.optLong("timeline_first_visible_flop"))
+                .put("first_visible_turn", root.optLong("timeline_first_visible_turn"))
+                .put("first_visible_river", root.optLong("timeline_first_visible_river"))
+                .put("possible_flop_to_turn", root.optLong("timeline_possible_flop_to_turn"))
+                .put("possible_turn_to_river", root.optLong("timeline_possible_turn_to_river"))
+                .put("possible_skipped_street", root.optLong("timeline_possible_skipped_street"))
+                .put("possible_new_hand", root.optLong("timeline_possible_new_hand"))
+                .put("board_replaced_unverified", root.optLong("timeline_board_replaced_unverified")))
+            .put("performance", JSONObject()
+                .put("sample_count", root.optLong("latency_samples"))
+                .put("processing_ms_sum", root.optLong("processing_ms_sum"))
+                .put("processing_ms_max", root.optLong("processing_ms_max"))
+                .put("latency_0_100", root.optLong("latency_0_100"))
+                .put("latency_101_300", root.optLong("latency_101_300"))
+                .put("latency_301_700", root.optLong("latency_301_700"))
+                .put("latency_701_1500", root.optLong("latency_701_1500"))
+                .put("latency_over_1500", root.optLong("latency_over_1500")))
             .put("examples", root.optJSONArray("examples") ?: JSONArray())
         return out.toString(2)
     }
