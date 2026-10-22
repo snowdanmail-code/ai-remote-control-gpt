@@ -67,6 +67,8 @@ object PlayerEngineeringReport {
             .put("android_api", androidApi)
             .put("local_player_vision", vision)
             .put("capture_and_automation_checks", current)
+            .put("capture_checks_are_export_time_snapshot", true)
+            .put("historical_frames_seen_even_if_capture_stopped_at_export", checks > 0L)
             .put("blockers", blockers)
             .put("ready_for_automated_taps", ready)
             .put("safety", JSONObject()

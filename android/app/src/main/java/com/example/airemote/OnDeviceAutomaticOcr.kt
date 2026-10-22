@@ -91,8 +91,8 @@ object OnDeviceAutomaticOcr {
                         OnDeviceIncidentRecorder.record(app, IncidentCode.OCR_ENGINE_ERROR,
                             IncidentSeverity.ERROR, ticket.captureEpoch, ticket.frameSequence)
                     }
-                    if (published && FrameStore.lastAutomaticOcr?.agreement?.status ==
-                        OcrDiagnosticStatus.REJECTED) {
+                    if (published && PlayerOcrIncidentPolicy.conflictWorthLogging(
+                            FrameStore.lastAutomaticOcr)) {
                         OnDeviceIncidentRecorder.record(app, IncidentCode.OCR_CONFLICT,
                             IncidentSeverity.WARNING, ticket.captureEpoch, ticket.frameSequence)
                     }
@@ -102,7 +102,8 @@ object OnDeviceAutomaticOcr {
                         !OperatorStopStore.isStopped(app)) {
                         response.getOrNull()?.let { snapshot ->
                             PlayerVisionJournal.observeOcr(app,
-                                FrameTextEvidence.parse(snapshot.lines), ticket.captureEpoch)
+                                FrameTextEvidence.parse(snapshot.lines), ticket.captureEpoch,
+                                snapshot.lines)
                         }
                     }
                     // Source validation is complete. Only a strictly zero-chip

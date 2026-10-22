@@ -277,7 +277,8 @@ class CaptureService : Service() {
                                         !CaptureObservationMode.isSpectator() &&
                                         !OperatorStopStore.isStopped(applicationContext)) {
                                         PlayerVisionJournal.observe(applicationContext, cards,
-                                            playerInspectionStable, captureEpoch, playerInspectionSequence)
+                                            playerInspectionStable, captureEpoch, playerInspectionSequence,
+                                            screen.width, screen.height)
                                     }
                                     }
                                 }
