@@ -89,7 +89,9 @@ class ActionControlDiagnostics(
             HeroControlLane.CHECK_CALL -> when (text) {
                 "check", "чек", "пропустить" -> ExactActionCandidate.CHECK
                 "call", "колл", "уравнять", "ответить" -> ExactActionCandidate.CALL
-                else -> null
+                else -> VirtualChipDisplayParser.parseLabel(raw)
+                    ?.takeIf { it.kind == NumericCandidateKind.CALL_AMOUNT }
+                    ?.let { ExactActionCandidate.CALL }
             }
             HeroControlLane.BET_RAISE -> when (text) {
                 "bet", "ставка", "поставить" -> ExactActionCandidate.BET
