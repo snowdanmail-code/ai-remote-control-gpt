@@ -48,11 +48,14 @@ class T042ProtectedReleaseGateTests(unittest.TestCase):
             p=Path(d)/'build.gradle.kts';m=Path(d)/'missing'
             p.write_text('versionCode = 75\nversionName = "2.14.41-in-app-oauth-hardening"\n')
             with self.assertRaises(ValueError):stage(p,m)
-    def test_manual_only_not_auto_upload(self):
-        self.assertIn('workflow_dispatch:',self.w)
-        self.assertIn("if: ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true }}",self.w)
-        self.assertIn('if: ${{ !inputs.samsung_prototype }}',self.w)
-        self.assertIn('Stage explicitly experimental Samsung prototype (runtime NOT_RUN)',self.w)
-        self.assertIn('environment: android-signing',self.w)
-        self.assertIn('if: always()',self.w)
+    def test_manual_or_exactly_one_gated_push_not_uncontrolled_release(self):
+        self.assertIn('workflow_dispatch:', self.w)
+        self.assertIn('paths:\\n      - .github/workflows/android.yml'.replace('\\n','\\n'), self.w)
+        self.assertIn("github.event.head_commit.message == 'T042 signed code80 pilot retry once'", self.w)
+        self.assertIn("inputs.promote_t042 == true || inputs.samsung_prototype == true", self.w)
+        self.assertIn("!inputs.samsung_prototype && github.event_name != 'push'", self.w)
+        self.assertIn('Stage explicitly experimental Samsung prototype (runtime NOT_RUN)', self.w)
+        self.assertIn('environment: android-signing', self.w)
+        self.assertIn('if: always()', self.w)
+        self.assertIn("NOT_RUN_IN_THIS_PROTOTYPE_BUILD", self.w)
 if __name__=='__main__':unittest.main()
