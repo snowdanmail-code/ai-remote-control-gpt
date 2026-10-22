@@ -80,6 +80,13 @@ object OnDeviceAutonomousRuntime {
                 else "Режим CHECK уже активен; для нового сеанса нужен STOP и ARM")
             return started
         }
+        // STOP revokes result authority. Do not arm a verified multi-action
+        // player while post-action confirmation has no authenticated verifier.
+        if (!OnDeviceEffectAuthority.configured()) {
+            lastStatus = AutonomousLoopResult(AutoLoopState.BLOCKED_CONTEXT,
+                "Нет проверенного источника подтверждения результатов; повторный ARM запрещён")
+            return false
+        }
         val app = context.applicationContext
         val loop = AutonomousActionLoop(strategy!!, VerifiedAndroidTransport(app),
             diagnosticSink = { e ->
@@ -247,6 +254,8 @@ object OnDeviceAutonomousRuntime {
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
         !LiveGamePermissionGate.permitted() -> "Разрешите касания для недавно открытого 1win в панели оператора"
         strategy == null -> "Локальная стратегия не подключена"
+        identityBinding != null && !OnDeviceEffectAuthority.configured() ->
+            "После STOP требуется повторно подключить доверенное подтверждение результатов"
         identityBinding == null && LocalPlayerCheckPilot.isActive() ->
             "Ограниченный CHECK активен: только бесплатный ход через настоящую кнопку Android, не полноценная игра"
         identityBinding == null ->
