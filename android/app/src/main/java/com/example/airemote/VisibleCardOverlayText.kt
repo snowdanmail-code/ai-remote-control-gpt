@@ -34,8 +34,17 @@ object VisibleCardOverlayText {
         return "$r $s"
     }
 
-    fun show(cards: List<String?>, absent: String): String =
-        if (cards.isEmpty()) absent else cards.joinToString("  ·  ", transform = ::readable)
+    fun show(cards: List<String?>, absent: String,
+             glyphs: List<String> = emptyList()): String {
+        val count = maxOf(cards.size, glyphs.size)
+        if (count == 0) return absent
+        return (0 until count).joinToString("  ·  ") { i ->
+            val full = cards.getOrNull(i)
+            if (full != null) readable(full)
+            else glyphs.getOrNull(i)?.takeIf { it.isNotBlank() && it != "? ?" }
+                ?: "НЕ РАСПОЗНАНО"
+        }
+    }
 
     /**
      * Preliminary values are shown explicitly as NOT confirmed; if a stable
@@ -63,8 +72,8 @@ object VisibleCardOverlayText {
             stable.community == reading.community
 
         return VisibleCardOverlaySnapshot(
-            hero = show(reading.hole, "ИЩУ ДВЕ КАРТЫ"),
-            board = show(reading.community, "ОБЩИЕ КАРТЫ НЕ НАЙДЕНЫ"),
+            hero = show(reading.hole, "ИЩУ ДВЕ КАРТЫ", reading.holeGlyphs),
+            board = show(reading.community, "ОБЩИЕ КАРТЫ НЕ НАЙДЕНЫ", reading.communityGlyphs),
             status = if (same) "СОВПАЛО НА 2 КАДРАХ" else "ПРЕДВАРИТЕЛЬНО · ПРОВЕРЬ",
             isConfirmed = same,
             frameSequence = sampleSequence

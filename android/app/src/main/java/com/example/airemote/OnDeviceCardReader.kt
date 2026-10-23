@@ -84,7 +84,13 @@ object OnDeviceCardReader {
                 // Two independently plausible visual candidates disagree: no guessing.
                 base
             } else AdaptiveCardCandidateResolver.choose(legacyFallback, separate)
-            return OnDeviceTableReading(selected, TurnControlsVision.read(raster))
+            // A partial "В ?" or "? ♦" is evidence for the operator, NOT
+            // a complete card for strategy or the two-frame action gate.
+            val forScreen = if (selected.holeGlyphs.isEmpty() &&
+                (selected.hole.size != 2 || selected.hole.any { it == null })) {
+                selected.copy(holeGlyphs=SeparateHeroCardReader.preview(adaptiveRaster))
+            } else selected
+            return OnDeviceTableReading(forScreen, TurnControlsVision.read(raster))
         } finally {
             if (scaled !== source) scaled.recycle()
         }

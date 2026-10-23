@@ -32,7 +32,12 @@ data class CardReading(
     val complete: Boolean,
     /** Template similarity only, not a calibrated probability. */
     val minimumSimilarity: Double,
-    val reason: String
+    val reason: String,
+    /** Display only: independently seen rank and suit; NEVER authorizes action. */
+    val holeGlyphs: List<String> = emptyList(),
+    val communityGlyphs: List<String> = emptyList(),
+    val holeMinimumSimilarity: Double = 0.0,
+    val communityMinimumSimilarity: Double = 0.0
 )
 
 data class VisionCardZones(
@@ -979,48 +984,53 @@ object CardVisionCore {
             return VisibleCommunityReading(emptyList(), false,
                 "Область общих карт обрезана")
         }
-        val values = boxes.map { box ->
-            val rank = classifyRank(r, box)
-            val suit = classifySuit(r, box)
-            if (rank == null || suit == null) null else "${rank.rank}${suit.suit}"
-        }
+        val observed = boxes.map { CardGlyphChain.read(r, it) }
+        val values = observed.map { it.code }
+        val previews = observed.map { it.preview }
+        val boardMin = if (observed.all { it.code != null })
+            observed.minOf { it.quality } else 0.0
         if (values.any { it == null }) {
             return VisibleCommunityReading(values, false,
-                "Общие карты видны, но часть номиналов или мастей не подтверждена")
+                "Общие карты видны, но часть номиналов или мастей не подтверждена", previews, boardMin)
         }
         val complete = values.filterNotNull()
         if (complete.toSet().size != complete.size) {
             return VisibleCommunityReading(values, false,
-                "Обнаружены повторяющиеся карты: отбрасываем результат")
+                "Обнаружены повторяющиеся карты: отбрасываем результат", previews, 0.0)
         }
         return VisibleCommunityReading(values, true,
-            "Общие карты распознаны локально; раздача и приложение не подтверждены")
+            "Общие карты распознаны локально; раздача и приложение не подтверждены", previews, boardMin)
     }
 
     fun readCards(r: VisionRaster): CardReading {
         val zones = detect(r)
         if (!zones.usable) return CardReading(emptyList(), emptyList(), false, 0.0, zones.reason)
-        var minimum = 1.0
-        fun read(box: VisionCardBox): String? {
-            val rank = classifyRank(r, box) ?: return null
-            val suit = classifySuit(r, box) ?: return null
-            minimum = min(minimum, min(rank.similarity, suit.confidence))
-            return "${rank.rank}${suit.suit}"
-        }
-        val hole = zones.hole.map(::read)
-        val community = zones.community.map(::read)
+        val heroGlyphs = zones.hole.map { CardGlyphChain.read(r, it) }
+        val boardGlyphs = zones.community.map { CardGlyphChain.read(r, it) }
+        val hole = heroGlyphs.map { it.code }
+        val community = boardGlyphs.map { it.code }
+        val minimum = (heroGlyphs + boardGlyphs).minOfOrNull { it.quality } ?: 0.0
+        val heroDisplay = heroGlyphs.map { it.preview }
+        val boardDisplay = boardGlyphs.map { it.preview }
+        val heroMin = if (heroGlyphs.size == 2 && heroGlyphs.all { it.code != null })
+            heroGlyphs.minOf { it.quality } else 0.0
+        val boardMin = if (boardGlyphs.all { it.code != null })
+            boardGlyphs.minOfOrNull { it.quality } ?: 1.0 else 0.0
         if ((hole + community).any { it == null }) {
             return CardReading(hole, community, false, 0.0,
-                "Неизвестный номинал/масть: запрещено угадывать")
+                "Неизвестный номинал/масть: запрещено угадывать", heroDisplay, boardDisplay,
+                heroMin, boardMin)
         }
         val verifiedHole = hole.filterNotNull()
         val verifiedBoard = community.filterNotNull()
         if (!checkUnique(verifiedHole, verifiedBoard)) {
             return CardReading(hole, community, false, 0.0,
-                "Повтор карты или недопустимое число общих карт")
+                "Повтор карты или недопустимое число общих карт", heroDisplay, boardDisplay,
+                heroMin, 0.0)
         }
         return CardReading(hole, community, true, minimum,
-            "Шаблоны совпали; имя приложения и фаза раздачи отдельно не подтверждены")
+            "Шаблоны совпали; имя приложения и фаза раздачи отдельно не подтверждены",
+            heroDisplay, boardDisplay, heroMin, boardMin)
     }
 
     /** OCR returns a rank string for one cropped card, never a full-hand string. */

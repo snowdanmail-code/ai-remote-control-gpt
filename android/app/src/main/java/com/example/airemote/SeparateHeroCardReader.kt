@@ -80,6 +80,10 @@ object SeparateHeroCardReader {
         return if(pairs.size==1)pairs.single() else emptyList()
     }
 
+    /** Read-only partial labels even when a strict card candidate is absent. */
+    fun preview(r: VisionRaster): List<String> =
+        locate(r).map { CardGlyphChain.read(r,it).preview }
+
     fun read(r: VisionRaster): CardReading? {
         val pair=locate(r)
         if(pair.size!=2)return null
@@ -89,19 +93,12 @@ object SeparateHeroCardReader {
         if(!publicBoard.complete && publicBoard.cards.isNotEmpty())return null
         val community=if(publicBoard.complete) publicBoard.cards.filterNotNull()
             else emptyList()
-        val values=pair.map { box ->
-            val rank=CardVisionCore.classifyRank(r,box)
-            val suit=CardVisionCore.classifySuit(r,box)
-            if(rank==null || suit==null)null else
-                Pair(rank.rank.toString()+suit.suit,
-                    min(rank.similarity,suit.confidence))
-        }
-        if(values.any{it==null})return null
-        val cards=values.filterNotNull()
-        val hole=cards.map{it.first}
-        val minimum=cards.minOf{it.second}
+        val symbols=pair.map { CardGlyphChain.read(r,it) }
+        if(symbols.any{it.code==null})return null
+        val hole=symbols.mapNotNull{it.code}
+        val minimum=symbols.minOf{it.quality}
         if(minimum<0.78 || !CardVisionCore.checkUnique(hole,community))return null
         return CardReading(hole,community,true,minimum,
-            "SEPARATE_HERO_PAIR_UNVERIFIED")
+            "SEPARATE_HERO_PAIR_UNVERIFIED",symbols.map{it.preview},publicBoard.glyphs)
     }
 }

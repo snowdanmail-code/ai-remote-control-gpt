@@ -96,19 +96,15 @@ object AdaptivePlayerCardReader {
         val community = if (publicBoard.complete) publicBoard.cards.filterNotNull()
             else emptyList()
         val candidateHands = boxes.mapNotNull { pair ->
-            val cards = pair.map { box ->
-                val rank = CardVisionCore.classifyRank(r, box)
-                val suit = CardVisionCore.classifySuit(r, box)
-                if (rank == null || suit == null) null else
-                    Pair("${rank.rank}${suit.suit}", min(rank.similarity, suit.confidence))
-            }
-            if (cards.any { it == null }) null else {
-                val hand = cards.filterNotNull().map { it.first }
-                val similarity = cards.filterNotNull().minOf { it.second }
+            val symbols = pair.map { CardGlyphChain.read(r, it) }
+            if (symbols.any { it.code == null }) null else {
+                val hand = symbols.mapNotNull { it.code }
+                val similarity = symbols.minOf { it.quality }
                 if (similarity < 0.78 ||
                     !CardVisionCore.checkUnique(hand, community)) null
                 else CardReading(hand, community, true, similarity,
-                    "ADAPTIVE_HERO_PAIR_UNVERIFIED: нет подтверждения стола, раздачи и хода")
+                    "ADAPTIVE_HERO_PAIR_UNVERIFIED: нет подтверждения стола, раздачи и хода",
+                    symbols.map { it.preview }, publicBoard.glyphs)
             }
         }
         return if (candidateHands.size == 1) candidateHands.single() else null

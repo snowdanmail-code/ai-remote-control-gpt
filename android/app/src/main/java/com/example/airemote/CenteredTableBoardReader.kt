@@ -110,19 +110,18 @@ object CenteredTableBoardReader {
             return VisibleCommunityReading(emptyList(), false,
                 "CENTERED_BOARD_ROW_ABSENT_OR_AMBIGUOUS")
         }
-        val cards = boxes.map { box ->
-            val rank = CardVisionCore.classifyRank(r, box)
-            val suit = CardVisionCore.classifySuit(r, box)
-            if (rank == null || suit == null) null else
-                rank.rank.toString() + suit.suit
-        }
+        val observed = boxes.map { CardGlyphChain.read(r, it) }
+        val cards = observed.map { it.code }
+        val previews = observed.map { it.preview }
+        val boardMin = if (observed.all { it.code != null })
+            observed.minOf { it.quality } else 0.0
         if (cards.any { it == null }) return VisibleCommunityReading(cards, false,
-            "CENTERED_BOARD_GLYPHS_UNREADABLE")
+            "CENTERED_BOARD_GLYPHS_UNREADABLE", previews, boardMin)
         val known = cards.filterNotNull()
         if (known.size != cards.size || known.toSet().size != cards.size) {
-            return VisibleCommunityReading(cards, false, "CENTERED_BOARD_DUPLICATE")
+            return VisibleCommunityReading(cards, false, "CENTERED_BOARD_DUPLICATE", previews, 0.0)
         }
-        return VisibleCommunityReading(cards, true, "CENTERED_BOARD_UNVERIFIED")
+        return VisibleCommunityReading(cards, true, "CENTERED_BOARD_UNVERIFIED", previews, boardMin)
     }
 }
 

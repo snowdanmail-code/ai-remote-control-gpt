@@ -8,7 +8,10 @@ package com.example.airemote
 data class VisibleCommunityReading(
     val cards: List<String?>,
     val complete: Boolean,
-    val reason: String
+    val reason: String,
+    /** Display only, may include '?' when only rank or suit was seen. */
+    val glyphs: List<String> = emptyList(),
+    val minimumSimilarity: Double = 0.0
 )
 
 data class StableSpectatorBoard(
