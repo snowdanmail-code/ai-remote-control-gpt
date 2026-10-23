@@ -57,6 +57,9 @@ object NineRankBoundaryScenarios {
         val raster = VisionRaster(61, 83, pixels)
         val shifted = VisionCardBox(5, 0, 61, 83)
         val exact = VisionCardBox(0, 0, 61, 83)
+        val mask = VerifiedCardRankSamples.rankMask(raster, exact)
+        println("NINE_MASK="+(mask?.joinToString("") { it.toString(16).padStart(6,'0') } ?: "NONE"))
+        println("EXACT_CLASS="+VerifiedCardRankSamples.classify(raster, exact))
         check(VerifiedCardRankSamples.classify(raster, exact)?.rank == '9') {
             "The existing screenshot nine rank must remain recognized"
         }
