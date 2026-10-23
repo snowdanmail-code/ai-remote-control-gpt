@@ -45,7 +45,7 @@ object MiniHeroRankReader {
             for(y in y0 until y1)for(x in x0 until x1)
                 if(white(r.rgb(x,y))) whites++
             // A blank/face-down top-left pill is NOT a hand.
-            if (whites.toDouble()/(w*h) !in .28.. .91) return emptyList()
+            if (whites.toDouble()/(w*h) !in 0.20..0.91) return emptyList()
 
             // Small glyphs are resampled uniformly to let the SAME checked
             // rank classifiers inspect only their upper-left corners.
