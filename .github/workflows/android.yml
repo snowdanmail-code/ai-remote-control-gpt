@@ -260,3 +260,5 @@ jobs:
             ${{ runner.temp }}/t042-boot-progress.jsonl
           if-no-files-found: warn
           retention-days: 14
+
+# Pilot calibration: mini white-card ROI lowered to 20 percent from owner screenshots.
