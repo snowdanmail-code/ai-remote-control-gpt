@@ -28,6 +28,27 @@ object PreflopRankHintsScenarios {
             "parse two ranks only in allowed phase")
         t(PreflopBottomRankText.parse(before,false)==null,
             "ignore identical text after flop")
+        // A standard deck has exactly 13 ranks. Standalone digits 1 and 0
+        // are NOT ranks: two glyphs are a single 10 within ONE card crop.
+        t(CardVisionCore.parseRank("10")=="T",
+            "the two digits 1+0 inside one card mean rank ten")
+        t(CardVisionCore.parseRank("1O")=="T",
+            "OCR letter O may be the zero in 10 in the same card crop")
+        t(CardVisionCore.parseRank("1 0")=="T",
+            "spaced 1 and 0 inside one card crop remain a single ten")
+        t(CardVisionCore.parseRank("1")==null &&
+            CardVisionCore.parseRank("0")==null,
+            "standalone 1 and standalone 0 can never be card ranks")
+        t(PreflopBottomRankText.parse(listOf(line("Старшая рука: 1 0",918)),true)==null,
+            "OCR 1 and 0 must not become two different card ranks")
+        t(PreflopBottomRankText.parse(listOf(line("Старшая рука: 10 6",918)),true)
+            ==listOf('T','6'),"10 is one rank, not 1 and 0");
+        t(CardGlyphChain.combine(RankCandidate('1',.99),
+            SuitCandidate('h',.99),true).code==null &&
+            CardGlyphChain.combine(RankCandidate('0',.99),
+            SuitCandidate('d',.99),true).code==null,
+            "a suit cannot turn an invalid 1 or 0 into a valid card")
+
         t(PreflopBottomRankText.parse(listOf(line("Пара 9 с кикерами К Д 10",918)),true)==null,
             "postflop combination text is not preflop hint")
         t(PreflopBottomRankText.parse(listOf(line("Старшая рука: 10 4",110)),true)==null,
