@@ -47,6 +47,40 @@ object VisibleCardOverlayText {
     }
 
     /**
+     * Important: never silently feed hints to CardReading.hole or consensus.
+     * A rank from the upper-left minis may be paired with a VISUALLY SEEN
+     * suit in the operator's preview, but is explicitly marked as mini-only.
+     */
+    fun showHeroWithMini(reading: CardReading): String {
+        val minis = reading.miniRankHints
+        if(minis.size != 2) return show(reading.hole,"ИЩУ ДВЕ КАРТЫ",reading.holeGlyphs)
+        var inferred = false
+        val parts=(0 until maxOf(reading.hole.size, reading.holeGlyphs.size, 2))
+            .map { index ->
+                val full=reading.hole.getOrNull(index)
+                if(full!=null) return@map readable(full)
+                val original=reading.holeGlyphs.getOrNull(index)?.trim().orEmpty()
+                val mini=minis.getOrNull(index)
+                val rankName=when(mini){
+                    'A'->"Т"; 'K'->"К"; 'Q'->"Д"; 'J'->"В";
+                    'T'->"10"; else->if(mini!=null && mini in '2'..'9') mini.toString() else null
+                }
+                val glyphRank=original.substringBefore(" ").trim()
+                val glyphSuit=original.substringAfter(" ", "?").trim()
+                // A confirmed big-card rank disagrees with a miniature:
+                // show the original, never overwrite it.
+                if(rankName != null && (glyphRank=="?" || glyphRank=="") &&
+                    glyphSuit.length==1 && glyphSuit in listOf("♥","♦","♠","♣")){
+                    inferred=true
+                    "$rankName $glyphSuit*"
+                } else original.takeIf{it.isNotBlank() && it!="? ?"}
+                    ?: "НЕ РАСПОЗНАНО"
+            }
+        return parts.joinToString("  ·  ") +
+            if(inferred) "  (*МИНИ, НЕ ПОДТВЕРЖДЕНО)" else ""
+    }
+
+    /**
      * Preliminary values are shown explicitly as NOT confirmed; if a stable
      * two-frame read matches this SAME capture epoch, its status changes to
      * "СОВПАЛО НА 2 КАДРАХ". No past-hand preview is ever shown on top.
@@ -94,7 +128,7 @@ object VisibleCardOverlayText {
         }.orEmpty()
 
         return VisibleCardOverlaySnapshot(
-            hero = show(reading.hole, "ИЩУ ДВЕ КАРТЫ", reading.holeGlyphs) +
+            hero = showHeroWithMini(reading) +
                 reading.miniRankHints.takeIf { it.size == 2 && it.any { rank -> rank != null } }
                     ?.let { "  |  МИНИ: " + it.joinToString(" ") { rank ->
                         when (rank) {

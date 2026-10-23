@@ -47,16 +47,39 @@ object MiniHeroRankReader {
             // A blank/face-down top-left pill is NOT a hand.
             if (whites.toDouble()/(w*h) !in 0.20..0.91) return emptyList()
 
-            // Small glyphs are resampled uniformly to let the SAME checked
-            // rank classifiers inspect only their upper-left corners.
-            val scale=5
-            val newW=w*scale; val newH=h*scale
-            val pixels=IntArray(newW*newH)
-            for(y in 0 until newH)for(x in 0 until newW)
-                pixels[y*newW+x]=r.rgb(x0+x/scale,y0+y/scale)
-            val up=VisionRaster(newW,newH,pixels)
-            val rank=CardVisionCore.classifyRank(up, VisionCardBox(0,0,newW,newH))
-            detected.add(rank?.takeIf{it.similarity>=.93}?.rank)
+            // Previously the generic card reader received the ENTIRE mini
+            // card, then scanned only its top 34%. On these 709x1536 real
+            // captures the rank extends almost 50% down the miniature, so the
+            // lower strokes of 2, 6, K and 7 were physically cut off.
+            // Crop JUST the rank, before the suit begins, then paste that
+            // glyph into a white proxy-card so existing trained rank masks
+            // inspect its full height. No new glyph is guessed here.
+            val rankTop=y0+maxOf(1,h*4/100)
+            val rankBottom=y0+h*48/100
+            val glyphLeft=x0+maxOf(1,w*4/100)
+            val glyphRight=x0+w*95/100
+            val gw=glyphRight-glyphLeft
+            val gh=rankBottom-rankTop
+            if(gw<6 || gh<9) return emptyList()
+            val scale=4
+            val glyphW=gw*scale
+            val glyphH=gh*scale
+            val proxyWidth=(glyphW*20/10).coerceAtLeast(100)
+            val proxyHeight=(glyphH*36/10).coerceAtLeast(175)
+            val leftPad=maxOf(2,proxyWidth*3/100)
+            val topPad=maxOf(2,proxyHeight*2/100)
+            val pixels=IntArray(proxyWidth*proxyHeight){0xffffffff.toInt()}
+            for(y in 0 until glyphH)for(x in 0 until glyphW){
+                val atX=leftPad+x
+                val atY=topPad+y
+                if(atX in 0 until proxyWidth && atY in 0 until proxyHeight)
+                    pixels[atY*proxyWidth+atX]=
+                        r.rgb(glyphLeft+x/scale,rankTop+y/scale)
+            }
+            val proxy=VisionRaster(proxyWidth,proxyHeight,pixels)
+            val rank=CardVisionCore.classifyRank(
+                proxy, VisionCardBox(0,0,proxyWidth,proxyHeight))
+            detected.add(rank?.takeIf{it.similarity>=.90}?.rank)
         }
         return detected
     }
@@ -66,6 +89,11 @@ object MiniHeroRankReader {
 object PreflopBottomRankText {
     private val headline=Regex("(?iu)(?:старшая\\s+рука|high\\s+card)\\s*[:：]?\\s*(.*)")
     private val card=Regex("(?iu)^(?:10|[2-9TJQKAТКДВ])$")
+    // Offline ML Kit here is LATIN-script only. It can recognize the final
+    // "6 2", while omitting the preceding Cyrillic "Старшая рука". Accept
+    // exactly TWO rank tokens only in the calibrated bottom summary region.
+    private val isolatedRanks=Regex("(?iu)^\\s*(10|[2-9TJQKAТКДВ])\\s+(10|[2-9TJQKAТКДВ])\\s*$")
+
     private fun token(t: String): Char? = when(t.uppercase()) {
         "10", "T" -> 'T'
         "А", "A", "Т" -> 'A'
@@ -83,7 +111,9 @@ object PreflopBottomRankText {
             it.box.valid() && it.box.centerY() in 895..960 &&
                 it.box.centerX() in 240..810 && it.text.length <= 90
         }.mapNotNull { line ->
-            val tail=headline.find(line.text)?.groupValues?.getOrNull(1) ?: return@mapNotNull null
+            val tail=headline.find(line.text)?.groupValues?.getOrNull(1)
+                ?: line.text.takeIf { isolatedRanks.matches(it) }
+                ?: return@mapNotNull null
             val parts=tail.trim().split(Regex("\\s+")).filter{it.isNotEmpty()}
             if(parts.size != 2 || parts.any{!card.matches(it)})return@mapNotNull null
             parts.mapNotNull(::token).takeIf{it.size==2}
