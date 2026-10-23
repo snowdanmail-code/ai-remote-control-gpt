@@ -7,7 +7,7 @@ import kotlin.math.roundToInt
 /**
  * User-verified glyph samples extracted from cropped 1win cards in 10 real
  * 709x1536 owner screenshots. No names, avatars, balances or screenshots
- * retained in the runtime database. 29 labeled card instances, 23 distinct
+ * retained in the runtime database. 29 labeled card instances, 28 distinct
  * glyph masks. Layout normalized to 540x1170 Android detection raster.
  * This does not train a neural network or independently prove correct cards.
  */
@@ -38,6 +38,12 @@ Q|000000007e0003ff800383c00783c00783c00783c00783c00783c00783c00783c00783c00783c0
 8|000000007c0001ff0003ff8007c7c00701e00701e00701e00781e007c7c003ff8003ff8007ffc00f83e00f00e00e00f00e00f00e00f00f01e007c3e007ffc001ff80007c00000000
 K|0000000fc7e00feff00fc7e0078780038780038f00039e00039c0003fc0003f80003fc0003fc0003fc0003de00038e00038f000787800787800783c00fc7e00feff00fc7e0000000
 T|000000380f003c3fc03c7fe03cf8f03cf0703cf0783ce0781ce0781ce0783ce0781cf0783ce0783ce0783cf0783cf0783cf0783cf0703cf0703cf9f03c7fe03c3fe01c0f00000000
+# 2026-10-23 operator-labeled corner cases: Q♠, 5♦, 3♦, 5♥, Q♥
+Q|000000001c00007f0001ff8001c3c00381c00380c00380c00380c00380c00380c00380c007c1c00ff1c007f9c003bfc0039fc00387c001e7e001fff000fff0003c00000000
+5|00000003ff0007ff8007ff0007000007000007fe0007fe0007ff0007df800303c00001c00000c00000e00000e00000e00401c00e03c00e03c007878007ff0003fe00007800000000
+3|00000007ffc007ffe007ffe00707c0061f00003e00003e00007e0000ff0000ffc00003c00000e00000e00000e00000e00600e00701e00701e00783c003ff8001ff00007c00000000
+5|00000003ff0003ff8007ff8007800007000007fe0007fe0007ff8003ffc00101c00001e00000e00000e00000e00000e00200e00701c00701c00783c003ff8001ff00007c00000000
+Q|00000000780001fe0003ff0007878007038007038007038007038007038007038007038007038007838007e38007fb80077f80073f80073f80079f8003ffe001ffe0007800000000
     """.trimIndent()
 
     private val templates: List<Stored> by lazy {
@@ -125,8 +131,10 @@ T|000000380f003c3fc03c7fe03cf8f03cf0703cf0783ce0781ce0781ce0783ce0781cf0783ce078
         // Only admit those when nearly identical to the owner's actual glyph.
         // Unknown is preferable to falsely confident cards.
         val examplesOfRank = templates.count { it.rank == first.key }
-        val maximumDistance = if (examplesOfRank == 1) 0.045 else 0.11
-        val minimumSeparation = if (examplesOfRank == 1) 0.09 else 0.075
+        val maximumDistance = if (examplesOfRank == 1 || first.key == '5')
+            0.045 else 0.11
+        val minimumSeparation = if (examplesOfRank == 1 || first.key == '5')
+            0.09 else 0.075
         return if(first.value<=maximumDistance &&
             runnerUp-first.value>=minimumSeparation)
             RankCandidate(first.key,1.0-first.value) else null

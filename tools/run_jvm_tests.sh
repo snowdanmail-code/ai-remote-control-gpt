@@ -50,6 +50,7 @@ com.example.airemote.CenteredBoardAnchorScenarios
 com.example.airemote.SeparateHeroCardScenarios
 com.example.airemote.VisibleCardOverlayScenarios
 com.example.airemote.OwnerVerifiedRankSamplesScenarios
+com.example.airemote.VerifiedCardCornerSuitScenarios
 com.example.airemote.SignedPokerProviderScenarios
 com.example.airemote.ChatGptAuthScenarios
 com.example.airemote.ChatGptLoginPreflightScenarios

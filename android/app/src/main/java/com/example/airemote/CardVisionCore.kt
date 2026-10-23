@@ -866,9 +866,16 @@ object CardVisionCore {
         val ranked = bySuit.entries.sortedByDescending { it.value }
         val winner = ranked.firstOrNull() ?: return null
         val second = ranked.drop(1).firstOrNull()?.value ?: 0.0
-        return if (winner.value >= 0.78 && winner.value - second >= 0.055)
-            SuitCandidate(winner.key, winner.value)
-        else null
+        val legacy = if (winner.value >= 0.78 && winner.value - second >= 0.055)
+            SuitCandidate(winner.key, winner.value) else null
+        // Independent small corner glyph templates. If the large suit and
+        // the corner disagree, refuse to publish a falsely confident card.
+        val small = VerifiedCardCornerSuitSamples.classify(r, card)
+        return when {
+            legacy != null && small != null && legacy.suit != small.suit -> null
+            legacy != null -> legacy
+            else -> small
+        }
     }
 
     /**

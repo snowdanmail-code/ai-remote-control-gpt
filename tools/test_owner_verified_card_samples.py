@@ -8,10 +8,10 @@ class OwnerVerifiedCardRankFixtures(unittest.TestCase):
     def test_real_user_rank_masks_persist_in_runtime_code(self):
         f=(SRC/"VerifiedCardRankSamples.kt").read_text()
         entries=re.findall(r"^\s*[2-9TJQKA]\|[0-9a-f]{144}$",f,re.M)
-        self.assertEqual(len(entries),23)
+        self.assertEqual(len(entries),28)
         self.assertIn("Crop ONLY rank glyph",f)
         self.assertIn("card.height*305/1000",f)
-        self.assertIn("val maximumDistance = if (examplesOfRank == 1) 0.045 else 0.11",f)
+        self.assertIn("first.key == '5'",f)
         self.assertIn("runnerUp-first.value>=minimumSeparation",f)
     def test_strictly_fail_on_disagreeing_readers(self):
         src=(SRC/"CardVisionCore.kt").read_text()

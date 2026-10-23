@@ -4,7 +4,7 @@ package com.example.airemote
 object OwnerVerifiedRankSamplesScenarios {
     @JvmStatic fun main(args:Array<String>){
         val count=VerifiedCardRankSamples.sampleCount
-        check(count==23){"Unexpected card data size: $count"}
+        check(count==28){"Unexpected card data size: $count"}
         check(VerifiedCardRankSamples.sampleSanityChecks()==count){
             "At least one owner-labeled glyph is self-inconsistent"
         }
