@@ -116,6 +116,28 @@ Q|00000000780001fe0003ff00078780070380070380070380070380070380070380070380070380
         return classifyMask(mask)
     }
 
+    /**
+     * Narrow, rank-9-only correction for a card pair split slightly too far
+     * right. The right-hand rank 9 loses its left outline at x0 when the
+     * card-group detector divides an uneven two-card surface at its midpoint.
+     * Read exactly the SAME pixels using 1..4px left shifts of the card box.
+     * Require at least two independent crop alignments to agree on nine and
+     * reject any competing accepted rank. No suit, OCR or action code changes.
+     */
+    fun recoverTrimmedNine(r: VisionRaster, card: VisionCardBox): RankCandidate? {
+        if (card.left < 4 || card.width < 43 || card.height < 55 ||
+            card.right > r.width || card.bottom > r.height) return null
+        val candidates = (1..4).mapNotNull { shift ->
+            val expanded = VisionCardBox(card.left - shift, card.top,
+                card.right, card.bottom)
+            classify(r, expanded)
+        }
+        val nines = candidates.filter { it.rank == '9' }
+        if (nines.size < 2 || candidates.any { it.rank != '9' })
+            return null
+        return RankCandidate('9', nines.minOf { it.similarity })
+    }
+
     internal fun classifyMask(mask: IntArray): RankCandidate? {
         if(mask.size!=24 || mask.all { it==0 }) return null
         val best=templates.groupBy { it.rank }.mapValues { (_, collection) ->

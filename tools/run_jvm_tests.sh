@@ -55,6 +55,7 @@ com.example.airemote.CardGlyphChainScenarios
 com.example.airemote.PreflopRankHintsScenarios
 com.example.airemote.MiniRankRecoveryScenarios
 com.example.airemote.PreflopRankFusionScenarios
+com.example.airemote.NineRankBoundaryScenarios
 com.example.airemote.SignedPokerProviderScenarios
 com.example.airemote.ChatGptAuthScenarios
 com.example.airemote.ChatGptLoginPreflightScenarios

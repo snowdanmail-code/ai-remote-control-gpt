@@ -963,7 +963,11 @@ object CardVisionCore {
         return when {
             legacy != null && verified != null && legacy.rank != verified.rank -> null
             legacy != null -> legacy
-            else -> verified
+            verified != null -> verified
+            // Owner's 9♥ crop: a right-card ROI shifted 1-4 px right trims
+            // the rank. Only rescue a VERIFIED nine supported by multiple
+            // alternative ROIs, never substitute another suit or rank.
+            else -> VerifiedCardRankSamples.recoverTrimmedNine(r, card)
         }
     }
 
