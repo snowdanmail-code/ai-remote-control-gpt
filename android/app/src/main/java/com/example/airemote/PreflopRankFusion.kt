@@ -26,6 +26,8 @@ object PreflopRankFusion {
 
     fun preview(reading:CardReading,mini:List<Char?>,
                 bottom:List<Char>?,beforeFlop:Boolean):String {
+        if(reading.hole.isEmpty() && reading.holeGlyphs.isEmpty() &&
+            mini.none{it!=null}) return "ИЩУ ДВЕ КАРТЫ"
         val n=maxOf(reading.hole.size,reading.holeGlyphs.size,2)
         val visual=(0 until n).map{i->
             val code=reading.hole.getOrNull(i)
