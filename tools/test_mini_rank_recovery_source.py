@@ -11,7 +11,8 @@ class MiniRanksAndPreflopTest(unittest.TestCase):
         self.assertIn("isolatedRanks.matches(it)",s)
     def test_live_overlay_marks_mini_hint_as_provisional(self):
         s=(SRC/"VisibleCardOverlayText.kt").read_text()
-        self.assertIn("showHeroWithMini(reading)",s)
+        self.assertIn("PreflopRankFusion.preview(reading, reading.miniRankHints,",s)
+        self.assertIn("bottomNow, currentPreflopHint?.allowed == true",s)
         self.assertIn("(*МИНИ, НЕ ПОДТВЕРЖДЕНО)",s)
         self.assertIn("reading.hole.getOrNull(index)",s)
     def test_safety_gates_kept(self):
