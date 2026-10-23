@@ -155,8 +155,17 @@ Q|00000000780001fe0003ff00078780070380070380070380070380070380070380070380070380
         val examplesOfRank = templates.count { it.rank == first.key }
         val maximumDistance = if (examplesOfRank == 1 || first.key == '5')
             0.045 else 0.11
-        val minimumSeparation = if (examplesOfRank == 1 || first.key == '5')
-            0.09 else 0.075
+        // The owner's photographed 9♥ passes the rank-shape distance check
+        // (0.085) but sits 0.047 from Q; the generic 0.075 separation rejected
+        // it even after the card box was correctly located.
+        // Permit this narrow exception ONLY for a strong 9 (<=0.09) with
+        // multiple independently labeled examples in the source library.
+        val minimumSeparation = when {
+            examplesOfRank == 1 || first.key == '5' -> 0.09
+            first.key == '9' && examplesOfRank >= 3 &&
+                first.value <= 0.09 -> 0.045
+            else -> 0.075
+        }
         return if(first.value<=maximumDistance &&
             runnerUp-first.value>=minimumSeparation)
             RankCandidate(first.key,1.0-first.value) else null
