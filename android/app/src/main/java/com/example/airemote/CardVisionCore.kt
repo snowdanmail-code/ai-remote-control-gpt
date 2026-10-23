@@ -950,7 +950,10 @@ object CardVisionCore {
         val matches = rankScores(r, card)
         val first = matches.firstOrNull()
         val second = matches.getOrNull(1)?.second ?: 0.0
-        val legacy = if (first != null && first.second >= 0.93 &&
+        // Owner-approved diagnostic threshold: 93% -> 78% (-15 points).
+        // Preserve a separate runner-up margin, verified-sample veto, and
+        // the two-frame consensus. Similarity is NOT a probability.
+        val legacy = if (first != null && first.second >= 0.78 &&
             first.second - second >= 0.045)
             RankCandidate(first.first, first.second) else null
         // The second reader has a corrected glyph-only crop, and is trained

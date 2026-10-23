@@ -128,7 +128,11 @@ object VisibleCardOverlayText {
         }.orEmpty()
 
         return VisibleCardOverlaySnapshot(
-            hero = showHeroWithMini(reading) +
+            // Both large-card and miniature rank observations plus a strictly
+            // preflop OCR hint can corroborate an unknown RANK for the owner.
+            // Never promotes a hint into authoritative CardReading.hole.
+            hero = PreflopRankFusion.preview(reading, reading.miniRankHints,
+                bottomNow, currentPreflopHint?.allowed == true) +
                 reading.miniRankHints.takeIf { it.size == 2 && it.any { rank -> rank != null } }
                     ?.let { "  |  МИНИ: " + it.joinToString(" ") { rank ->
                         when (rank) {
