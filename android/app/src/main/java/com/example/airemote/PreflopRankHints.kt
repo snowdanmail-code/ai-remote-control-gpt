@@ -171,6 +171,6 @@ class PreflopRankHintGate {
 data class PreflopRankHintSnapshot(
     val captureEpoch:Long,val frameSequence:Long,
     val observedAtMs:Long,val allowed:Boolean,
-    val miniRanks:List<Char?>=emptyList(),
-    val bottomTextRanks:List<Char>?=null
+    val miniRanks: List<Char?> = emptyList(),
+    val bottomTextRanks: List<Char>? = null
 )
