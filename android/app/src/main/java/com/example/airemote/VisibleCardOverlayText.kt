@@ -55,7 +55,9 @@ object VisibleCardOverlayText {
                 sampleEpoch: Long, sampleSequence: Long,
                 sampleCapturedAtMs: Long, nowMs: Long,
                 capturing: Boolean, stopped: Boolean,
-                currentEpoch: Long, maxAgeMs: Long = 2_800L): VisibleCardOverlaySnapshot? {
+                currentEpoch: Long, maxAgeMs: Long = 2_800L,
+                bottomRankHint: PreflopRankHintSnapshot? = null,
+                currentPreflopHint: PreflopRankHintSnapshot? = null): VisibleCardOverlaySnapshot? {
         if (!capturing || stopped || reading == null ||
             sampleEpoch < 0 || sampleEpoch != currentEpoch ||
             sampleSequence <= 0 ||
@@ -71,6 +73,26 @@ object VisibleCardOverlayText {
             stable.hole == reading.hole &&
             stable.community == reading.community
 
+        val bottomNow = bottomRankHint?.takeIf { hint ->
+            currentPreflopHint?.allowed == true && hint.allowed &&
+                hint.captureEpoch == sampleEpoch &&
+                currentPreflopHint.captureEpoch == sampleEpoch &&
+                hint.bottomTextRanks?.size == 2 &&
+                hint.miniRanks.size == 2 &&
+                reading.miniRankHints == hint.miniRanks &&
+                currentPreflopHint.miniRanks == hint.miniRanks &&
+                nowMs >= hint.observedAtMs &&
+                nowMs - hint.observedAtMs <= maxAgeMs
+        }?.bottomTextRanks
+        val bottomLabel = bottomNow?.let { values ->
+            "  |  ДО ФЛОПА: " + values.joinToString(" ") { c ->
+                when (c) {
+                    'A' -> "Т"; 'K' -> "К"; 'Q' -> "Д"; 'J' -> "В"
+                    'T' -> "10"; else -> c.toString()
+                }
+            }
+        }.orEmpty()
+
         return VisibleCardOverlaySnapshot(
             hero = show(reading.hole, "ИЩУ ДВЕ КАРТЫ", reading.holeGlyphs) +
                 reading.miniRankHints.takeIf { it.size == 2 && it.any { rank -> rank != null } }
@@ -79,7 +101,7 @@ object VisibleCardOverlayText {
                             'A' -> "Т"; 'K' -> "К"; 'Q' -> "Д"; 'J' -> "В"
                             'T' -> "10"; null -> "?"; else -> rank.toString()
                         }
-                    } }.orEmpty(),
+                    } }.orEmpty() + bottomLabel,
             board = show(reading.community, "ОБЩИЕ КАРТЫ НЕ НАЙДЕНЫ", reading.communityGlyphs),
             status = if (same) "СОВПАЛО НА 2 КАДРАХ" else "ПРЕДВАРИТЕЛЬНО · ПРОВЕРЬ",
             isConfirmed = same,

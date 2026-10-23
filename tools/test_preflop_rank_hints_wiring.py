@@ -22,4 +22,10 @@ class PreflopRankHintWiring(unittest.TestCase):
         overlay=(P/"VisibleCardOverlayText.kt").read_text()
         self.assertIn("МИНИ: ",overlay)
         self.assertIn("miniRankHints",overlay)
+    def test_preflop_text_display_must_match_hero_minis(self):
+        s=(P/"VisibleCardOverlayText.kt").read_text()
+        self.assertIn('currentPreflopHint?.allowed == true',s)
+        self.assertIn('reading.miniRankHints == hint.miniRanks',s)
+        self.assertIn('ДО ФЛОПА: ',s)
+
 if __name__=="__main__":unittest.main()

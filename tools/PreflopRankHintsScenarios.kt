@@ -38,6 +38,26 @@ object PreflopRankHintsScenarios {
         t(MiniHeroRankReader.read(VisionRaster(540,1170,
             IntArray(540*1170){0xff242424.toInt()})).isEmpty(),
             "empty mini chip must not invent card ranks")
+        val pair = CardReading(listOf(null,null),emptyList(),false,0.0,
+            "hero visual preliminary", miniRankHints=listOf('T','4'))
+        val hint = PreflopRankHintSnapshot(8,2,1000,true,
+            listOf('T','4'),listOf('T','4'))
+        val current = PreflopRankHintSnapshot(8,3,1100,true,listOf('T','4'))
+        val inPreflop=VisibleCardOverlayText.project(
+            pair,null,8,3,1150,1400,true,false,8,
+            bottomRankHint=hint,currentPreflopHint=current)
+        t(inPreflop?.hero?.contains("ДО ФЛОПА: 10 4")==true,
+            "preflop OCR rank hint visible on overlay")
+        val afterFlop=VisibleCardOverlayText.project(
+            pair,null,8,3,1150,1400,true,false,8,
+            bottomRankHint=hint,currentPreflopHint=current.copy(allowed=false))
+        t(afterFlop?.hero?.contains("ДО ФЛОПА:")==false,
+            "flop blocks old bottom rank on UI")
+        val differentHand=VisibleCardOverlayText.project(
+            pair.copy(miniRankHints=listOf('3','7')),null,8,3,1150,1400,
+            true,false,8,bottomRankHint=hint,currentPreflopHint=current)
+        t(differentHand?.hero?.contains("ДО ФЛОПА:")==false,
+            "new hero cannot receive stale old-hand bottom rank")
         println("PreflopRankHintsScenarios: $n checks PASS")
     }
 }

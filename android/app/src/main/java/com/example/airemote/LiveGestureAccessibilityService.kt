@@ -64,7 +64,9 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 signal.reading, FrameStore.confirmedCards,
                 signal.captureEpoch, signal.frameSequence, signal.capturedAtMs,
                 now, FrameStore.isCapturing,
-                OperatorStopStore.isStopped(applicationContext), FrameStore.captureEpoch)
+                OperatorStopStore.isStopped(applicationContext), FrameStore.captureEpoch,
+                bottomRankHint = FrameStore.lastBottomRankHint,
+                currentPreflopHint = FrameStore.lastPreflopRankHint)
                 else null
             if (visible != null) {
                 val dm = resources.displayMetrics
