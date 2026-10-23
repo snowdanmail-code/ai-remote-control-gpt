@@ -1,5 +1,5 @@
 name: T042 protected Android 16 validation and compatible APK
-# Owner-authorized Code90 mini-hero rank crosscheck with preflop-only bottom hand hints; manual dispatch remains supported.
+# Owner-authorized Code91 corrected miniature rank crop and preflop text fallback diagnostic; manual dispatch remains supported.
 # Signing remains protected by the existing android-signing environment and legacy certificate.
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
     # The PUSH path is authorized ONLY for this exact update commit; edits to
     # the workflow later will not silently run a signing job.
     if: >-
-      ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true || (github.event_name == 'push' && github.event.head_commit.message == 'T042 signed code90 preflop ranks pilot') }}
+      ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true || (github.event_name == 'push' && github.event.head_commit.message == 'T042 signed code91 mini-rank recovery pilot') }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
@@ -169,7 +169,7 @@ jobs:
         run: |
           python3 tools/prepare_t042_release.py
           git diff --check
-      - name: Stage explicitly experimental Samsung Code90 mini and preflop-only rank hints (runtime NOT_RUN)
+      - name: Stage explicitly experimental Samsung Code91 corrected miniature rank capture (runtime NOT_RUN)
         if: ${{ inputs.samsung_prototype || github.event_name == 'push' }}
         shell: bash
         run: |
@@ -180,8 +180,8 @@ jobs:
           s = p.read_text()
           assert s.count('versionCode = 75') == 1
           assert s.count('versionName = "2.14.41-in-app-oauth-hardening"') == 1
-          s = s.replace('versionCode = 75', 'versionCode = 90', 1)
-          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-code90-preflop-rank-hints"', 1)
+          s = s.replace('versionCode = 75', 'versionCode = 91', 1)
+          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-code91-mini-rank-recovery"', 1)
           p.write_text(s)
           Path('artifacts/T042-device-test-status.json').write_text(json.dumps({
               'status': 'EXPERIMENTAL_DEVICE_TEST_CANDIDATE',
@@ -191,7 +191,7 @@ jobs:
               'independent_real_1win_provider': 'NOT_CONNECTED',
               'player_gestures_beyond_check': 'REQUIRE_TRUSTED_STATE_AND_DEVICE_VERIFICATION',
               'not_final_v2_14_42': True,
-              'reason': 'Owner authorized Code90 small mini rank hints and gated bottom preflop hand rank read-only inspection; no auto-action expansion'
+              'reason': 'Owner authorized Code91 read-only mini rank crop correction and bottom numeric tail hints, safety gates unchanged'
           }, indent=2) + '\n')
           PYCODE
           git diff --check
@@ -218,21 +218,21 @@ jobs:
           from pathlib import Path
           p = Path('artifacts/T042-upgrade-verification.json')
           v = json.loads(p.read_text())
-          assert v['version_code'] >= 90, 'Code89 previously distributed; refuse downgrade/equal update'
+          assert v['version_code'] >= 91, 'Code90 previously distributed; refuse downgrade/equal update'
           assert v['package'] == 'com.example.airemote.dev'
-          v['additional_verified_baseline_version_code'] = 89
+          v['additional_verified_baseline_version_code'] = 90
           p.write_text(json.dumps(v, indent=2) + '\n')
           PYCODE
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Preflop-Rank-Hints-Code90.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Mini-Rank-Recovery-Code91.apk
           cd artifacts
-          sha256sum AI-Remote-Control-GPT-T042-Preflop-Rank-Hints-Code90.apk > AI-Remote-Control-GPT-T042-Preflop-Rank-Hints-Code90.apk.sha256
+          sha256sum AI-Remote-Control-GPT-T042-Mini-Rank-Recovery-Code91.apk > AI-Remote-Control-GPT-T042-Mini-Rank-Recovery-Code91.apk.sha256
       - name: Save candidate only after signature, package, version and integrity gates
         uses: actions/upload-artifact@v4
         with:
-          name: ai-remote-control-t042-preflop-rank-hints-code90
+          name: ai-remote-control-t042-mini-rank-recovery-code91
           path: |
-            artifacts/AI-Remote-Control-GPT-T042-Preflop-Rank-Hints-Code90.apk
-            artifacts/AI-Remote-Control-GPT-T042-Preflop-Rank-Hints-Code90.apk.sha256
+            artifacts/AI-Remote-Control-GPT-T042-Mini-Rank-Recovery-Code91.apk
+            artifacts/AI-Remote-Control-GPT-T042-Mini-Rank-Recovery-Code91.apk.sha256
             artifacts/T042-upgrade-verification.json
             artifacts/T042-device-test-status.json
           retention-days: 14
