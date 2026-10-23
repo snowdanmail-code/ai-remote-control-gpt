@@ -1,5 +1,5 @@
 name: T042 protected Android 16 validation and compatible APK
-# Owner-authorized Code88 independent suit-corner reading pilot from six operator screenshots; manual dispatch remains supported.
+# Owner-authorized Code89 separate rank+suit+ink card assembly and partial UI pilot; manual dispatch remains supported.
 # Signing remains protected by the existing android-signing environment and legacy certificate.
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
     # The PUSH path is authorized ONLY for this exact update commit; edits to
     # the workflow later will not silently run a signing job.
     if: >-
-      ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true || (github.event_name == 'push' && github.event.head_commit.message == 'T042 signed code88 corner suits pilot') }}
+      ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true || (github.event_name == 'push' && github.event.head_commit.message == 'T042 signed code89 glyph chain pilot') }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
@@ -169,7 +169,7 @@ jobs:
         run: |
           python3 tools/prepare_t042_release.py
           git diff --check
-      - name: Stage explicitly experimental Samsung Code88 dual-reader suit corner fallback (runtime NOT_RUN)
+      - name: Stage explicitly experimental Samsung Code89 logical rank suit color chain (runtime NOT_RUN)
         if: ${{ inputs.samsung_prototype || github.event_name == 'push' }}
         shell: bash
         run: |
@@ -180,8 +180,8 @@ jobs:
           s = p.read_text()
           assert s.count('versionCode = 75') == 1
           assert s.count('versionName = "2.14.41-in-app-oauth-hardening"') == 1
-          s = s.replace('versionCode = 75', 'versionCode = 88', 1)
-          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-code88-corner-suit-reader"', 1)
+          s = s.replace('versionCode = 75', 'versionCode = 89', 1)
+          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-code89-glyph-chain"', 1)
           p.write_text(s)
           Path('artifacts/T042-device-test-status.json').write_text(json.dumps({
               'status': 'EXPERIMENTAL_DEVICE_TEST_CANDIDATE',
@@ -191,7 +191,7 @@ jobs:
               'independent_real_1win_provider': 'NOT_CONNECTED',
               'player_gestures_beyond_check': 'REQUIRE_TRUSTED_STATE_AND_DEVICE_VERIFICATION',
               'not_final_v2_14_42': True,
-              'reason': 'Owner authorized Code88 safe dual suit readers from verified card glyph masks and no auto-tap expansion'
+              'reason': 'Owner authorized Code89 rank plus suit plus color assembly with partial visual-only card glyphs; no auto-action expansion'
           }, indent=2) + '\n')
           PYCODE
           git diff --check
@@ -218,21 +218,21 @@ jobs:
           from pathlib import Path
           p = Path('artifacts/T042-upgrade-verification.json')
           v = json.loads(p.read_text())
-          assert v['version_code'] >= 88, 'Code87 previously distributed; refuse downgrade/equal update'
+          assert v['version_code'] >= 89, 'Code88 previously distributed; refuse downgrade/equal update'
           assert v['package'] == 'com.example.airemote.dev'
-          v['additional_verified_baseline_version_code'] = 87
+          v['additional_verified_baseline_version_code'] = 88
           p.write_text(json.dumps(v, indent=2) + '\n')
           PYCODE
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Corner-Suit-Reader-Code88.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Glyph-Chain-Code89.apk
           cd artifacts
-          sha256sum AI-Remote-Control-GPT-T042-Corner-Suit-Reader-Code88.apk > AI-Remote-Control-GPT-T042-Corner-Suit-Reader-Code88.apk.sha256
+          sha256sum AI-Remote-Control-GPT-T042-Glyph-Chain-Code89.apk > AI-Remote-Control-GPT-T042-Glyph-Chain-Code89.apk.sha256
       - name: Save candidate only after signature, package, version and integrity gates
         uses: actions/upload-artifact@v4
         with:
-          name: ai-remote-control-t042-corner-suit-code88
+          name: ai-remote-control-t042-glyph-chain-code89
           path: |
-            artifacts/AI-Remote-Control-GPT-T042-Corner-Suit-Reader-Code88.apk
-            artifacts/AI-Remote-Control-GPT-T042-Corner-Suit-Reader-Code88.apk.sha256
+            artifacts/AI-Remote-Control-GPT-T042-Glyph-Chain-Code89.apk
+            artifacts/AI-Remote-Control-GPT-T042-Glyph-Chain-Code89.apk.sha256
             artifacts/T042-upgrade-verification.json
             artifacts/T042-device-test-status.json
           retention-days: 14
