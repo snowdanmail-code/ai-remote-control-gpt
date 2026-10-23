@@ -11,8 +11,8 @@ class OwnerVerifiedCardRankFixtures(unittest.TestCase):
         self.assertEqual(len(entries),23)
         self.assertIn("Crop ONLY rank glyph",f)
         self.assertIn("card.height*305/1000",f)
-        self.assertIn("first.value<=0.15",f)
-        self.assertIn("runnerUp-first.value>=0.055",f)
+        self.assertIn("val maximumDistance = if (examplesOfRank == 1) 0.045 else 0.11",f)
+        self.assertIn("runnerUp-first.value>=minimumSeparation",f)
     def test_strictly_fail_on_disagreeing_readers(self):
         src=(SRC/"CardVisionCore.kt").read_text()
         self.assertIn("VerifiedCardRankSamples.classify(r, card)",src)
