@@ -56,6 +56,18 @@ object OnDeviceAutomaticOcr {
                     }) {
                         response.fold(onSuccess = { snapshot ->
                             val interpretation = FrameTextEvidence.parse(snapshot.lines)
+                             // If flop opened before asynchronous OCR finishes, discard the hint.
+                             val atCapture = frame.preflopRankHintAtCapture
+                             val currentHint = FrameStore.lastPreflopRankHint
+                             val samePreflop = atCapture?.allowed == true &&
+                                 currentHint?.allowed == true &&
+                                 atCapture.captureEpoch == ticket.captureEpoch &&
+                                 currentHint.captureEpoch == ticket.captureEpoch &&
+                                 currentHint.frameSequence >= atCapture.frameSequence
+                             val ranks = PreflopBottomRankText.parse(snapshot.lines, samePreflop)
+                             FrameStore.lastBottomRankHint =
+                                 if (ranks != null && atCapture != null)
+                                     atCapture.copy(bottomTextRanks=ranks) else null
                             // A stage hint must come from fresh cards in this capture epoch.
                             val cards = FrameStore.confirmedCards
                             val stageHint = if (cards != null &&

@@ -37,7 +37,8 @@ data class CardReading(
     val holeGlyphs: List<String> = emptyList(),
     val communityGlyphs: List<String> = emptyList(),
     val holeMinimumSimilarity: Double = 0.0,
-    val communityMinimumSimilarity: Double = 0.0
+    val communityMinimumSimilarity: Double = 0.0,
+    val miniRankHints: List<Char?> = emptyList()
 )
 
 data class VisionCardZones(

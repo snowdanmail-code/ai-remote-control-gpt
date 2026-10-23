@@ -9,7 +9,8 @@ data class FrameInfo(val jpeg: ByteArray, val seq: Long, val width: Int,
                      val windowGeneration: Long? = null,
                      /** In-memory player cards from the matching JPEG capture.
                       * Never a table/hand identity or gesture authorization. */
-                     val playerCardsAtCapture: StableCardReading? = null)
+                     val playerCardsAtCapture: StableCardReading? = null,
+                     val preflopRankHintAtCapture: PreflopRankHintSnapshot? = null)
 
 object CaptureOptions {
     /** On-device capture presets: 960, 1280, 1536px. */
@@ -77,6 +78,8 @@ object FrameStore {
     @Volatile var captureError: String = ""
     @Volatile var localFrameHealth: OnDeviceFrameHealth? = null
     @Volatile var lastCards: CardVisionSignal? = null
+    @Volatile var lastPreflopRankHint: PreflopRankHintSnapshot? = null
+    @Volatile var lastBottomRankHint: PreflopRankHintSnapshot? = null
     val cardConsensus = CardReadingConsistency()
     /** Strictly read-only: separate from cardConsensus and all hero observations. */
     val spectatorConsensus = SpectatorBoardConsensus()
@@ -103,6 +106,8 @@ object FrameStore {
         OnDeviceSeatVisualDiagnostics.reset()
         localFrameHealth = null
         lastCards = null
+        lastPreflopRankHint = null
+        lastBottomRankHint = null
         confirmedCards = null
         lastConfirmedForPreview = null
         cardConsensus.reset()
@@ -156,6 +161,8 @@ object FrameStore {
         OnDeviceSeatVisualDiagnostics.reset()
         localFrameHealth = null
         lastCards = null
+        lastPreflopRankHint = null
+        lastBottomRankHint = null
         confirmedCards = null
         lastConfirmedForPreview = null
         cardConsensus.reset()

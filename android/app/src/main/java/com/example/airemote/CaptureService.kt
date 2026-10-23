@@ -37,6 +37,7 @@ class CaptureService : Service() {
     private var lastEncode = 0L
     private var lastCardInspectionAt = 0L
     private var cardInspectionSeq = 0L
+    private val preflopRankGate = PreflopRankHintGate()
     private var windowFrameSeq = 0L
     private lateinit var windowTracker: WindowOriginTracker
     private fun windowStillMatches(origin: WindowOriginAssessment,
@@ -239,6 +240,12 @@ class CaptureService : Service() {
                                         cardInspectionSeq += 1L
                                         val signal = CardVisionSignal(now, captureEpoch, cardInspectionSeq, cards)
                                         FrameStore.lastCards = signal
+                                        val allowRankText = preflopRankGate.offer(
+                                            captureEpoch, cardInspectionSeq,
+                                            visual.visibleBoardSlots, visual.miniRanks, now)
+                                        FrameStore.lastPreflopRankHint =
+                                            PreflopRankHintSnapshot(captureEpoch,
+                                                cardInspectionSeq, now, allowRankText, visual.miniRanks)
                                         val stable = FrameStore.cardConsensus.accept(
                                             signal, SystemClock.elapsedRealtime())
                                         FrameStore.confirmedCards = stable
@@ -317,10 +324,15 @@ class CaptureService : Service() {
                                                     it.captureEpoch == captureEpoch &&
                                                         it.capturedAtMs in (now - 1_400L)..now
                                                 }
-                                            FrameStore.latest = FrameInfo(jpeg, seq, w, h,
-                                                CaptureOptions.qualities[profile], profile, now,
-                                                captureEpoch, origin.observedPackage,
-                                                origin.windowGeneration, sameRasterCards)
+                                            val atCaptureHint = FrameStore.lastPreflopRankHint?.takeIf {
+                                                 it.captureEpoch == captureEpoch &&
+                                                     now >= it.observedAtMs &&
+                                                     now - it.observedAtMs <= 1_400L
+                                             }
+                                             FrameStore.latest = FrameInfo(jpeg, seq, w, h,
+                                                 CaptureOptions.qualities[profile], profile, now,
+                                                 captureEpoch, origin.observedPackage,
+                                                 origin.windowGeneration, sameRasterCards, atCaptureHint)
                                             FrameStore.rememberOperatorPreview(requireNotNull(FrameStore.latest))
                                             FrameStore.captureError = ""
                                             FrameStore.localFrameHealth = frameHealth

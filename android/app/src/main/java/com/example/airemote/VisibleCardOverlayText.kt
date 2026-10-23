@@ -72,7 +72,14 @@ object VisibleCardOverlayText {
             stable.community == reading.community
 
         return VisibleCardOverlaySnapshot(
-            hero = show(reading.hole, "ИЩУ ДВЕ КАРТЫ", reading.holeGlyphs),
+            hero = show(reading.hole, "ИЩУ ДВЕ КАРТЫ", reading.holeGlyphs) +
+                reading.miniRankHints.takeIf { it.size == 2 && it.any { rank -> rank != null } }
+                    ?.let { "  |  МИНИ: " + it.joinToString(" ") { rank ->
+                        when (rank) {
+                            'A' -> "Т"; 'K' -> "К"; 'Q' -> "Д"; 'J' -> "В"
+                            'T' -> "10"; null -> "?"; else -> rank.toString()
+                        }
+                    } }.orEmpty(),
             board = show(reading.community, "ОБЩИЕ КАРТЫ НЕ НАЙДЕНЫ", reading.communityGlyphs),
             status = if (same) "СОВПАЛО НА 2 КАДРАХ" else "ПРЕДВАРИТЕЛЬНО · ПРОВЕРЬ",
             isConfirmed = same,

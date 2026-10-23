@@ -6,7 +6,11 @@ import android.graphics.Bitmap
  * No HTTP or LLM queries. A bounded pass over 540x1170 RGBA pixels, running
  * on the existing capture worker thread (never on the Android UI thread).
  */
-data class OnDeviceTableReading(val cards: CardReading, val turn: TurnVisualReading)
+data class OnDeviceTableReading(
+    val cards: CardReading, val turn: TurnVisualReading,
+    val miniRanks: List<Char?> = emptyList(),
+    val visibleBoardSlots: Int = 0
+)
 
 object OnDeviceCardReader {
     /** Preserve phone aspect ratio for the new centered-card detector. */
@@ -90,7 +94,11 @@ object OnDeviceCardReader {
                 (selected.hole.size != 2 || selected.hole.any { it == null })) {
                 selected.copy(holeGlyphs=SeparateHeroCardReader.preview(adaptiveRaster))
             } else selected
-            return OnDeviceTableReading(forScreen, TurnControlsVision.read(raster))
+            val minis = MiniHeroRankReader.read(adaptiveRaster)
+            return OnDeviceTableReading(forScreen.copy(miniRankHints=minis),
+                TurnControlsVision.read(raster), minis,
+                maxOf(original.community.size, centered.cards.size,
+                    adaptive?.community?.size ?: 0, separate?.community?.size ?: 0))
         } finally {
             if (scaled !== source) scaled.recycle()
         }

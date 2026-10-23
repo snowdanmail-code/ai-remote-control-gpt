@@ -52,6 +52,7 @@ com.example.airemote.VisibleCardOverlayScenarios
 com.example.airemote.OwnerVerifiedRankSamplesScenarios
 com.example.airemote.VerifiedCardCornerSuitScenarios
 com.example.airemote.CardGlyphChainScenarios
+com.example.airemote.PreflopRankHintsScenarios
 com.example.airemote.SignedPokerProviderScenarios
 com.example.airemote.ChatGptAuthScenarios
 com.example.airemote.ChatGptLoginPreflightScenarios

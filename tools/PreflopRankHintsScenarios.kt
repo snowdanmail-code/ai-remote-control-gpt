@@ -1,0 +1,43 @@
+package com.example.airemote
+
+/** Two explicit state constraints: mini-rank comparison and preflop-only bottom text. */
+object PreflopRankHintsScenarios {
+    @JvmStatic fun main(args:Array<String>) {
+        var n=0
+        fun t(ok:Boolean,reason:String){check(ok){reason};n++}
+        val gate=PreflopRankHintGate()
+        t(gate.offer(1,1,0,listOf('A','K'),1000),"first hand allows preflop")
+        t(gate.offer(1,2,0,listOf('A','K'),2400),"same preflop allows")
+        t(!gate.offer(1,3,3,listOf('A','K'),3800),"first three board cards lock")
+        t(!gate.offer(1,4,0,listOf('A','K'),5200),"board detection lapse NEVER unlocks")
+        t(!gate.offer(1,5,0,emptyList(),6600),"missing mini never unlocks")
+        t(!gate.offer(1,6,0,listOf('6','5'),8000),"one new mini image insufficient")
+        t(gate.offer(1,7,0,listOf('6','5'),9350),"two new mini images start next hand")
+        t(gate.offer(1,8,0,listOf('6','5'),10700),"new preflop remains open")
+        t(!gate.offer(1,9,4,listOf('6','5'),12000),"turn board locks")
+        t(!gate.offer(1,10,-1,listOf('3','4'),13400),"unknown board never permits hint")
+        t(!gate.offer(1,11,0,listOf('3','4'),14800),"first next hand sample not enough")
+        t(gate.offer(1,12,0,listOf('3','4'),16150),"second known new hand enables")
+        t(gate.offer(2,1,0,listOf('Q','J'),17000),"new capture epoch resets gate")
+        t(!gate.offer(-1,1,0,emptyList(),18000),"invalid capture rejected")
+
+        fun line(text:String,y:Int)=PositionedOcrLine(text,
+            NormalizedTextBox(280,y,760,y+24))
+        val before=listOf(line("Старшая рука: 10 4",918))
+        t(PreflopBottomRankText.parse(before,true)==listOf('T','4'),
+            "parse two ranks only in allowed phase")
+        t(PreflopBottomRankText.parse(before,false)==null,
+            "ignore identical text after flop")
+        t(PreflopBottomRankText.parse(listOf(line("Пара 9 с кикерами К Д 10",918)),true)==null,
+            "postflop combination text is not preflop hint")
+        t(PreflopBottomRankText.parse(listOf(line("Старшая рука: 10 4",110)),true)==null,
+            "wrong screen region ignored")
+        t(PreflopBottomRankText.parse(listOf(
+            line("Старшая рука: Т 4",918),line("Старшая рука: К 4",919)),true)==null,
+            "conflicting OCR text discarded")
+        t(MiniHeroRankReader.read(VisionRaster(540,1170,
+            IntArray(540*1170){0xff242424.toInt()})).isEmpty(),
+            "empty mini chip must not invent card ranks")
+        println("PreflopRankHintsScenarios: $n checks PASS")
+    }
+}
