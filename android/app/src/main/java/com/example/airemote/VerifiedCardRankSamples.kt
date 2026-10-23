@@ -121,8 +121,14 @@ T|000000380f003c3fc03c7fe03cf8f03cf0703cf0783ce0781ce0781ce0783ce0781cf0783ce078
         }.entries.sortedBy { it.value }
         val first=best.firstOrNull() ?:return null
         val runnerUp=best.getOrNull(1)?.value ?:1.0
-        // Refuse weak/ambiguous near-matches; this is not a calibrated probability.
-        return if(first.value<=0.15 && runnerUp-first.value>=0.055)
+        // Rare one-shot labels are highly prone to cross-font false positives.
+        // Only admit those when nearly identical to the owner's actual glyph.
+        // Unknown is preferable to falsely confident cards.
+        val examplesOfRank = templates.count { it.rank == first.key }
+        val maximumDistance = if (examplesOfRank == 1) 0.045 else 0.11
+        val minimumSeparation = if (examplesOfRank == 1) 0.09 else 0.075
+        return if(first.value<=maximumDistance &&
+            runnerUp-first.value>=minimumSeparation)
             RankCandidate(first.key,1.0-first.value) else null
     }
 }
