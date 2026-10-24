@@ -8,7 +8,8 @@ class CardGlyphChainWiring(unittest.TestCase):
         s=(P/"CardGlyphChain.kt").read_text()
         self.assertIn("val rank = CardVisionCore.classifyRank",s)
         self.assertIn("val suit = CardVisionCore.classifySuit",s)
-        self.assertIn("combine(rank, suit, inkRed(r, card))",s)
+        self.assertIn("val baseline = combine(rank, suit, ink)",s)
+        self.assertIn("val ink = inkRed(r, card)",s)
         self.assertIn("rawSuit in \"hd\"",s)
         self.assertIn("val code = if (r != null && s != null)",s)
     def test_all_readers_share_same_logic(self):
