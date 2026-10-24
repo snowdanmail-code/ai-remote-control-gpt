@@ -16,7 +16,7 @@ class RoundDigitsSafeHints(unittest.TestCase):
     def test_rank_only_suit_reader_unchanged(self):
         s=(CODE/"CardGlyphChain.kt").read_text()
         self.assertIn("RoundDigitTopology.hint(r, card)",s)
-        self.assertIn("rank?.rank in \"689\"",s)
+        self.assertIn("rank?.rank?.let { it in \"689\" } == true",s)
         self.assertIn("combine(null, suit, ink)",s)
         self.assertIn("return provisional.copy(preview=label)",s)
         self.assertNotIn("code=\"",s)
