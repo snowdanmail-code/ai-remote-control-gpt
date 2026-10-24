@@ -71,6 +71,25 @@ object CardGlyphChain {
     fun read(r: VisionRaster, card: VisionCardBox): CardGlyphReading {
         val rank = CardVisionCore.classifyRank(r, card)
         val suit = CardVisionCore.classifySuit(r, card)
-        return combine(rank, suit, inkRed(r, card))
+        val ink = inkRed(r, card)
+        val baseline = combine(rank, suit, ink)
+        // The visually similar 6, 8 and 9 are structurally distinguishable.
+        // This independent check is used ONLY as a provisional overlay label.
+        // It never manufactures a CardReading code for autonomous gameplay.
+        val topology = RoundDigitTopology.hint(r, card)
+        val conflict = rank?.rank in "689" && topology != null &&
+            rank?.rank != topology
+        val unknown = rank == null
+        if (!conflict && !unknown) return baseline
+        if (topology == null) return baseline
+        val provisional = combine(null, suit, ink)
+        if (provisional.suit == null) return baseline
+        val label = topology.toString() + " " +
+            (when (provisional.suit) {
+                'h' -> "♥"; 'd' -> "♦"; 's' -> "♠"; 'c' -> "♣"
+                else -> "?"
+            }) + "*"
+        // rank/code remain null; the trailing * flags an unverified hypothesis.
+        return provisional.copy(preview=label)
     }
 }

@@ -59,6 +59,9 @@ Q|00000000780001fe0003ff00078780070380070380070380070380070380070380070380070380
         }
     }
     val sampleCount: Int get() = templates.size
+    /** Only masks/labels for deterministic local topology regression tests. */
+    internal fun labeledRankMasks(): List<Pair<Char, IntArray>> =
+        templates.map { it.rank to it.mask.copyOf() }
     /** Self-check only; NOT independent field accuracy. */
     internal fun sampleSanityChecks(): Int = templates.count {
         classifyMask(it.mask)?.rank == it.rank
