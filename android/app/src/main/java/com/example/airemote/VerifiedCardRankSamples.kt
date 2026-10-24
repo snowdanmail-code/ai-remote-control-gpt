@@ -46,6 +46,8 @@ Q|000000001c00007f0001ff8001c3c00381c00380c00380c00380c00380c00380c00380c00380c0
 Q|00000000780001fe0003ff0007878007038007038007038007038007038007038007038007038007838007e38007fb80077f80073f80073f80079f8003ffe001ffe0007800000000
 # 2026-10-24 live 9-heart mask: rank only; no player data
 9|00000001ff0003ff8007c7800783c00783c00603c00600c00403c00603c00603c00787c00787c007ffc003ffc0007fc00003c0020780078f80078f8007ff0003fc00003800000000
+# 2026-10-25 owner screenshot: center-table three of hearts, rank glyph only
+3|00000007ffe00fffe00fffe00f0fc00e0f80061f00003e0000fe0000ff8000ffc00001e00000e00000f00000f00000f00000f00e00e00f01e007c7c003ff8001ff00007c00000000
     """.trimIndent()
 
     private val templates: List<Stored> by lazy {
@@ -167,6 +169,8 @@ Q|00000000780001fe0003ff00078780070380070380070380070380070380070380070380070380
         // multiple independently labeled examples in the source library.
         val minimumSeparation = when {
             examplesOfRank == 1 || first.key == '5' -> 0.09
+            first.key == '3' && examplesOfRank >= 3 &&
+                first.value <= 0.06 -> 0.055
             first.key == '9' && examplesOfRank >= 3 &&
                 first.value <= 0.09 -> 0.045
             else -> 0.075

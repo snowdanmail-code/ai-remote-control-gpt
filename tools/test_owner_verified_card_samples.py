@@ -8,7 +8,7 @@ class OwnerVerifiedCardRankFixtures(unittest.TestCase):
     def test_real_user_rank_masks_persist_in_runtime_code(self):
         f=(SRC/"VerifiedCardRankSamples.kt").read_text()
         entries=re.findall(r"^\s*[2-9TJQKA]\|[0-9a-f]{144}$",f,re.M)
-        self.assertEqual(len(entries),29)
+        self.assertEqual(len(entries),30)
         self.assertIn("Crop ONLY rank glyph",f)
         self.assertIn("card.height*305/1000",f)
         self.assertIn("first.key == '5'",f)
