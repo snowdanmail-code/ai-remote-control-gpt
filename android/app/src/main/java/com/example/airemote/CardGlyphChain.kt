@@ -77,8 +77,8 @@ object CardGlyphChain {
         // This independent check is used ONLY as a provisional overlay label.
         // It never manufactures a CardReading code for autonomous gameplay.
         val topology = RoundDigitTopology.hint(r, card)
-        val conflict = rank?.rank in "689" && topology != null &&
-            rank?.rank != topology
+        val conflict = rank?.rank?.let { it in "689" } == true &&
+            topology != null && rank.rank != topology
         val unknown = rank == null
         if (!conflict && !unknown) return baseline
         if (topology == null) return baseline
