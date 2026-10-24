@@ -7,7 +7,7 @@ import kotlin.math.roundToInt
 /**
  * User-verified glyph samples extracted from cropped 1win cards in 10 real
  * 709x1536 owner screenshots. No names, avatars, balances or screenshots
- * retained in the runtime database. 29 labeled card instances, 28 distinct
+ * retained in the runtime database. 30 labeled card instances, 29 distinct
  * glyph masks. Layout normalized to 540x1170 Android detection raster.
  * This does not train a neural network or independently prove correct cards.
  */
@@ -44,6 +44,8 @@ Q|000000001c00007f0001ff8001c3c00381c00380c00380c00380c00380c00380c00380c00380c0
 3|00000007ffc007ffe007ffe00707c0061f00003e00003e00007e0000ff0000ffc00003c00000e00000e00000e00000e00600e00701e00701e00783c003ff8001ff00007c00000000
 5|00000003ff0003ff8007ff8007800007000007fe0007fe0007ff8003ffc00101c00001e00000e00000e00000e00000e00200e00701c00701c00783c003ff8001ff00007c00000000
 Q|00000000780001fe0003ff0007878007038007038007038007038007038007038007038007038007838007e38007fb80077f80073f80073f80079f8003ffe001ffe0007800000000
+# 2026-10-24 live 9-heart mask: rank only; no player data
+9|00000001ff0003ff8007c7800783c00783c00603c00600c00403c00603c00603c00787c00787c007ffc003ffc0007fc00003c0020780078f80078f8007ff0003fc00003800000000
     """.trimIndent()
 
     private val templates: List<Stored> by lazy {

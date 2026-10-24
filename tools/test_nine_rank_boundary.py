@@ -1,30 +1,28 @@
 import pathlib
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SRC=ROOT/"android/app/src/main/java/com/example/airemote"
+SRC = ROOT / "android/app/src/main/java/com/example/airemote"
 
-class NineRankRescueContract(unittest.TestCase):
-    def test_fallback_runs_only_after_ordinary_rank_readers_fail(self):
-        f=(SRC/"CardVisionCore.kt").read_text()
-        self.assertIn("legacy != null && verified != null && legacy.rank != verified.rank -> null",f)
-        self.assertIn("verified != null -> verified",f)
-        self.assertIn("else -> VerifiedCardRankSamples.recoverTrimmedNine(r, card)",f)
-    def test_no_new_suit_or_cross_rank_relaxation(self):
-        s=(SRC/"VerifiedCardRankSamples.kt").read_text()
-        self.assertIn("val nines = candidates.filter { it.rank == '9' }",s)
-        self.assertIn("if (nines.size < 2 || candidates.any { it.rank != '9' })",s)
-        self.assertIn("card.left - shift",s)
-        self.assertIn("(1..4)",s)
-        self.assertIn("first.key == '5'",s)
-        c=(SRC/"CardVisionCore.kt").read_text()
-        self.assertIn("first.second >= 0.78",c)
-        self.assertIn("winner.value >= 0.78",c)
-    def test_replay_mask_exists_in_real_jvm_runner(self):
-        suite=(ROOT/"tools/NineRankBoundaryScenarios.kt").read_text()
-        self.assertIn("CardVisionCore.classifyRank(raster, shifted)",suite)
+class NineRankRegression(unittest.TestCase):
+    def test_real_nine_mask_and_strict_margin(self):
+        f=(SRC/"VerifiedCardRankSamples.kt").read_text()
+        samples=[x for x in f.splitlines() if x.startswith("9|") and len(x)==146]
+        self.assertGreaterEqual(len(samples),4)
+        test=(ROOT/"tools/NineRankBoundaryScenarios.kt").read_text()
+        self.assertIn("00000001ff0003ff8007c780",test)
+        self.assertIn("VerifiedCardRankSamples.classifyMask(rows)?.rank == '9'",test)
+        self.assertIn("VerifiedCardRankSamples.sampleSanityChecks()",test)
+        self.assertIn("runnerUp-first.value>=minimumSeparation",f)
+    def test_unrelated_recognizers_not_relaxed(self):
+        s=(SRC/"CardVisionCore.kt").read_text()
+        self.assertIn("first.second >= 0.78",s)
+        self.assertIn("first.second - second >= 0.045",s)
+        self.assertIn("legacy.rank != verified.rank -> null",s)
+        self.assertIn("winner.value >= 0.78",s)
+    def test_real_jvm_suite_executes_regression(self):
         runner=(ROOT/"tools/run_jvm_tests.sh").read_text()
         self.assertIn("com.example.airemote.NineRankBoundaryScenarios",runner)
 
-if __name__=="__main__":
-    unittest.main()
+if __name__=="__main__": unittest.main()
