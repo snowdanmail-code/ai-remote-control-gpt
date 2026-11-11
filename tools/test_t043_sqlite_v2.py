@@ -152,6 +152,17 @@ class T043SqliteV2Tests(unittest.TestCase):
             path = os.path.join(td,"hand_learning_v1.db")
             old = open_db(path,version=1)
             old.execute("INSERT INTO completed_hands VALUES(?,?,?,?,?)",("tab","h",7,99,12.5))
+            old.execute("INSERT INTO opponents VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                        ("p",1,1,2,0,2,3,4,1,2,5,6))
+            old.execute("INSERT INTO hand_hero_actions VALUES(?,?,?,?,?,?,?)",
+                        ("tab","h","a1","FLOP","CALL",44,12.75))
+            old.execute("INSERT INTO hand_opponent_facts VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                        ("tab","h","p",1,0,2,3,1,0,1,0))
+            names=["completed_hands","opponents","hand_hero_actions","hand_opponent_facts"]
+            before={name:old.execute(f"SELECT * FROM {name}").fetchall() for name in names}
+            cols={name:old.execute(f"PRAGMA table_info({name})").fetchall() for name in names}
+            ddl={name:old.execute("SELECT sql FROM sqlite_master WHERE name=?",(name,)).fetchone()[0]
+                 for name in names}
             old.close()
             db=sqlite3.connect(path,isolation_level=None)
             db.execute("PRAGMA foreign_keys=ON")
@@ -160,8 +171,13 @@ class T043SqliteV2Tests(unittest.TestCase):
             db.execute("PRAGMA user_version=2")
             db.execute("COMMIT")
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0],2)
-            self.assertEqual(db.execute("SELECT * FROM completed_hands").fetchone(),
-                             ("tab","h",7,99,12.5))
+            for name in names:
+                self.assertEqual(db.execute(f"SELECT * FROM {name}").fetchall(),before[name],name)
+                self.assertEqual(db.execute(f"PRAGMA table_info({name})").fetchall(),cols[name],name)
+                self.assertEqual(db.execute("SELECT sql FROM sqlite_master WHERE name=?",(name,)).fetchone()[0],
+                                 ddl[name],name)
+            self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0],"ok")
+            self.assertEqual(db.execute("PRAGMA foreign_key_check").fetchall(),[])
             db.close()
 
     def test_02_fresh_db_has_15_tables(self):
