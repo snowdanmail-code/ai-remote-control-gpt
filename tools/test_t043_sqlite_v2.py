@@ -280,7 +280,7 @@ class T043SqliteV2Tests(unittest.TestCase):
     def test_20_all_composite_fk_parents_unique(self):
         keys=self.db.execute("PRAGMA foreign_key_check").fetchall()
         self.assertEqual(keys,[])
-        self.assertIn("UNIQUE(hand_record_id,ruleset_id)",
+        self.assertIn("unique(hand_record_id,ruleset_id)",
                       "".join(NEW_DDL).replace(" ","").lower())
 
     def test_21_failed_migration_is_atomic(self):
