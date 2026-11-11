@@ -118,6 +118,9 @@ class CanonicalPokerModelTest {
         catch (_: IllegalArgumentException) { }
         try { base.copy(sourceEvidence = PokerEvidence.SOURCE_VERIFIED); fail("untrusted proof") }
         catch (_: IllegalArgumentException) { }
+        try { base.copy(heroNetChips = 150L, resultEvidence = PokerEvidence.OCR_ONLY);
+            fail("OCR-only payout was accepted") }
+        catch (_: IllegalArgumentException) { }
     }
     @Test fun verifiedHandAllowsEarlyFoldAndUnknownResult() {
         val base = VerifiedPokerHandRecord(observation(2).copy(street = PokerStreet.PREFLOP),
