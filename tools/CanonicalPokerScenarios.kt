@@ -65,7 +65,8 @@ object CanonicalPokerScenarios {
             "unknown stays unknown")
         checkThat(uncertain.positions().size == 6, "position independent of action status")
         try {
-            CanonicalPokerObservation(PokerSourceIdentity("fixture"), "bad", 10)
+            CanonicalPokerObservation(PokerSourceIdentity("fixture"), "bad", 10,
+                rulesetId = PokerRulesets.STANDARD52_NO_LIMIT_V1)
             error("invalid capacity accepted")
         } catch (_: IllegalArgumentException) { passed++ }
         try {
