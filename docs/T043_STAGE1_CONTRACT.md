@@ -27,15 +27,15 @@ migration, Trainer, action dispatch, or APK are supplied in Stage 1.
 - `source.namespace`, `source.tableId`, `source.sessionId`, `source.handId`;
   `observationId`, optional capture timestamp; 2–9 `tableCapacity`.
 - `seats` (observed seated participants; incomplete tables remain partial),
-  `seatIndex` in `[0, tableCapacity)`, `dealtIn` and `activeInHand` tri-state,
+  `seatIndex` in `[0, tableCapacity)`, explicit `seatingComplete`, `dealtIn` and `activeInHand` tri-state,
   optional `participantId`, nickname, identity evidence, integer stack,
   hole cards. Nickname cannot serve as profile key.
 - Optional `buttonSeat`, `heroSeat`, current `street`, known board cards,
   optional pot, chronological `actions` (`sequence`, actor seat, street, kind,
   reported amount, evidence), observation evidence.
-- `knownActiveCount()` returns null if any observed player has unknown active
+- `knownActiveCount()` returns null if the seat manifest is incomplete or any player has unknown active
   state. `positions()` is empty if button or dealt-in membership is unknown.
-  Otherwise it orders dealt-in seats clockwise from button and assigns
+  Otherwise, only with `seatingComplete=true`, it orders dealt-in seats clockwise from button and assigns
   heads-up BUTTON_SMALL_BLIND/BB, and 3–9-handed named positions; folded
   players retain their start-of-hand position. If the provider's seat indexing
   is not clockwise, its adapter must normalize seat numbering first.
