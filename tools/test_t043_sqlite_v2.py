@@ -486,14 +486,28 @@ class T043SqliteV2Tests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("DELETE FROM t043_sync_outbox")
 
-    def test_52_nonzero_initial_checkpoint_denied(self):
+    def test_52_untrusted_checkpoint_rejected_and_fixture_restore_reserved(self):
+        # Production creates streams with implicit checkpoint 0; a caller cannot
+        # claim nonzero without at least an explicit proof reference.
         with self.assertRaises(sqlite3.IntegrityError):
             insert(self.db,"t043_sync_cursors",dict(sender_id="A",recipient_id="B",
                   stream_id="hands",direction="INBOUND",initial_checkpoint_no=100,
-                  initial_checkpoint_proof_ref="unauthenticated",updated_at_ms=123))
+                  updated_at_ms=123))
         cursor(self.db)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE t043_sync_cursors SET initial_checkpoint_no=100")
+        # A labeled synthetic fixture exercises the future trusted-restore
+        # representation. Production has no API to create such a checkpoint
+        # until a proof verifier is separately implemented.
+        insert(self.db,"t043_sync_cursors",dict(
+            sender_id="fixture",recipient_id="B",stream_id="restored",direction="INBOUND",
+            initial_checkpoint_no=100,
+            initial_checkpoint_proof_ref="verified-fixture-not-production",
+            last_contiguous_no=100,max_seen_no=100,updated_at_ms=123))
+        self.assertEqual(self.db.execute("SELECT initial_checkpoint_no FROM t043_sync_cursors WHERE sender_id='fixture'").fetchone()[0],100)
+        store = (MAIN / "T043CanonicalSqliteStore.kt").read_text()
+        self.assertNotIn('put("initial_checkpoint_no"',store)
+        self.assertNotIn('initial_checkpoint_proof_ref',store)
 
 
 if __name__ == "__main__":
