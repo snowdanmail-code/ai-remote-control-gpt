@@ -217,8 +217,8 @@ class CanonicalPokerModelTest {
             old.copy(observationId = "next-snapshot", capturedAtMs = 333)))
         assertEquals(old.actions.map { it.eventId }, replay.actions.map { it.eventId })
         assertEquals(PokerImportStatus.DUPLICATE, PokerCanonicalImport.event(old, replay, "action-0"))
-        assertEquals(PokerImportStatus.NEW, PokerCanonicalImport.event(old, replay,
-            "no-such-event").let { if (it == PokerImportStatus.UNIDENTIFIABLE) PokerImportStatus.NEW else it })
+        assertEquals(PokerImportStatus.UNIDENTIFIABLE, PokerCanonicalImport.event(old, replay,
+            "no-such-event"))
         assertEquals(PokerImportStatus.CONFLICT, PokerCanonicalImport.event(old,
             replay.copy(actions = replay.actions.map {
                 if (it.eventId == "action-0") it.copy(amountChips = 444) else it
