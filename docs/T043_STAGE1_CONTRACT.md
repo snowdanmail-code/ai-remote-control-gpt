@@ -1,90 +1,150 @@
-# T043, Stage 1 — Canonical Texas Hold'em v1
+# T043, Stage 1 — Canonical Texas Hold'em v1.0 (rework contract)
 
-Scope: passive, platform-independent data contracts only. No live app adapters,
-provider authentication, real-event generation, networking, persistent schema
-migration, Trainer, action dispatch, or APK are supplied in Stage 1.
+Scope: passive data contracts, synthetic sources and tests only. No production
+source adapters, real action execution, authentication provider, SQLite/FTP,
+Trainer, migration, or APK are added by this stage.
 
-## Versioning and encoding
+## Format version and compatibility
 
-- Root `recordType`: `observation` or `verifiedHand`.
-- `schemaMajor=1`, `schemaMinor=0`. Readers accept `major=1` and nonnegative
-  future minor revisions; they discard unknown JSON fields and parse unknown
-  enum strings as `UNKNOWN`. They reject unknown major revisions, invalid
-  card names, duplicate cards/seats/verified identities, and invalid table sizes.
-- JSON encoding lives in `CanonicalPokerJson.kt` using Android `org.json`.
-  Pure Kotlin contract (`CanonicalPokerModel.kt`) does not depend on Android,
-  screen coordinates, an OCR implementation, or other project components.
-- Serialization is semantic (round-trip objects); key order is not a wire
-  guarantee. Future minor producers MUST NOT redefine old field semantics.
-- Currency amounts are nonnegative integer chip units. No float conversion;
-  for fractional chip currencies a later version must introduce a denomination
-  or integer subunit explicitly rather than silently rounding.
+- Root `recordType` = `observation` or `verifiedHand`.
+- `schemaMajor=1`, `schemaMinor=0` is the **first accepted wire contract**.
+  Earlier PR #5 drafts before approval were experimental and are not supported
+  input records. Their missing `rulesetId` / `eventId` / `handRecordId`
+  MUST NOT be silently reconstructed or assigned synthetic IDs.
+- Unknown major or negative minor => reject. Future `major=1,minor>0` can be
+  parsed as **display/diagnostic data only**, discarding unknown optional JSON
+  fields and mapping unknown enums to `UNKNOWN`. Re-encoding keeps the minor
+  value, but may not preserve fields unknown to this reader. This is not a
+  lossless forwarding codec.
+- Trust-bearing operations **fail closed** for an unsupported minor version:
+  `PokerHandVerificationGate.verify` returns `UNSUPPORTED_SCHEMA` if the
+  record OR nested terminal observation minor is not exactly 0. A future-minor
+  observation cannot yield a `stableParticipantKey` for learning.
+- Minor revisions must not redefine any known field, remove a mandatory ID,
+  or silently make a security-relevant field optional. Future critical changes
+  need an explicitly implemented reader and new verification policy/version.
+- JSON key order is unspecified; semantic round-trips are covered by tests.
+  `CanonicalPokerJson.kt` alone imports Android `org.json`. Models, IDs,
+  policy/verification interfaces and import classification are pure Kotlin.
 
-## Observation
+## Mandatory rulesetId
 
-`CanonicalPokerObservation` contains:
+- Every new `CanonicalPokerObservation` requires nonempty `rulesetId`,
+  which is also copied into every `VerifiedPokerHandRecord` envelope.
+  Root and nested values MUST match; mismatches are rejected on decode.
+- Identifier syntax: `holdem.<deck>.<betting>.v<positive-integer>`, lowercase
+  ASCII, length <= 128. Versions start at 1; no spaces or display nicknames.
+- Explicit verification allowlist (no guessing from app/title/button layout):
+  - `holdem.standard52.no-limit.v1`
+  - `holdem.standard52.pot-limit.v1`
+  - `holdem.standard52.fixed-limit.v1`
+- Syntactically valid unknown variants are accepted as **observations** but
+  return `UNSUPPORTED_RULESET` from the verification gate. Adding a new
+  verified variant requires review and registry/policy changes.
+- For learning, `rulesetId` is a required dataset partition. A stable opponent
+  profile key includes ruleset ID; the same real hand ID replayed with a
+  different ruleset is `CONFLICT`, not `DUPLICATE`. A training consumer must
+  separately check the verification result and supported ruleset; an
+  unverified/unknown ruleset is not eligible for training.
 
-- `source.namespace`, `source.tableId`, `source.sessionId`, `source.handId`;
-  `observationId`, optional capture timestamp; 2–9 `tableCapacity`.
-- `seats` (observed seated participants; incomplete tables remain partial),
-  `seatIndex` in `[0, tableCapacity)`, explicit `seatingComplete`, `dealtIn` and `activeInHand` tri-state,
-  optional `participantId`, nickname, identity evidence, integer stack,
-  hole cards. Nickname cannot serve as profile key.
-- Optional `buttonSeat`, `heroSeat`, current `street`, known board cards,
-  optional pot, chronological `actions` (`sequence`, actor seat, street, kind,
-  reported amount, evidence), observation evidence.
-- `knownActiveCount()` returns null if the seat manifest is incomplete or any player has unknown active
-  state. `positions()` is empty if button or dealt-in membership is unknown.
-  Otherwise, only with `seatingComplete=true`, it orders dealt-in seats clockwise from button and assigns
-  heads-up BUTTON_SMALL_BLIND/BB, and 3–9-handed named positions; folded
-  players retain their start-of-hand position. If the provider's seat indexing
-  is not clockwise, its adapter must normalize seat numbering first.
-- Known card values use `rank` in 2–9/T/J/Q/K/A and `suit` in C/D/H/S.
-  `null` means unobserved; an empty collection means a known empty collection.
+## Separate identities
 
-## Source identity and confidence
+- `observationId`: a source-assigned stable identifier for one logical
+  **snapshot**. Replaying its bytes must not generate a fresh ID; later distinct
+  snapshots get different observation IDs even if they show the same action.
+- `eventId`: a source-assigned stable identifier for one **game action/event**.
+  Mandatory for each `CanonicalPokerAction`; unique within an observation
+  representing one hand. A new snapshot of the same action preserves its ID
+  even if local frame/timestamp or observation ID changes. Neither the action
+  `sequence` nor its screen frame is a valid substitute.
+- `source.handId`: a stable source-authoritative hand identity, not a screen
+  counter. With `namespace+sessionId+tableId+handId`, it yields the stable
+  `handRecordId` for a completed-hand receipt. Verified record construction
+  refuses incomplete identity. JSON persists `handRecordId` explicitly and
+  rejects mismatch with the nested source scope.
+- `source.namespace` identifies provider + tenant/instance and must not be
+  a nickname. `stableParticipantKey` requires a verified participant ID and
+  stable session, is scoped by namespace + ruleset + session + player ID, and
+  does not equate users by matching nicknames.
+- `PokerCanonicalIdentity` computes:
+  - observation key: `observation:namespace/session/table/observationId`
+  - event key: `event:namespace/session/table/handId/eventId`
+  - hand key: `hand:namespace/session/table/handId`.
+  Every component is UTF-8 byte-length-prefixed. Namespaces and keys are not
+  inferred from screen coordinates or display names. Missing scope => null
+  observation/event/hand key, hence `UNIDENTIFIABLE` for import where relevant.
+- Stable keys are deterministic from immutable source identifiers across
+  serialization, replay and process restart; the contract NEVER uses
+  `hashCode`, system timestamps, random values, or memory-only counters.
+  Sources must persist their own logical IDs across restarts. Determinism
+  does not cryptographically authenticate a source.
 
-- `source.namespace` MUST identify a distinct upstream application/provider
-  and instance/tenant; collision handling belongs to the registering host.
-- `stableParticipantKey(seatIndex)` only exists with verified participant ID,
-  source namespace and stable session ID. It is length-prefixed and session
-  scoped. Same nickname on unrelated apps/sessions NEVER creates shared IDs.
-  This is a structural rule, not cryptographic authentication.
-- Evidence: `UNKNOWN`, `OCR_ONLY`, `CORROBORATED`, `SOURCE_VERIFIED`,
-  `INDEPENDENT`. Enums never promote unrecognized values to trusted.
-  OCR must not be passed as independently verified settlement evidence.
+## Observation and action details
 
-## Verified hand
+- `tableCapacity` supports 2–9 seats; seats carry optional participant IDs,
+  nickname, dealt-in/active tri-state, stack and up to two hole cards.
+- `seatingComplete` determines whether active counts and positions may be
+  inferred; unknown => no inference. Dealer/button positions wrap clockwise,
+  including special heads-up BUTTON_SMALL_BLIND vs BIG_BLIND.
+- Optional stage, board cards, pot and ordered action history. An action has
+  `eventId`, `sequence`, actor seat, street, kind, integer chips and
+  `PokerEvidence`. Actions cannot duplicate `eventId` in one observation,
+  reuse a sequence or carry negative amounts. Unknown values stay unknown.
+- Integer chip amounts are not floats. Fractional currencies require an
+  explicitly versioned subunit. A reported raise amount's meaning must be
+  verified by its adapter; no inferred bet mechanics are introduced.
+- Known cards use ranks 2–9/T/J/Q/K/A and suits C/D/H/S, with duplicate known
+  cards rejected. `null` denotes unknown; empty list denotes a known empty list.
 
-`VerifiedPokerHandRecord` contains a terminal observation, nonblank external
-source/hand-ID/terminal proof references, independent evidence grades for each,
-and an optional hero-net outcome. A non-null net result requires independent
-result evidence; OCR or inferred payout cannot be labeled verified. Hand
-termination can happen on any street.
-Only a caller with external independent verification may populate proof fields.
-The data class itself cannot validate external signatures and **must not** be
-used as a substitute for `VerifiedHandCompletionGate` in T042.
+## Verification: claims versus proof
 
-## Adapter interface
+- `PokerEvidence.INDEPENDENT` and nonblank `sourceProofRef`,
+  `handIdentityProofRef` and `terminalProofRef` are **claims**, NOT proof.
+  Merely creating or decoding a class named `VerifiedPokerHandRecord`
+  **does not certify** any result. The record is an untrusted wire envelope.
+- New `verificationPolicyId` is mandatory on JSON verified-hand records.
+  The only policy currently supported for verification is
+  `independent-full-record.v1`; any other policy => `UNSUPPORTED_POLICY`.
+- `PokerHandVerificationGate.verify(candidate, verifier)` returns
+  `MISSING_VERIFIER` without a trusted host-injected
+  `PokerHandProofVerifier`. The verifier MUST authenticate the **whole**
+  candidate, binding namespace, ruleset, table/session/hand, events, result,
+  proof references and field values. It must reject manipulated data.
+  Verification callback failure/exception => `PROOF_REJECTED`.
+- Even an accepting verifier cannot override `UNSUPPORTED_SCHEMA`,
+  `UNSUPPORTED_RULESET`, or `UNSUPPORTED_POLICY`.
+- A non-null hero-net outcome requires `resultEvidence=INDEPENDENT` in
+  addition to external full-record verification. No OCR or disappearing
+  cards may certify a settlement. No external provider is implemented here.
+- Neither this model nor the new proof gate replaces T042's
+  `VerifiedHandCompletionGate` or grants an action/learning permission.
 
-`PokerSourceAdapter<T>.normalize(event)` returns `CanonicalPokerObservation`.
-`PokerSourceAdapterBoundary.normalize` rejects cross-namespace results. No
-coordinates, pixels, colors, application-specific strings or real provider
-code exist in the common contract. Two pure synthetic fixtures (Alpha map
-and Beta typed event) demonstrate adapter independence.
+## Replay and import contract (no storage introduced)
 
-## Compatibility with T042
+`PokerCanonicalImport` is stateless and returns `NEW`, `DUPLICATE`,
+`CONFLICT` or `UNIDENTIFIABLE` when relevant:
 
-Existing `VerifiedFinishedHand`, `PostHandLearner`, `AndroidHandLearningStore`,
-`VerifiedHandCompletionGate`, `ChatGptCloudBridge`, OCR, STOP, UI and action
-runtime remain untouched. No automatic bridge connects canonical records to
-live proof/decision/learning/storage; any migration or bridge requires a later
-review. The test runner adds one isolated Kotlin scenario only.
+- Observation with the same stable observation key and identical decoded
+  data: `DUPLICATE`; same key with different facts: `CONFLICT`.
+- Event with the same stable event key and identical action + ruleset:
+  `DUPLICATE`; same key with changed amount, kind or ruleset:
+  `CONFLICT`. Different hand scope is a different event.
+- Verified hand with same `handRecordId` and identical decoded record:
+  `DUPLICATE`; reused ID with changed ruleset, settlement or proof:
+  `CONFLICT`. No implicit merge of conflicting training records.
+- The caller supplies the previously persisted record after a restart.
+  This layer does not persist anything; a future storage/sync engine must
+  implement an atomic key lookup and persist only records independently
+  verified under a supported policy and ruleset.
 
-## Required verification
+## Compatibility and test boundaries
 
-`tools/test_canonical_poker_contract.py` (static contract guards),
-`tools/CanonicalPokerScenarios.kt` (two fixture adapters, every table size
-2–9, positions, identity isolation), and
-`android/app/src/test/java/com/example/airemote/CanonicalPokerModelTest.kt`
-(JSON round trip, fields/versions, unknowns, verification guards).
+- Only Stage 1 files and tests are modified. Existing `VerifiedFinishedHand`,
+  `PostHandLearner`, `AndroidHandLearningStore`, `VerifiedHandCompletionGate`,
+  `ChatGptCloudBridge`, OCR/overlays, STOP and protected action runtime remain
+  unchanged and not connected to canonical import.
+- Two synthetic `PokerSourceAdapter<T>` implementations normalize different
+  test inputs without connecting to any third-party poker app.
+- Coverage: Python source isolation, pure JVM synthetic scenarios for 2–9
+  seats and replay, Android JVM unit tests for JSON, missing fields, mixed
+  rules, stable keys, tampering, versions, and unsupported policies.
