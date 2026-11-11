@@ -58,7 +58,9 @@ migration, Trainer, action dispatch, or APK are supplied in Stage 1.
 
 `VerifiedPokerHandRecord` contains a terminal observation, nonblank external
 source/hand-ID/terminal proof references, independent evidence grades for each,
-and an optional hero-net outcome. Hand termination can happen on any street.
+and an optional hero-net outcome. A non-null net result requires independent
+result evidence; OCR or inferred payout cannot be labeled verified. Hand
+termination can happen on any street.
 Only a caller with external independent verification may populate proof fields.
 The data class itself cannot validate external signatures and **must not** be
 used as a substitute for `VerifiedHandCompletionGate` in T042.
