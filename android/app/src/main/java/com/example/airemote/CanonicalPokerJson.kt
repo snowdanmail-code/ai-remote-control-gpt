@@ -5,6 +5,11 @@ import org.json.JSONObject
 
 /** Android's org.json is used only at the data boundary, not by pure Kotlin model objects. */
 object CanonicalPokerJson {
+    private fun JSONObject.requiredString(key: String): String {
+        val value = get(key)
+        require(value is String) { "Expected string at $key" }
+        return value
+    }
     private fun JSONObject.stringOrNull(key: String): String? =
         if (!has(key) || isNull(key)) null else getString(key)
     private fun JSONObject.intOrNull(key: String): Int? =
@@ -41,13 +46,14 @@ object CanonicalPokerJson {
                 .putNullable("stackChips", s.stackChips).put("holeCards", cards(s.holeCards)))
         } }
         val actions = JSONArray().apply { o.actions.forEach { a ->
-            put(JSONObject().put("sequence", a.sequence).put("street", a.street.name)
+            put(JSONObject().put("sequence", a.sequence).put("eventId", a.eventId)
+                .put("street", a.street.name)
                 .putNullable("actorSeat", a.actorSeat).put("kind", a.kind.name)
                 .putNullable("amountChips", a.amountChips).put("evidence", a.evidence.name))
         } }
         return JSONObject().put("recordType", "observation").put("schemaMajor", o.schemaMajor)
             .put("schemaMinor", o.schemaMinor).put("source", source).put("observationId", o.observationId)
-            .put("tableCapacity", o.tableCapacity).put("seats", seats)
+            .put("tableCapacity", o.tableCapacity).put("rulesetId", o.rulesetId).put("seats", seats)
             .put("seatingComplete", o.seatingComplete)
             .putNullable("capturedAtMs", o.capturedAtMs).putNullable("buttonSeat", o.buttonSeat)
             .putNullable("heroSeat", o.heroSeat).put("street", o.street.name)
@@ -74,6 +80,7 @@ object CanonicalPokerJson {
         val actions = j.getJSONArray("actions").items().map { a ->
             CanonicalPokerAction(
                 sequence = a.getLong("sequence"), street = street(a.stringOrNull("street")),
+                eventId = a.requiredString("eventId"),
                 actorSeat = a.intOrNull("actorSeat"), kind = actionKind(a.stringOrNull("kind")),
                 amountChips = a.longOrNull("amountChips"), evidence = evidence(a.stringOrNull("evidence"))
             )
@@ -81,7 +88,8 @@ object CanonicalPokerJson {
         return CanonicalPokerObservation(
             source = PokerSourceIdentity(src.getString("namespace"), src.stringOrNull("tableId"),
                 src.stringOrNull("sessionId"), src.stringOrNull("handId")),
-            observationId = j.getString("observationId"), tableCapacity = j.getInt("tableCapacity"),
+            observationId = j.requiredString("observationId"), tableCapacity = j.getInt("tableCapacity"),
+            rulesetId = j.requiredString("rulesetId"),
             seats = seats, seatingComplete = j.boolOrNull("seatingComplete") == true,
             schemaMajor = major, schemaMinor = minor,
             capturedAtMs = j.longOrNull("capturedAtMs"), buttonSeat = j.intOrNull("buttonSeat"),
@@ -95,6 +103,8 @@ object CanonicalPokerJson {
         JSONObject().put("recordType", "verifiedHand").put("schemaMajor", record.schemaMajor)
             .put("schemaMinor", record.schemaMinor)
             .put("terminalObservation", observationObject(record.terminalObservation))
+            .put("rulesetId", record.rulesetId).put("handRecordId", record.handRecordId)
+            .put("verificationPolicyId", record.verificationPolicyId)
             .put("sourceProofRef", record.sourceProofRef).put("handIdentityProofRef", record.handIdentityProofRef)
             .put("terminalProofRef", record.terminalProofRef)
             .put("sourceEvidence", record.sourceEvidence.name)
@@ -119,7 +129,10 @@ object CanonicalPokerJson {
             terminalEvidence = evidence(j.stringOrNull("terminalEvidence")),
             heroNetChips = j.longOrNull("heroNetChips"),
             resultEvidence = evidence(j.stringOrNull("resultEvidence")),
-            schemaMajor = major, schemaMinor = minor
+            schemaMajor = major, schemaMinor = minor,
+            rulesetId = j.requiredString("rulesetId"),
+            handRecordId = j.requiredString("handRecordId"),
+            verificationPolicyId = j.requiredString("verificationPolicyId")
         )
     }
 }
