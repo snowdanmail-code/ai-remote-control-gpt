@@ -196,11 +196,20 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
                             put("event_id",action.eventId)
                             put("seq",action.sequence)
                             put("evidence_level","INDEPENDENT")
-                            // Stable value-format: hash is only an integrity aid, not a trust decision.
-                            val actionJson = "{\"eventId\":\"" + action.eventId + "\",\"seq\":" + action.sequence + "}"
+                            // Preserve the normalized event, not merely its identity.
+                            val actionJson = org.json.JSONObject()
+                                .put("eventId",action.eventId)
+                                .put("sequence",action.sequence)
+                                .put("street",action.street.name)
+                                .put("actorSeat",action.actorSeat ?: org.json.JSONObject.NULL)
+                                .put("kind",action.kind.name)
+                                .put("amountChips",action.amountChips ?: org.json.JSONObject.NULL)
+                                .put("evidence",action.evidence.name).toString()
                             put("payload_json",actionJson)
-                            put("payload_sha256",T043MessageFingerprint.sha256(
-                                actionJson.toByteArray(StandardCharsets.UTF_8)))
+                            put("payload_sha256",T043MessageFingerprint.digest(
+                                actionJson.toByteArray(StandardCharsets.UTF_8),
+                                "JSON_UTF8",T043MessageFingerprint.JSON_CANONICALIZATION
+                            ).comparisonDigest)
                         }
                         insert(db,"t043_verified_events",a)
                     }
@@ -334,14 +343,18 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
         } ?: return@write T043WriteResult.REJECTED
         if (details[3] == "APPLIED") return@write T043WriteResult.ALREADY_SEEN
         if (details[3] != "RECEIVED") return@write T043WriteResult.REJECTED
-        domainChange(db)
-        val ms = now()
-        db.execSQL("UPDATE t043_sync_inbox SET processing_state='APPLIED',applied_at_ms=? WHERE sender_id=? AND message_id=? AND processing_state='RECEIVED'",
-            arrayOf(ms,sender,message))
         var contiguous = db.rawQuery(
             "SELECT last_contiguous_no FROM t043_sync_cursors WHERE sender_id=? AND recipient_id=? AND stream_id=? AND direction='INBOUND'",
             arrayOf(sender,details[0],details[1])
         ).use { c -> check(c.moveToFirst());c.getLong(0) }
+        // Domain effects are deliberately ordered. Later messages may be stored,
+        // but must not be applied ahead of a missing or unprocessed predecessor.
+        if (contiguous == Long.MAX_VALUE ||
+            details[2].toLong() != contiguous + 1) return@write T043WriteResult.REJECTED
+        domainChange(db)
+        val ms = now()
+        db.execSQL("UPDATE t043_sync_inbox SET processing_state='APPLIED',applied_at_ms=? WHERE sender_id=? AND message_id=? AND processing_state='RECEIVED'",
+            arrayOf(ms,sender,message))
         while (contiguous < Long.MAX_VALUE) {
             val next = contiguous + 1
             val applied = singleText(db,
