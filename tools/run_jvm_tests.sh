@@ -70,6 +70,7 @@ com.example.airemote.AutomaticOcrEvidenceScenariosKt
 com.example.airemote.LiveGameActionGuardScenariosKt
 com.example.airemote.LiveTapSafetyScenariosKt
 com.example.airemote.PostHandLearningScenariosKt
+com.example.airemote.CanonicalPokerScenarios
 TurnDisplayScenariosKt
 com.example.airemote.VerifiedTurnLifecycleScenariosKt
 com.example.airemote.VerifiedHandCompletionGateScenariosKt
