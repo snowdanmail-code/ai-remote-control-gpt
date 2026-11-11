@@ -48,6 +48,7 @@ object CanonicalPokerJson {
         return JSONObject().put("recordType", "observation").put("schemaMajor", o.schemaMajor)
             .put("schemaMinor", o.schemaMinor).put("source", source).put("observationId", o.observationId)
             .put("tableCapacity", o.tableCapacity).put("seats", seats)
+            .put("seatingComplete", o.seatingComplete)
             .putNullable("capturedAtMs", o.capturedAtMs).putNullable("buttonSeat", o.buttonSeat)
             .putNullable("heroSeat", o.heroSeat).put("street", o.street.name)
             .put("boardCards", cards(o.boardCards)).putNullable("potChips", o.potChips)
@@ -81,7 +82,8 @@ object CanonicalPokerJson {
             source = PokerSourceIdentity(src.getString("namespace"), src.stringOrNull("tableId"),
                 src.stringOrNull("sessionId"), src.stringOrNull("handId")),
             observationId = j.getString("observationId"), tableCapacity = j.getInt("tableCapacity"),
-            seats = seats, schemaMajor = major, schemaMinor = minor,
+            seats = seats, seatingComplete = j.boolOrNull("seatingComplete") == true,
+            schemaMajor = major, schemaMinor = minor,
             capturedAtMs = j.longOrNull("capturedAtMs"), buttonSeat = j.intOrNull("buttonSeat"),
             heroSeat = j.intOrNull("heroSeat"), street = street(j.stringOrNull("street")),
             boardCards = parseCards(j, "boardCards"), potChips = j.longOrNull("potChips"),
