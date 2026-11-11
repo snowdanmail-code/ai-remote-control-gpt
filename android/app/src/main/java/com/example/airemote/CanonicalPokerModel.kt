@@ -176,7 +176,9 @@ data class VerifiedPokerHandRecord(
             handIdentityEvidence == PokerEvidence.INDEPENDENT && terminalEvidence == PokerEvidence.INDEPENDENT) {
             "OCR or inferred evidence cannot verify a hand"
         }
-        require(resultEvidence != PokerEvidence.UNKNOWN || heroNetChips == null)
+        require(heroNetChips == null || resultEvidence == PokerEvidence.INDEPENDENT) {
+            "OCR-only or inferred net result cannot be a verified hand outcome"
+        }
     }
 }
 
