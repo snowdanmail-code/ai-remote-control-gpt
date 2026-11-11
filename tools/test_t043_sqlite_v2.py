@@ -110,7 +110,7 @@ def msg(sender="A", mid="m1", recipient="B", stream="hands", seq=1, payload=b'{"
                     sender_id=sender, message_id=mid, recipient_id=recipient,
                     stream_id=stream, sequence_no=seq, content_type="poker.observation",
                     payload_encoding="JSON_UTF8"), d, mode, algorithm),
-                **({"delivery_state":state, "created_at_ms":1234}
+                **({"delivery_state":("PENDING" if state == "RECEIVED" else state), "created_at_ms":1234}
                    if outbox else {"processing_state":state, "received_at_ms":1234}))
 
 
