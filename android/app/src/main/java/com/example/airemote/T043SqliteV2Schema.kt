@@ -155,14 +155,16 @@ internal object T043SqliteV2Schema {
  recipient_id TEXT NOT NULL CHECK(length(recipient_id)>0),
  stream_id TEXT NOT NULL CHECK(length(stream_id)>0),
  direction TEXT NOT NULL CHECK(direction IN ('INBOUND','OUTBOUND')),
- initial_checkpoint_no INTEGER NOT NULL DEFAULT 0 CHECK(initial_checkpoint_no=0),
+ initial_checkpoint_no INTEGER NOT NULL DEFAULT 0 CHECK(initial_checkpoint_no>=0),
  initial_checkpoint_proof_ref TEXT,
  last_contiguous_no INTEGER NOT NULL DEFAULT 0 CHECK(last_contiguous_no>=0),
  max_seen_no INTEGER NOT NULL DEFAULT 0 CHECK(max_seen_no>=0),
  last_allocated_no INTEGER NOT NULL DEFAULT 0 CHECK(last_allocated_no>=0),
  updated_at_ms INTEGER NOT NULL CHECK(updated_at_ms>=0),
  PRIMARY KEY(sender_id,recipient_id,stream_id,direction),
- CHECK(initial_checkpoint_proof_ref IS NULL),
+ CHECK((initial_checkpoint_no=0 AND initial_checkpoint_proof_ref IS NULL) OR
+       (initial_checkpoint_no>0 AND initial_checkpoint_proof_ref IS NOT NULL)),
+ CHECK(last_contiguous_no>=initial_checkpoint_no),
  CHECK(max_seen_no>=last_contiguous_no),
  CHECK(direction<>'INBOUND' OR last_allocated_no=0),
  CHECK(direction<>'OUTBOUND' OR max_seen_no=last_allocated_no)
