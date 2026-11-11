@@ -66,15 +66,23 @@ data class CanonicalPokerAction(
     val kind: PokerActionKind = PokerActionKind.UNKNOWN,
     /** For BET/RAISE this is the reported amount; meaning is source-defined until verified. */
     val amountChips: Long? = null,
-    val evidence: PokerEvidence = PokerEvidence.UNKNOWN
+    val evidence: PokerEvidence = PokerEvidence.UNKNOWN,
+    /** Stable source-assigned ID of this game action, not a frame or list index. */
+    val eventId: String
 ) {
-    init { require(sequence >= 0 && (actorSeat == null || actorSeat >= 0) && (amountChips == null || amountChips >= 0)) }
+    init {
+        require(eventId.isNotBlank() && eventId.length <= 128)
+        require(sequence >= 0 && (actorSeat == null || actorSeat >= 0) &&
+            (amountChips == null || amountChips >= 0))
+    }
 }
 
 data class CanonicalPokerObservation(
     val source: PokerSourceIdentity,
     val observationId: String,
     val tableCapacity: Int,
+    /** Mandatory semantic rule identity, never inferred from the provider name. */
+    val rulesetId: String,
     val seats: List<CanonicalPokerSeat> = emptyList(),
     /** False unless the source knows all occupied seats at this hand start. */
     val seatingComplete: Boolean = false,
@@ -92,6 +100,7 @@ data class CanonicalPokerObservation(
     init {
         CanonicalPokerSchema.check(schemaMajor, schemaMinor)
         require(observationId.isNotBlank() && observationId.length <= 128)
+        require(PokerRulesets.validId(rulesetId)) { "Invalid ruleset ID" }
         require(tableCapacity in 2..9)
         require(capturedAtMs == null || capturedAtMs >= 0)
         require(seats.size <= tableCapacity && seats.map { it.seatIndex }.distinct().size == seats.size)
@@ -101,6 +110,7 @@ data class CanonicalPokerObservation(
         require(boardCards == null || boardCards.size <= 5)
         require(potChips == null || potChips >= 0)
         require(actions.zipWithNext().all { (a, b) -> a.sequence < b.sequence })
+        require(actions.map { it.eventId }.distinct().size == actions.size) { "Duplicate eventId in hand" }
         require(actions.all { it.actorSeat == null || it.actorSeat in 0 until tableCapacity })
         val cards = (boardCards ?: emptyList()) + seats.flatMap { it.holeCards ?: emptyList() }
         require(cards.toSet().size == cards.size) { "Duplicate known card" }
@@ -108,6 +118,15 @@ data class CanonicalPokerObservation(
             setOf(PokerEvidence.SOURCE_VERIFIED, PokerEvidence.INDEPENDENT) }.map { it.participantId }
         require(stable.distinct().size == stable.size) { "Duplicate verified participant ID" }
     }
+
+    /** Observation ID identifies one replayable snapshot, never an in-game action. */
+    fun stableObservationKey(): String? = PokerCanonicalIdentity.observation(source, observationId)
+
+    /** Real event identity is per (provider, session, table, hand, eventId). */
+    fun stableEventKey(eventId: String): String? = PokerCanonicalIdentity.event(source, eventId)
+
+    /** A finished hand is per (provider, session, table, hand); no frame sequence. */
+    fun stableHandKey(): String? = PokerCanonicalIdentity.hand(source)
 
     /** Null means any active/dealt status is missing; never invent a player count. */
     fun knownActiveCount(): Int? = if (!seatingComplete || seats.any { it.activeInHand == null }) null
@@ -118,8 +137,11 @@ data class CanonicalPokerObservation(
         val seat = seats.singleOrNull { it.seatIndex == seatIndex } ?: return null
         val playerId = seat.participantId ?: return null
         val sessionId = source.sessionId ?: return null
-        if (seat.identityEvidence !in setOf(PokerEvidence.SOURCE_VERIFIED, PokerEvidence.INDEPENDENT)) return null
-        return listOf(source.namespace, sessionId, playerId).joinToString(":") { "${it.length}:$it" }
+        if (seat.identityEvidence !in setOf(PokerEvidence.SOURCE_VERIFIED, PokerEvidence.INDEPENDENT) ||
+            schemaMinor != CanonicalPokerSchema.MINOR) return null
+        return listOf(source.namespace, rulesetId, sessionId, playerId).joinToString(":") {
+            "${it.toByteArray(Charsets.UTF_8).size}:$it"
+        }
     }
 
     /** Known dealt-in seats clockwise from button. Missing evidence => unknown, not guessed. */
@@ -164,11 +186,21 @@ data class VerifiedPokerHandRecord(
     val heroNetChips: Long? = null,
     val resultEvidence: PokerEvidence = PokerEvidence.UNKNOWN,
     val schemaMajor: Int = CanonicalPokerSchema.MAJOR,
-    val schemaMinor: Int = CanonicalPokerSchema.MINOR
+    val schemaMinor: Int = CanonicalPokerSchema.MINOR,
+    /** Duplicated on the envelope to fail closed on tampering or mixed rulesets. */
+    val rulesetId: String = terminalObservation.rulesetId,
+    /** Persisted stable receipt identity: no timestamps and no synthetic counters. */
+    val handRecordId: String = requireNotNull(terminalObservation.stableHandKey()) {
+        "Cannot create a hand receipt without source, session, table and hand IDs"
+    },
+    val verificationPolicyId: String = PokerVerificationPolicies.COMPLETE_RECORD_V1
 ) {
     init {
         CanonicalPokerSchema.check(schemaMajor, schemaMinor)
         require(terminalObservation.source.tableId != null && terminalObservation.source.handId != null)
+        require(rulesetId == terminalObservation.rulesetId) { "Mismatched rulesets" }
+        require(handRecordId == terminalObservation.stableHandKey()) { "Mismatched hand receipt ID" }
+        require(verificationPolicyId.isNotBlank() && verificationPolicyId.length <= 128)
         // A real hand can finish on any street (including preflop); do not infer a showdown.
         require(listOf(sourceProofRef, handIdentityProofRef, terminalProofRef)
             .all { it.isNotBlank() && it.length <= 256 })
