@@ -8,7 +8,7 @@ class CanonicalPokerModelTest {
     private fun observation(count: Int, namespace: String = "fixture.alpha/site-one") =
         CanonicalPokerObservation(
             source = PokerSourceIdentity(namespace, "t1", "session", "hand"),
-            observationId = "e-$count", tableCapacity = count, buttonSeat = count - 1,
+            observationId = "e-$count", tableCapacity = count, buttonSeat = count - 1, seatingComplete = true,
             heroSeat = 0, street = PokerStreet.FLOP,
             seats = (0 until count).map { i -> CanonicalPokerSeat(
                 i, "verified-id-$i", "SameName", PokerEvidence.SOURCE_VERIFIED,
@@ -54,6 +54,12 @@ class CanonicalPokerModelTest {
         assertNull(parsed.knownActiveCount())
         assertTrue(parsed.positions().isEmpty())
         assertNull(parsed.seats[0].activeInHand)
+    }
+    @Test fun partialSeatManifestCannotInferPositionsOrActiveCount() {
+        val partial = observation(6).copy(seatingComplete = false)
+        assertNull(partial.knownActiveCount())
+        assertTrue(partial.positions().isEmpty())
+        assertFalse(CanonicalPokerJson.decodeObservation(CanonicalPokerJson.encodeObservation(partial)).seatingComplete)
     }
     @Test fun sameNicknameNeverMergesPlayersAcrossSources() {
         val a = observation(5)
