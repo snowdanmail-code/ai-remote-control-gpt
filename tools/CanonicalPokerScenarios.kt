@@ -8,7 +8,7 @@ private class AlphaFixtureAdapter : PokerSourceAdapter<Map<String, String>> {
         val n = event.getValue("players").toInt()
         return CanonicalPokerObservation(
             source = PokerSourceIdentity(sourceNamespace, "table-7", "session-1", "hand-2"),
-            observationId = "alpha-${n}", tableCapacity = n, buttonSeat = n - 1,
+            observationId = "alpha-${n}", tableCapacity = n, buttonSeat = n - 1, seatingComplete = true,
             seats = (0 until n).map { seat -> CanonicalPokerSeat(seat, "p$seat", "SameNick",
                 PokerEvidence.SOURCE_VERIFIED, dealtIn = true, activeInHand = seat != 0, stackChips = 120L) },
             street = PokerStreet.FLOP, potChips = null,
@@ -21,7 +21,7 @@ private class BetaFixtureAdapter : PokerSourceAdapter<RoundFixture> {
     override val sourceNamespace = "fixtures.beta/tenant-two"
     override fun normalize(event: RoundFixture) = CanonicalPokerObservation(
         source = PokerSourceIdentity(sourceNamespace, "table-B", "session-Z", "hand-X"),
-        observationId = event.name, tableCapacity = event.n, buttonSeat = event.button,
+        observationId = event.name, tableCapacity = event.n, buttonSeat = event.button, seatingComplete = true,
         seats = (0 until event.n).map { i -> CanonicalPokerSeat(
             i, "p$i", "SameNick", PokerEvidence.SOURCE_VERIFIED,
             dealtIn = true, activeInHand = i in event.active, stackChips = null) },
