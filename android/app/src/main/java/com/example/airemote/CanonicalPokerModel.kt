@@ -76,6 +76,8 @@ data class CanonicalPokerObservation(
     val observationId: String,
     val tableCapacity: Int,
     val seats: List<CanonicalPokerSeat> = emptyList(),
+    /** False unless the source knows all occupied seats at this hand start. */
+    val seatingComplete: Boolean = false,
     val schemaMajor: Int = CanonicalPokerSchema.MAJOR,
     val schemaMinor: Int = CanonicalPokerSchema.MINOR,
     val capturedAtMs: Long? = null,
@@ -108,7 +110,7 @@ data class CanonicalPokerObservation(
     }
 
     /** Null means any active/dealt status is missing; never invent a player count. */
-    fun knownActiveCount(): Int? = if (seats.any { it.activeInHand == null }) null
+    fun knownActiveCount(): Int? = if (!seatingComplete || seats.any { it.activeInHand == null }) null
         else seats.count { it.activeInHand == true }
 
     /** Verified-scoped key or null. OCR text, seat number, and nickname cannot create a profile ID. */
@@ -122,6 +124,7 @@ data class CanonicalPokerObservation(
 
     /** Known dealt-in seats clockwise from button. Missing evidence => unknown, not guessed. */
     fun positions(): Map<Int, PokerSeatPosition> {
+        if (!seatingComplete) return emptyMap()
         val button = buttonSeat ?: return emptyMap()
         if (seats.any { it.dealtIn == null }) return emptyMap()
         val dealt = seats.filter { it.dealtIn == true }
