@@ -72,8 +72,12 @@ Identical ID + semantic content is `ALREADY_SEEN`; changed payload with
 same ID is `CONFLICT` (original remains untouched). A SHA-256 digest is
 an integrity marker, not cryptographic source authentication.
 
-Each new outbound stream starts at checkpoint zero; nonzero production
-checkpoint inserts are rejected by SQL constraint. The outgoing sequence
+Each new production stream starts at checkpoint zero; the local store exposes
+no nonzero-checkpoint insertion API. The schema reserves a nonzero checkpoint
+with a non-null proof reference for a **future separately authenticated**
+restore protocol; the reference string alone does not establish trust, and
+no such production restore is implemented in Stage 2.
+The outgoing sequence
 number is issued by incrementing the cursor and inserting the message
 inside the same write transaction. Retries use the existing message and
 sequence. Unique constraints guard same sender+messageID and same
