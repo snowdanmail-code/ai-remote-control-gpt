@@ -156,7 +156,13 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
         } catch (_: Exception) { false }
         if (!verified || T043MessageFingerprint.sha256(snapshot) != d.rawSha256)
             return T043WriteResult.REJECTED
-        val handId = record.handRecordId
+        // External verifiers receive mutable Kotlin list implementations.
+        // Re-decode from the pinned bytes and reject ANY mutation made through
+        // a cast to MutableList before committing a single derived event.
+        val frozen = try { CanonicalPokerJson.decodeVerifiedHand(decodeUtf8(snapshot)) }
+            catch (_: Exception) { return T043WriteResult.REJECTED }
+        if (frozen != record) return T043WriteResult.REJECTED
+        val handId = frozen.handRecordId
         val incoming = comparable(d)
         return write { db ->
             db.execSQL("SAVEPOINT t043_import")
@@ -172,13 +178,13 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
                 }
             } else {
                 val ms = now()
-                source(db,record.terminalObservation.source.namespace,ms)
+                source(db,frozen.terminalObservation.source.namespace,ms)
                 val v = ContentValues().apply {
                     put("hand_record_id",handId)
-                    put("namespace",record.terminalObservation.source.namespace)
-                    put("ruleset_id",record.rulesetId)
-                    put("verification_policy_id",record.verificationPolicyId)
-                    put("schema_major",record.schemaMajor);put("schema_minor",record.schemaMinor)
+                    put("namespace",frozen.terminalObservation.source.namespace)
+                    put("ruleset_id",frozen.rulesetId)
+                    put("verification_policy_id",frozen.verificationPolicyId)
+                    put("schema_major",frozen.schemaMajor);put("schema_minor",frozen.schemaMinor)
                     put("payload_json",decodeUtf8(snapshot))
                     put("payload_bytes",snapshot)
                     put("payload_sha256",incoming)
@@ -186,13 +192,13 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
                 }
                 insert(db,"t043_verified_hands",v)
                 // Only independently corroborated actions qualify for the verified event history.
-                record.terminalObservation.actions.filter { it.evidence == PokerEvidence.INDEPENDENT }
+                frozen.terminalObservation.actions.filter { it.evidence == PokerEvidence.INDEPENDENT }
                     .forEach { action ->
-                        val eventKey = requireNotNull(record.terminalObservation.stableEventKey(action.eventId))
+                        val eventKey = requireNotNull(frozen.terminalObservation.stableEventKey(action.eventId))
                         val a = ContentValues().apply {
                             put("event_key",eventKey)
                             put("hand_record_id",handId)
-                            put("ruleset_id",record.rulesetId)
+                            put("ruleset_id",frozen.rulesetId)
                             put("event_id",action.eventId)
                             put("seq",action.sequence)
                             put("evidence_level","INDEPENDENT")
