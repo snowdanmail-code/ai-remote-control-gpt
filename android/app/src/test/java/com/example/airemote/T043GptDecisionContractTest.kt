@@ -18,7 +18,8 @@ class T043GptDecisionContractTest {
         stage: HandStage = HandStage.PREFLOP,
         legal: Set<LiveAction> = setOf(
             LiveAction.FOLD, LiveAction.CHECK, LiveAction.CALL, LiveAction.RAISE),
-        trusted: Boolean = true
+        trusted: Boolean = true,
+        call: Long = 0L
     ): AutonomousObservation {
         val view = VerifiedLiveView(
             5L, 21L, frameAt, "hand-91", "fingerprint-21",
@@ -31,7 +32,7 @@ class T043GptDecisionContractTest {
             7L, tableHandIndependentlyVerified = trusted,
             windowIndependentlyVerified = true,
             phase = stage, timerRemainingMs = 7_000L,
-            potChips = 400L, callChips = 0L,
+            potChips = 400L, callChips = call,
             availableTaps = legal.associateWith(::tap),
             selectedBetChips = 150L,
             minVerifiedBetChips = 100L,
@@ -111,6 +112,40 @@ class T043GptDecisionContractTest {
         assertTrue(prompt.contains("vpip_opportunities"))
         assertFalse(prompt.contains(privateKey))
         assertTrue(prompt.length <= 1_600)
+    }
+
+
+    @Test fun alreadyBuiltMathCalculatesPotOddsFromVerifiedPotAndCall() {
+        val p = T043GptDecisionContract.buildPrompt(
+            observation(call = 100L), cards(), 2_000L)
+        assertNotNull(p)
+        assertTrue(p!!.contains("\"pot_odds_required_equity\":0.2"))
+        assertTrue(p.contains("\"made_hand\":null"))
+        assertTrue(p.contains("\"verified_pot_share_equity\":null"))
+        assertTrue(p.contains("\"equity_basis\":\"UNKNOWN\""))
+    }
+
+    @Test fun madeHandAndKickersAreComputedFromOwnAndBoardCards() {
+        val flop = cards(listOf("Ah", "Kh"), listOf("Qh", "Jh", "Th"))
+        val prompt = T043GptDecisionContract.buildPrompt(
+            observation(stage = HandStage.FLOP), flop, 2_000L)
+        assertNotNull(prompt)
+        assertTrue(prompt!!.contains("\"made_hand\":\"STRAIGHT_FLUSH\""))
+        assertTrue(prompt.contains("\"made_hand_kickers\":[14]"))
+    }
+
+    @Test fun equityIsPassedOnlyWithMatchingVerifiedProvenance() {
+        val verified = FrameBoundEquity("hand-91", "turn-3", 5L, 21L,
+            0.65, 200, externallyVerified = true)
+        val p = T043GptDecisionContract.buildPrompt(
+            observation().copy(equityEvidence = verified), cards(), 2_000L)
+        assertNotNull(p)
+        assertTrue(p!!.contains("\"verified_pot_share_equity\":0.65"))
+        val unverified = verified.copy(externallyVerified = false)
+        val q = T043GptDecisionContract.buildPrompt(
+            observation().copy(equityEvidence = unverified), cards(), 2_000L)
+        assertNotNull(q)
+        assertTrue(q!!.contains("\"verified_pot_share_equity\":null"))
     }
 
 }
