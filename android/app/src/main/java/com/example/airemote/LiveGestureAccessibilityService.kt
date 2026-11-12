@@ -456,6 +456,121 @@ class LiveGestureAccessibilityService : AccessibilityService() {
      * independent Android root/package, current epoch, per-session upper
      * financial limits and operator ARM. Never confirms the actual buy-in.
      */
+    /**
+     * One guarded non-wager lobby gesture. The screen has already been
+     * identified through two OCR frames. Opening the menu uses the relative
+     * toolbar position visible in the user's supplied 1win screenshots;
+     * choosing a sort option uses its ACTUAL recognized text rectangle.
+     *
+     * Only scrolls the lobby list; never the table during an active hand.
+     */
+    internal fun offerOneWinCashLobbyNavigation(
+        ticket: OneWinCashLobbyNavTicket, finished: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { finished(false) }
+            val now = SystemClock.elapsedRealtime()
+            if (!OnDeviceCashLobbySelection.latestNavigationTicketMatches(ticket, now) ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                !LiveGamePermissionGate.permitted() ||
+                CaptureObservationMode.isSpectator() ||
+                !FrameStore.isCapturing ||
+                FrameStore.captureEpoch != ticket.captureEpoch ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage) {
+                reject(); return@post
+            }
+            val actualPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(actualPackage, now)
+            val root = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (actualPackage != ticket.sourcePackage ||
+                origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.windowGeneration != ticket.windowGeneration ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.windowGeneration ||
+                now - root.atMs !in 0..700L) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (m.widthPixels < 320 || m.heightPixels < 640 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            fun pxX(x: Int) = (x.toLong() * m.widthPixels / 1000).toInt().toFloat()
+            fun pxY(y: Int) = (y.toLong() * m.heightPixels / 1000).toInt().toFloat()
+            val gesturePath = Path()
+            val duration = when (ticket.action) {
+                OneWinCashLobbyNavAction.OPEN_SORT -> {
+                    // Sort icon in the upper-left game lobby toolbar:
+                    // 354x768 screenshot, approximately 23px/96px.
+                    gesturePath.moveTo(pxX(67), pxY(125))
+                    70L
+                }
+                OneWinCashLobbyNavAction.CHOOSE_STAKES_ASC -> {
+                    val menu = OnDeviceOneWinCashLobby.latestSortMenu()
+                    val correct = menu?.options?.get(OneWinLobbySort.STAKES_ASC)
+                    if (correct == null || correct != ticket.optionBox ||
+                        !correct.valid() ||
+                        correct.centerX() !in 60..450 ||
+                        correct.centerY() !in 165..445) {
+                        reject(); return@post
+                    }
+                    gesturePath.moveTo(pxX(correct.centerX()), pxY(correct.centerY()))
+                    70L
+                }
+                OneWinCashLobbyNavAction.SWIPE_UP -> {
+                    // Avoid the left sort popup, right buy-in controls, fixed
+                    // toolbar and bottom app navigation; long enough to scroll.
+                    gesturePath.moveTo(pxX(545), pxY(820))
+                    gesturePath.lineTo(pxX(545), pxY(345))
+                    430L
+                }
+            }
+            val x = if (ticket.action == OneWinCashLobbyNavAction.OPEN_SORT) pxX(67)
+                else if (ticket.action == OneWinCashLobbyNavAction.SWIPE_UP) pxX(545)
+                else pxX(requireNotNull(ticket.optionBox).centerX())
+            val y = if (ticket.action == OneWinCashLobbyNavAction.OPEN_SORT) pxY(125)
+                else if (ticket.action == OneWinCashLobbyNavAction.SWIPE_UP) pxY(820)
+                else pxY(requireNotNull(ticket.optionBox).centerY())
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x <= overlay.x + overlay.width &&
+                y >= overlay.y && y <= overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                FrameStore.captureEpoch != ticket.captureEpoch ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                !OnDeviceCashLobbySelection.latestNavigationTicketMatches(ticket,
+                    SystemClock.elapsedRealtime())) {
+                reject(); return@post
+            }
+            var completed = false
+            fun finishOnce(success: Boolean) {
+                if (!completed) {
+                    completed = true
+                    finished(success)
+                }
+            }
+            val gesture = GestureDescription.Builder().addStroke(
+                GestureDescription.StrokeDescription(gesturePath, 0L, duration)
+            ).build()
+            val sent = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    finishOnce(!OperatorStopStore.isStopped(applicationContext))
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    finishOnce(false)
+                }
+            }, main)
+            if (!sent) finishOnce(false)
+        }
+    }
+
     internal fun offerOneWinCashLobbyEntry(
         ticket: OneWinCashLobbyEntryTicket, onSubmitted: (Boolean) -> Unit
     ) {
