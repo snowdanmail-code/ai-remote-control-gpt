@@ -25,6 +25,8 @@ object OnDeviceCashLobbyTextRecognition {
     )
     private val lengths = mapOf("rus" to 3_861_738, "eng" to 4_113_088)
     @Volatile private var languagePath: String? = null
+    @Volatile var lastStatus: String = "Русско-английский OCR ещё не запускался"
+        private set
 
     private fun sha512(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-512").digest(bytes).joinToString("") {
@@ -97,6 +99,10 @@ object OnDeviceCashLobbyTextRecognition {
                     } finally { tess.recycle() }
                 } finally { bitmap.recycle() }
             }
+            lastStatus = result.fold(
+                onSuccess = { "Локальный rus+eng OCR: ${it.lines.size} строк, ${it.durationMs} мс" },
+                onFailure = { "Локальный rus+eng OCR не готов: ${it.javaClass.simpleName}; ${it.message?.take(150)}" }
+            )
             callback(result)
         }
     }
