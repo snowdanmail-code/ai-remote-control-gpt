@@ -38,8 +38,10 @@ val prepareLobbyOcrModels = tasks.register("prepareLobbyOcrModels") {
                 readTimeout = 35_000
             }
             val data = conn.getInputStream().use { it.readBytes() }
-            check(data.size == sizes.getValue(lang) && sha512(data) == expectedSha) {
-                "Untrusted OCR model download: $lang (SHA-512/size mismatch)"
+            val actualSha = sha512(data)
+            check(data.size == sizes.getValue(lang) && actualSha == expectedSha) {
+                "Untrusted OCR model: $lang actual-size=${data.size} expected-size=${sizes.getValue(lang)} " +
+                    "actual-sha512=$actualSha expected-sha512=$expectedSha"
             }
             val tmp = dest.resolve("$lang.traineddata.part")
             tmp.writeBytes(data)
