@@ -170,6 +170,26 @@ class CaptureService : Service() {
                                 // Block all read-only evidence until the whole observed
                                 // surface looks like the measured layout again. A table-like
                                 // color pattern is NEVER table identity or tap permission.
+                                // Cash-game lobby is NOT a game table. Only a
+                                // separately armed, budget-capped lobby selector
+                                // receives read-only OCR frames. Card recognition
+                                // and hero-turn logic are unchanged.
+                                if (OnDeviceCashLobbySelection.scanning() &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !OperatorStopStore.isStopped(applicationContext)) {
+                                    OnDeviceOneWinCashLobby.offer(
+                                        applicationContext, screen, origin, now
+                                    ) {
+                                        !closing && FrameStore.isCapturing &&
+                                        FrameStore.captureEpoch == captureEpoch &&
+                                        FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                        FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                        LiveForegroundProbe.snapshot()?.let { root ->
+                                            root.packageName == origin.observedPackage &&
+                                            root.windowGeneration == origin.windowGeneration
+                                        } == true
+                                    }
+                                }
                                 val surface = RecordedSurfaceGate.inspect(width, height) { x, y ->
                                     screen.getPixel(x, y)
                                 }
@@ -464,6 +484,7 @@ class CaptureService : Service() {
         FrameStore.clear()
         OnDeviceAutomaticOcr.reset()
         OnDeviceOpponentPopupOcr.reset()
+        OnDeviceOneWinCashLobby.reset()
         OnDeviceHandState.reset("Захват завершён")
         OnDeviceStageBridge.reset("Захват завершён")
         OnDeviceVerifiedHandCompletion.resetTransientEvidence()
