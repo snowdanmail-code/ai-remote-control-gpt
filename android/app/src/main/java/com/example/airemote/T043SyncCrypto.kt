@@ -53,6 +53,13 @@ class T043DeviceIdentityRegistry(devices: Collection<T043PinnedDevice>) {
             }
         }
 
+    /** App receipts identify the device itself, not an observation namespace. */
+    fun requireReceiptSigner(deviceId:String,keyId:String,version:Int):T043PinnedDevice =
+        requireNotNull(byId[deviceId]) { "Unknown receipt signer" }.also { pinned ->
+            require(!pinned.revoked && pinned.signingKeyId==keyId &&
+                pinned.signingVersion==version) { "Invalid receipt signing key" }
+        }
+
     fun requireRecipient(header: T043SyncProtocol.Header): T043PinnedDevice =
         requireNotNull(byId[header.recipientDeviceId]) { "Unknown recipient device" }.also { pinned ->
             require(!pinned.revoked && pinned.encryptionKeyId==header.recipientEncryptionKeyId &&
