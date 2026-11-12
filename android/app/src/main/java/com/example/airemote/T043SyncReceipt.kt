@@ -101,8 +101,11 @@ class T043SyncReceiptManager(
     private val routes:T043RouteStore,
     private val registry:T043DeviceIdentityRegistry
 ) {
+    /** Receipt must already be durably RECEIVED in the authenticated inbox.
+     * ACK of the original, receipt APPLIED and inbound cursor advance are atomic. */
     @Synchronized fun consumeVerifiedReceipt(raw:ByteArray,
-                  localDeviceId:String):T043WriteResult {
+                  localDeviceId:String,receiptLogicalSender:String,
+                  receiptMessageId:String):T043WriteResult {
         val body=try { T043SyncReceipt.verify(raw,registry) }
                  catch (_: Exception) { return T043WriteResult.REJECTED }
         if(body.intendedDeviceId!=localDeviceId ||
@@ -128,6 +131,26 @@ class T043SyncReceiptManager(
             val db=helper.writableDatabase
             db.beginTransaction()
             try {
+                val inbox=db.rawQuery(
+                    "SELECT payload_bytes,processing_state,stream_id,sequence_no,recipient_id " +
+                        "FROM t043_sync_inbox WHERE sender_id=? AND message_id=?",
+                    arrayOf(receiptLogicalSender,receiptMessageId)).use { row ->
+                    if(!row.moveToFirst())null else listOf<Any>(
+                        row.getBlob(0),row.getString(1),row.getString(2),
+                        row.getLong(3),row.getString(4))
+                } ?: return T043WriteResult.REJECTED
+                require(receiptLogicalSender==body.signerDeviceId &&
+                    (inbox[0] as ByteArray).contentEquals(raw) &&
+                    inbox[4]==localDeviceId) { "Receipt inbox identity changed" }
+                val state=inbox[1] as String
+                if(state !in setOf("RECEIVED","APPLIED"))return T043WriteResult.REJECTED
+                val cursor=db.rawQuery(
+                    "SELECT last_contiguous_no FROM t043_sync_cursors WHERE sender_id=? " +
+                        "AND recipient_id=? AND stream_id=? AND direction='INBOUND'",
+                    arrayOf(receiptLogicalSender,localDeviceId,inbox[2] as String))
+                    .use { row -> check(row.moveToFirst());row.getLong(0) }
+                if(state=="RECEIVED" && (cursor==Long.MAX_VALUE ||
+                    inbox[3] as Long != cursor+1))return T043WriteResult.REJECTED
                 val current=gateway.readOutbox(e.senderId,e.messageId)
                     ?: return T043WriteResult.REJECTED
                 val result=if(current.deliveryState=="ACKNOWLEDGED") {
@@ -140,6 +163,18 @@ class T043SyncReceiptManager(
                     gateway.markAuthenticatedAckInTransaction(db,current,receiptHash,
                         System.currentTimeMillis())
                     T043WriteResult.APPLIED
+                }
+                if(state=="RECEIVED" && result in setOf(
+                    T043WriteResult.APPLIED,T043WriteResult.ALREADY_SEEN)) {
+                    val ms=System.currentTimeMillis()
+                    db.execSQL("UPDATE t043_sync_inbox SET processing_state='APPLIED'," +
+                        "applied_at_ms=? WHERE sender_id=? AND message_id=?",
+                        arrayOf(ms,receiptLogicalSender,receiptMessageId))
+                    db.execSQL("UPDATE t043_sync_cursors SET last_contiguous_no=?," +
+                        "updated_at_ms=? WHERE sender_id=? AND recipient_id=? " +
+                        "AND stream_id=? AND direction='INBOUND'",
+                        arrayOf(inbox[3] as Long,ms,receiptLogicalSender,
+                            localDeviceId,inbox[2] as String))
                 }
                 db.setTransactionSuccessful()
                 result
