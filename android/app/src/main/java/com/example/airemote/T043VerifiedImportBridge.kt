@@ -152,6 +152,11 @@ class T043VerifiedImportBridge(
                     committedRecordId=frozen.handRecordId
                 )
                 val receipt=T043SyncReceipt.sign(body,receiptSigner)
+                require(T043SyncCrypto.verifyEd25519(
+                    own.signingPublicKey,T043SyncReceipt.bodyBytes(body),
+                    receipt.copyOfRange(receipt.size-64,receipt.size))) {
+                    "Receipt signer does not match the pinned receiving device"
+                }
                 enqueueReceiptInTransaction(db,header,body,receipt,ms)
                 db.execSQL("UPDATE t043_sync_inbox SET processing_state='APPLIED'," +
                     "applied_at_ms=? WHERE sender_id=? AND message_id=? " +
