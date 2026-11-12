@@ -33,7 +33,16 @@ object T043SyncProtocol {
         val sequenceNo: Long,
         val contentType: String,
         val originalEnvelopeSha256: String,
-        val originalRawSha256: String
+        val originalRawSha256: String,
+        /** Exact Stage-2 identity fields; transport device IDs never replace them. */
+        val sourceNamespace: String? = null,
+        val relatedRecordType: String? = null,
+        val relatedRecordKey: String? = null,
+        val rulesetId: String? = null,
+        val payloadEncoding: String = "JSON_UTF8",
+        val schemaMajor: Int? = null,
+        val schemaMinor: Int? = null,
+        val canonicalizationId: String = "json-semantic.v1"
     ) {
         init {
             require(listOf(senderDeviceId,senderSigningKeyId,recipientDeviceId,
@@ -42,7 +51,19 @@ object T043SyncProtocol {
                 .all { it.isNotBlank() && it.toByteArray(StandardCharsets.UTF_8).size <= MAX_STRING })
             require(senderKeyVersion > 0 && recipientKeyVersion > 0 && sequenceNo > 0)
             require(hex64.matches(originalEnvelopeSha256) && hex64.matches(originalRawSha256))
+            require((relatedRecordType==null)==(relatedRecordKey==null))
+            require((schemaMajor==null)==(schemaMinor==null))
+            require(schemaMajor==null || schemaMajor > 0)
+            require(schemaMinor==null || schemaMinor >= 0)
+            require(payloadEncoding in setOf("JSON_UTF8","OPAQUE_BYTES"))
+            require(canonicalizationId.isNotBlank())
         }
+        fun originalEnvelope(): T043MessageFingerprint.Envelope =
+            T043MessageFingerprint.Envelope(
+                logicalSenderId,messageId,logicalRecipientId,streamId,sequenceNo,
+                contentType,sourceNamespace,relatedRecordType,relatedRecordKey,
+                rulesetId,payloadEncoding,schemaMajor,schemaMinor,canonicalizationId
+            )
     }
 
     data class Packet(
@@ -61,6 +82,11 @@ object T043SyncProtocol {
             put(d,h.logicalSenderId);put(d,h.logicalRecipientId)
             put(d,h.streamId);put(d,h.messageId);d.writeLong(h.sequenceNo)
             put(d,h.contentType);put(d,h.originalEnvelopeSha256);put(d,h.originalRawSha256)
+            putNullable(d,h.sourceNamespace);putNullable(d,h.relatedRecordType)
+            putNullable(d,h.relatedRecordKey);putNullable(d,h.rulesetId)
+            put(d,h.payloadEncoding)
+            d.writeInt(h.schemaMajor ?: -1);d.writeInt(h.schemaMinor ?: -1)
+            put(d,h.canonicalizationId)
         }
     }.toByteArray()
 
@@ -68,6 +94,16 @@ object T043SyncProtocol {
         val b=value.toByteArray(StandardCharsets.UTF_8)
         require(b.size <= MAX_STRING && b.isNotEmpty())
         out.writeShort(b.size);out.write(b)
+    }
+    private fun putNullable(out: DataOutputStream, value: String?) {
+        if(value==null) out.writeShort(0xFFFF) else put(out,value)
+    }
+    private fun readNullable(input: DataInputStream): String? {
+        input.mark(MAX_STRING+4)
+        val n=input.readUnsignedShort()
+        if(n==0xFFFF)return null
+        input.reset()
+        return read(input)
     }
     private fun read(input: DataInputStream): String {
         val n=input.readUnsignedShort()
@@ -89,8 +125,15 @@ object T043SyncProtocol {
             val rd=read(i);val rk=read(i);val rv=i.readInt()
             val ls=read(i);val lr=read(i);val st=read(i);val mid=read(i)
             val seq=i.readLong();val type=read(i);val eh=read(i);val rh=read(i)
+            val src=readNullable(i);val rt=readNullable(i)
+            val rr=readNullable(i);val rules=readNullable(i)
+            val encoding=read(i)
+            val major=i.readInt().let { if(it<0)null else it }
+            val minor=i.readInt().let { if(it<0)null else it }
+            val canon=read(i)
             require(i.available()==0) { "Unexpected fields" }
-            Header(sd,sk,sv,rd,rk,rv,ls,lr,st,mid,seq,type,eh,rh)
+            Header(sd,sk,sv,rd,rk,rv,ls,lr,st,mid,seq,type,eh,rh,
+                src,rt,rr,rules,encoding,major,minor,canon)
         }
     }
     private fun blob(out: DataOutputStream,b: ByteArray,max: Int) {
