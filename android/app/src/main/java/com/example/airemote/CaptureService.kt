@@ -173,6 +173,12 @@ class CaptureService : Service() {
                                 val surface = RecordedSurfaceGate.inspect(width, height) { x, y ->
                                     screen.getPixel(x, y)
                                 }
+                                // The navigator observes only measured table/panel
+                                // transitions. It never receives hero-button taps or
+                                // invents seat/player identity from a screenshot.
+                                OnDeviceOpponentProfileSweep.observe(
+                                    applicationContext, surface.status, origin,
+                                    width, height, now)
                                 if (surface.status != RecordedSurfaceStatus.TABLE_LIKE) {
                                     FrameStore.captureError = "Кадры поступают; экран не прошёл фильтр игрового стола"
                                     // The popup is NOT a playable table. Keep all
