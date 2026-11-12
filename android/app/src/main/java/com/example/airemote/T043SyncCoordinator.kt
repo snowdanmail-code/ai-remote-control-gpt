@@ -68,6 +68,12 @@ class T043SyncCoordinator(
             canonicalizationId=e.canonicalizationId
         )
         val packet=T043SyncCrypto.seal(h,row.bytes,dst.encryptionPublicKey,signer)
+        val parsed=T043SyncProtocol.decode(packet)
+        require(T043SyncCrypto.verifyEd25519(
+            src.signingPublicKey,
+            T043SyncProtocol.signingInput(T043SyncProtocol.headerBytes(h),
+                parsed.enc,parsed.ciphertext),
+            parsed.signature)) { "Signer is not authorized for the pinned sender device" }
         return routes.prepare(h,packet)
     }
 
