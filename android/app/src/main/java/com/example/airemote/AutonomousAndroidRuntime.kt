@@ -262,6 +262,7 @@ object OnDeviceAutonomousRuntime {
         modelProposals.clear()
         OnDeviceVerifiedGptTurnRequests.reset()
         OnDeviceOpponentPopupOcr.reset()
+        OnDeviceOpponentProfileSweep.reset(reason)
         OnDevicePlayerContextBuffer.memory.clear()
         OnDeviceAuthorizedPlayerCycle.clear(reason)
         OnDeviceAuthorizedPlayerFeed.invalidateOnStop()
