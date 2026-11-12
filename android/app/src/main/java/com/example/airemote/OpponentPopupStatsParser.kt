@@ -37,19 +37,19 @@ data class OpponentPopupMetricValue(
 
 object OpponentPopupStatsParser {
     private val labelPatterns: Map<OpponentPopupMetric, Regex> = mapOf(
-        OpponentPopupMetric.VPIP to Regex("""(?i)vpip"""),
-        OpponentPopupMetric.PFR to Regex("""(?i)pfr"""),
-        OpponentPopupMetric.ATS to Regex("""(?i)ats"""),
-        OpponentPopupMetric.THREE_BET to Regex("""(?i)3\s*[- ]?\s*(?:bet|бет)"""),
-        OpponentPopupMetric.C_BET to Regex("""(?i)(?:c\s*[- ]?\s*bet|конт\s*[- ]?\s*бет)"""),
+        OpponentPopupMetric.VPIP to Regex("""(?iu)vpip"""),
+        OpponentPopupMetric.PFR to Regex("""(?iu)pfr"""),
+        OpponentPopupMetric.ATS to Regex("""(?iu)ats"""),
+        OpponentPopupMetric.THREE_BET to Regex("""(?iu)3\s*[- ]?\s*(?:bet|бет)"""),
+        OpponentPopupMetric.C_BET to Regex("""(?iu)(?:c\s*[- ]?\s*bet|конт\s*[- ]?\s*бет)"""),
         OpponentPopupMetric.FOLD_TO_C_BET to Regex(
-            """(?i)(?:(?:fold\s*(?:to|vs)\s*)|(?:фолд\s*(?:на|против)\s*))(?:c\s*[- ]?\s*bet|конт\s*[- ]?\s*бет)"""
+            """(?iu)(?:(?:fold\s*(?:to|vs)\s*)|(?:фолд\s*(?:на|против)\s*))(?:c\s*[- ]?\s*bet|конт\s*[- ]?\s*бет)"""
         ),
-        OpponentPopupMetric.CHECK_RAISE to Regex("""(?i)(?:check|чек)\s*[- ]?\s*(?:raise|рейз)"""),
-        OpponentPopupMetric.WTSD to Regex("""(?i)wtsd"""),
-        OpponentPopupMetric.WSD to Regex("""(?i)w\$?sd"""),
-        OpponentPopupMetric.AGGRESSION_FACTOR to Regex("""(?i)(?:af|aggression\s+factor)"""),
-        OpponentPopupMetric.HANDS to Regex("""(?i)(?:hands|руки|раздач[иа]?)""")
+        OpponentPopupMetric.CHECK_RAISE to Regex("""(?iu)(?:check|чек)\s*[- ]?\s*(?:raise|рейз)"""),
+        OpponentPopupMetric.WTSD to Regex("""(?iu)wtsd"""),
+        OpponentPopupMetric.WSD to Regex("""(?iu)w\$?sd"""),
+        OpponentPopupMetric.AGGRESSION_FACTOR to Regex("""(?iu)(?:af|aggression\s+factor)"""),
+        OpponentPopupMetric.HANDS to Regex("""(?iu)(?:hands|руки|раздач[иа]?)""")
     )
     private val number = Regex("""[0-9]{1,6}(?:[.,][0-9]{1,2})?%?""")
     private val whitespace = Regex("""\s+""")
