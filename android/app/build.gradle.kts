@@ -75,4 +75,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
     // Offline OCR model; no Windows or Python service.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // T043 Stage 3: RFC 9180 HPKE + Ed25519; explicit FTPS only.
+    implementation("org.bouncycastle:bcprov-jdk18on:1.85")
+    implementation("commons-net:commons-net:3.13.0")
 }
