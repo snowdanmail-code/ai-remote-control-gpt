@@ -82,6 +82,9 @@ object OnDeviceCashLobbySelection {
         CashLobbySelectionPhase.OFF, "Автоматический выбор стола выключен")
 
     @Synchronized fun status() = current
+    @Synchronized fun scanning(): Boolean = armed && !dispatched &&
+        current.phase in setOf(CashLobbySelectionPhase.WAITING_LOBBY,
+            CashLobbySelectionPhase.RECOMMENDED)
 
     @Synchronized fun reset(reason: String = "STOP") {
         armed = false
