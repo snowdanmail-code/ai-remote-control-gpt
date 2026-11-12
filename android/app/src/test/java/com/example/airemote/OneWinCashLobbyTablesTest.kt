@@ -72,7 +72,7 @@ class OneWinCashLobbyTablesTest {
         val low = OneWinCashLobbySelector.choose(scan.tables,
             OneWinCashTableLimits(4, 300))
         assertNotNull(low)
-        assertEquals("Viana MJP #5", low!!.table.label)
+        assertEquals("Lubbock BP #3", low!!.table.label)
         assertEquals(300L, low.permittedBuyInCapCents)
 
         val noAffordable = OneWinCashLobbySelector.choose(scan.tables,
