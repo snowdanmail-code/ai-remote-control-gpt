@@ -65,4 +65,44 @@ class OpponentPopupStatsParserTest {
         val good = OpponentPopupStatsParser.parse(listOf(ocr("VPIP 36%")))
         assertEquals("POPUP_OCR_ONLY", good.single().evidence)
     }
+    @Test fun authenticOneWinPopupLayoutNumbersAreAboveRussianLabels() {
+        // Scaled 354x768 screenshots supplied by the owner: right popup,
+        // 2 columns and four rows. The coordinates are OCR test fixtures,
+        // NOT Android gesture coordinates or proof of a player identity.
+        fun line(s: String, x: Int, y: Int) =
+            PositionedOcrLine(s, NormalizedTextBox(x, y, x + 110, y + 18))
+        val text = listOf(
+            line("43.4%", 470, 130), line("31.3%", 765, 130),
+            line("VPIP", 470, 151), line("PFR", 765, 151),
+            line("37.9%", 470, 184), line("14.2%", 765, 184),
+            line("ATS", 470, 205), line("3-Бет", 765, 205),
+            line("40%", 470, 238), line("50%", 765, 238),
+            line("Контбет", 470, 259), line("Фолд на контбет", 735, 259),
+            line("0%", 470, 290), line("99", 765, 290),
+            line("Чек-рейз", 470, 311), line("Руки", 765, 311)
+        )
+        val result = OpponentPopupStatsParser.parse(text).associate { it.metric to it.amount }
+        assertEquals(8, result.size)
+        assertEquals(43.4, result[OpponentPopupMetric.VPIP] ?: -1.0, 0.0001)
+        assertEquals(31.3, result[OpponentPopupMetric.PFR] ?: -1.0, 0.0001)
+        assertEquals(37.9, result[OpponentPopupMetric.ATS] ?: -1.0, 0.0001)
+        assertEquals(14.2, result[OpponentPopupMetric.THREE_BET] ?: -1.0, 0.0001)
+        assertEquals(40.0, result[OpponentPopupMetric.C_BET] ?: -1.0, 0.0001)
+        assertEquals(50.0, result[OpponentPopupMetric.FOLD_TO_C_BET] ?: -1.0, 0.0001)
+        assertEquals(0.0, result[OpponentPopupMetric.CHECK_RAISE] ?: -1.0, 0.0001)
+        assertEquals(99.0, result[OpponentPopupMetric.HANDS] ?: -1.0, 0.0001)
+    }
+
+    @Test fun noCrossColumnAssignmentWhenValueIsUnderAnotherStat() {
+        fun at(s: String, x: Int, y: Int) =
+            PositionedOcrLine(s, NormalizedTextBox(x, y, x + 50, y + 18))
+        val result = OpponentPopupStatsParser.parse(listOf(
+            at("VPIP", 430, 175),
+            at("PFR", 800, 175),
+            at("28%", 800, 150) // ONLY right column has a value
+        ))
+        assertEquals(1, result.size)
+        assertEquals(OpponentPopupMetric.PFR, result.single().metric)
+    }
+
 }
