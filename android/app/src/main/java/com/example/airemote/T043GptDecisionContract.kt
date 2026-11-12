@@ -94,13 +94,19 @@ object T043GptDecisionContract {
         packet.put("verified_opponent_statistics", profiles)
         // JSON-escape every external field. No free-text player names or OCR
         // instructions are interpolated into the system directive.
-        val prompt = "Analyze this Texas Hold'em turn with virtual chips. " +
-            "Unknown values are unknown; do not invent cards or opponent stats. Player statistics have limited samples. " +
+        val directive = "Analyze this Texas Hold'em turn with virtual chips. " +
+            "Unknown values are unknown; do not invent cards or opponent stats. " +
+            "Player statistics have limited samples. " +
             "Return ONLY a JSON object with keys schema, action, amount_chips. " +
             "schema must be $SCHEMA; action must be one of legal_actions. " +
             "For BET/RAISE use the already selected and verified amount, " +
             "otherwise amount_chips must be null. " +
-            "This is advice, not permission to tap.\\n" + packet.toString()
+            "This is advice, not permission to tap.\\n"
+        var prompt = directive + packet.toString()
+        while (prompt.length > 1_600 && profiles.length() > 0) {
+            profiles.remove(profiles.length() - 1)
+            prompt = directive + packet.toString()
+        }
         return prompt.takeIf { it.length <= 1600 }
     }
 
