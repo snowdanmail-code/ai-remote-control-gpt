@@ -465,45 +465,69 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
         }
     }
 
-    /** Applying a message, writing domain effects and moving the cursor form one transaction.
-     * The caller is a trusted LOCAL processor, not a network or OCR listener.
-     * A quarantine message can never be applied. */
-    @Synchronized fun applyInboxAtomically(
-        sender: String, message: String, domainChange: (SQLiteDatabase)->Unit
-    ): T043WriteResult = write { db ->
-        val details = db.rawQuery(
-            "SELECT recipient_id,stream_id,sequence_no,processing_state FROM t043_sync_inbox WHERE sender_id=? AND message_id=?",
-            arrayOf(sender,message)
-        ).use { c ->
-            if (!c.moveToFirst()) null else listOf(c.getString(0),c.getString(1),
-                c.getLong(2).toString(),c.getString(3))
-        } ?: return@write T043WriteResult.REJECTED
-        if (details[3] == "APPLIED") return@write T043WriteResult.ALREADY_SEEN
-        if (details[3] != "RECEIVED") return@write T043WriteResult.REJECTED
-        var contiguous = db.rawQuery(
-            "SELECT last_contiguous_no FROM t043_sync_cursors WHERE sender_id=? AND recipient_id=? AND stream_id=? AND direction='INBOUND'",
-            arrayOf(sender,details[0],details[1])
-        ).use { c -> check(c.moveToFirst());c.getLong(0) }
-        // Domain effects are deliberately ordered. Later messages may be stored,
-        // but must not be applied ahead of a missing or unprocessed predecessor.
-        if (contiguous == Long.MAX_VALUE ||
-            details[2].toLong() != contiguous + 1) return@write T043WriteResult.REJECTED
-        domainChange(db)
-        val ms = now()
-        db.execSQL("UPDATE t043_sync_inbox SET processing_state='APPLIED',applied_at_ms=? WHERE sender_id=? AND message_id=? AND processing_state='RECEIVED'",
-            arrayOf(ms,sender,message))
-        while (contiguous < Long.MAX_VALUE) {
-            val next = contiguous + 1
-            val applied = singleText(db,
-                "SELECT processing_state FROM t043_sync_inbox WHERE sender_id=? AND recipient_id=? AND stream_id=? AND sequence_no=?",
-                sender,details[0],details[1],next.toString())
-            if (applied != "APPLIED") break
-            contiguous = next
+    /**
+     * Diagnostic-only acknowledgement. Never expose SQLiteDatabase or arbitrary
+     * SQL callbacks to received/untrusted messages: otherwise a caller can write
+     * directly to confirmed history without Stage-1 proof.
+     *
+     * Verified-hand payloads are deliberately NOT supported by this API.
+     * Future transport must route those only through importVerifiedHand()
+     * with separately trusted, pinned-byte proof verifiers.
+     */
+    @Synchronized fun applyInboxAtomically(sender: String, message: String): T043WriteResult =
+        write { db ->
+            val details = db.rawQuery(
+                "SELECT recipient_id,stream_id,sequence_no,processing_state,content_type," +
+                    "payload_encoding,payload_schema_major,payload_schema_minor,payload_bytes " +
+                    "FROM t043_sync_inbox WHERE sender_id=? AND message_id=?",
+                arrayOf(sender,message)
+            ).use { row ->
+                if (!row.moveToFirst()) null
+                else {
+                    val major = if (row.isNull(6)) null else row.getInt(6)
+                    val minor = if (row.isNull(7)) null else row.getInt(7)
+                    listOf<Any?>(row.getString(0),row.getString(1),row.getLong(2),
+                        row.getString(3),row.getString(4),row.getString(5),
+                        major,minor,row.getBlob(8))
+                }
+            } ?: return@write T043WriteResult.REJECTED
+            val state = details[3] as String
+            if (state == "APPLIED") return@write T043WriteResult.ALREADY_SEEN
+            if (state != "RECEIVED") return@write T043WriteResult.REJECTED
+            if (details[4] != "poker.observation" ||
+                details[5] != "JSON_UTF8" || details[6] != 1 || details[7] != 0)
+                return@write T043WriteResult.REJECTED
+            // Check originals and all stored fingerprints BEFORE marking a receipt applied.
+            checkedMessage(db,"t043_sync_inbox","sender_id=? AND message_id=?",
+                arrayOf(sender,message))
+            val observation = try {
+                CanonicalPokerJson.decodeObservation(decodeUtf8(details[8] as ByteArray))
+            } catch (_: Exception) { return@write T043WriteResult.REJECTED }
+            if (observation.schemaMajor != 1 || observation.schemaMinor != 0)
+                return@write T043WriteResult.REJECTED
+
+            val recipient = details[0] as String
+            val stream = details[1] as String
+            val sequence = details[2] as Long
+            var contiguous = db.rawQuery(
+                "SELECT last_contiguous_no FROM t043_sync_cursors WHERE sender_id=? " +
+                    "AND recipient_id=? AND stream_id=? AND direction='INBOUND'",
+                arrayOf(sender,recipient,stream)
+            ).use { row -> check(row.moveToFirst()); row.getLong(0) }
+            if (contiguous == Long.MAX_VALUE || sequence != contiguous + 1)
+                return@write T043WriteResult.REJECTED
+
+            // Only diagnostic receipt/cursor bookkeeping; NO domain-table writes.
+            val ms = now()
+            db.execSQL("UPDATE t043_sync_inbox SET processing_state='APPLIED',applied_at_ms=? " +
+                "WHERE sender_id=? AND message_id=? AND processing_state='RECEIVED'",
+                arrayOf(ms,sender,message))
+            contiguous = sequence
+            db.execSQL("UPDATE t043_sync_cursors SET last_contiguous_no=?,updated_at_ms=? " +
+                "WHERE sender_id=? AND recipient_id=? AND stream_id=? AND direction='INBOUND'",
+                arrayOf(contiguous,ms,sender,recipient,stream))
+            T043WriteResult.APPLIED
         }
-        db.execSQL("UPDATE t043_sync_cursors SET last_contiguous_no=?,updated_at_ms=? WHERE sender_id=? AND recipient_id=? AND stream_id=? AND direction='INBOUND'",
-            arrayOf(contiguous,ms,sender,details[0],details[1]))
-        T043WriteResult.APPLIED
-    }
 
     /** No general-purpose ACK setter: only a future verified transport may acknowledge. */
     private fun messageValues(h: T043MessageFingerprint.Envelope,
