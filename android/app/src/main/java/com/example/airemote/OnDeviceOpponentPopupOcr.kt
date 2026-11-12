@@ -20,7 +20,8 @@ data class OpponentPopupStatsSnapshot(
     val windowGeneration: Long,
     val firstCapturedAtMs: Long,
     val confirmedAtMs: Long,
-    val metrics: List<OpponentPopupMetricValue>
+    val metrics: List<OpponentPopupMetricValue>,
+    val displayedNickname: String? = null
 ) {
     val linkedOpponentKey: String? get() = null
     val authorizesAction: Boolean get() = false
@@ -36,7 +37,8 @@ object OnDeviceOpponentPopupOcr {
         val windowGeneration: Long,
         val frameSeq: Long,
         val capturedAtMs: Long,
-        val values: List<OpponentPopupMetricValue>
+        val values: List<OpponentPopupMetricValue>,
+        val nickname: String?
     )
 
     private var generation = 0L
@@ -111,7 +113,9 @@ object OnDeviceOpponentPopupOcr {
                 val candidate = PanelCandidate(
                     requireNotNull(origin.observedPackage), origin.captureEpoch,
                     requireNotNull(origin.windowGeneration), origin.localFrameSequence,
-                    nowMs, values
+                    nowMs, values, result.getOrNull()?.let {
+                        OpponentPopupStatsParser.displayedNickname(it.lines)
+                    }
                 )
                 val prior = previous
                 confirmed = if (prior != null && prior.captureEpoch == candidate.captureEpoch &&
@@ -119,10 +123,11 @@ object OnDeviceOpponentPopupOcr {
                     prior.sourcePackage == candidate.sourcePackage &&
                     prior.frameSeq < candidate.frameSeq &&
                     candidate.capturedAtMs - prior.capturedAtMs in 200L..5_000L &&
-                    prior.values == candidate.values
+                    prior.values == candidate.values &&
+                    prior.nickname == candidate.nickname
                 ) OpponentPopupStatsSnapshot(candidate.sourcePackage, candidate.captureEpoch,
                     candidate.windowGeneration, prior.capturedAtMs,
-                    candidate.capturedAtMs, candidate.values)
+                    candidate.capturedAtMs, candidate.values, candidate.nickname)
                 else null
                 previous = candidate
             }
