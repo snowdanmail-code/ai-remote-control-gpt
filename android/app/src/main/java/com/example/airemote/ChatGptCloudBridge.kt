@@ -686,10 +686,10 @@ object ChatGptCloudBridge {
                     val priorAuth = if (phase == ChatGptCloudStep.SESSION &&
                         (ex as? CloudProblemError)?.problem == ChatGptCloudProblem.NO_SESSION &&
                         lastLoginDiagnostic.contains("AUTH_")) lastLoginDiagnostic else null
-                    val detail = if (priorAuth == null) message
+                    val usefulMessage = if (priorAuth == null) message
                         else "$message | Последняя ошибка входа: $priorAuth"
-                    cloudDiagnostic(generation, detail)
-                    completed(null, detail)
+                    cloudDiagnostic(generation, usefulMessage)
+                    completed(null, usefulMessage)
                 }
             } finally {
                 operations.finishRequest()
