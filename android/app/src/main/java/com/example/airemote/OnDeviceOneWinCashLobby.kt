@@ -19,6 +19,16 @@ data class OneWinCashLobbySnapshot(
     val authorizesWager: Boolean get() = false
 }
 
+/** Two OCR frames must agree on the exact popup labels before menu navigation. */
+data class OneWinCashLobbySortMenuSnapshot(
+    val sourcePackage: String,
+    val captureEpoch: Long,
+    val windowGeneration: Long,
+    val capturedAtMs: Long,
+    val confirmedAtMs: Long,
+    val options: Map<OneWinLobbySort, NormalizedTextBox>
+)
+
 object OnDeviceOneWinCashLobby {
     private const val INTERVAL_MS = 1_300L
     private const val MAX_AGE_MS = 2_500L
@@ -34,14 +44,23 @@ object OnDeviceOneWinCashLobby {
     private var busy = false
     private var lastStartedAtMs = -INTERVAL_MS
     private var previous: Candidate? = null
+    private data class SortCandidate(
+        val source: String, val epoch: Long, val window: Long,
+        val seq: Long, val atMs: Long, val menu: OneWinLobbySortMenu
+    )
+    private var priorSort: SortCandidate? = null
+    @Volatile private var confirmedSort: OneWinCashLobbySortMenuSnapshot? = null
     @Volatile private var result: OneWinCashLobbySnapshot? = null
 
     @Synchronized fun latest(): OneWinCashLobbySnapshot? = result
+    @Synchronized fun latestSortMenu(): OneWinCashLobbySortMenuSnapshot? = confirmedSort
 
     @Synchronized fun reset() {
         generation++
         busy = false
         previous = null
+        priorSort = null
+        confirmedSort = null
         result = null
         lastStartedAtMs = -INTERVAL_MS
     }
@@ -95,6 +114,7 @@ object OnDeviceOneWinCashLobby {
         OnDeviceTextRecognition.inspectStructured(jpeg) { outcome ->
             val endMs = SystemClock.elapsedRealtime()
             var confirmedNew: OneWinCashLobbySnapshot? = null
+            var confirmedMenu: OneWinCashLobbySortMenuSnapshot? = null
             synchronized(this) {
                 if (currentToken != generation) return@inspectStructured
                 busy = false
@@ -104,11 +124,42 @@ object OnDeviceOneWinCashLobby {
                     result = null
                     return@inspectStructured
                 }
-                val scan = outcome.getOrNull()?.let { OneWinCashLobbyParser.read(it.lines) }
+                val lines = outcome.getOrNull()?.lines
+                val menu = lines?.let(OneWinCashLobbySortParser::read)
+                if (menu != null) {
+                    // Open sort dropdown overlays table rows: never retain any
+                    // outdated "Войти" location while sorting is visible.
+                    previous = null
+                    result = null
+                    val next = SortCandidate(requireNotNull(origin.observedPackage),
+                        origin.captureEpoch, requireNotNull(origin.windowGeneration),
+                        origin.localFrameSequence, nowMs, menu)
+                    val p = priorSort
+                    if (p != null && p.source == next.source && p.epoch == next.epoch &&
+                        p.window == next.window && p.seq < next.seq &&
+                        next.atMs - p.atMs in 300L..6_000L &&
+                        p.menu.options.keys == next.menu.options.keys &&
+                        p.menu.options.all { (action, box) ->
+                            val currentBox = next.menu.options[action]
+                            currentBox != null &&
+                                abs(box.centerX() - currentBox.centerX()) <= 12 &&
+                                abs(box.centerY() - currentBox.centerY()) <= 12
+                        }) {
+                        confirmedMenu = OneWinCashLobbySortMenuSnapshot(
+                            next.source, next.epoch, next.window,
+                            p.atMs, endMs, next.menu.options)
+                    } else confirmedMenu = null
+                    confirmedSort = confirmedMenu
+                    priorSort = next
+                    return@synchronized
+                }
+                priorSort = null
+                confirmedSort = null
+                val scan = lines?.let(OneWinCashLobbyParser::read)
                 if (scan?.headerVerified != true || scan.tables.isEmpty()) {
                     previous = null
                     result = null
-                    return@inspectStructured
+                    return@synchronized
                 }
                 val candidate = Candidate(requireNotNull(origin.observedPackage),
                     origin.captureEpoch, requireNotNull(origin.windowGeneration),
@@ -125,6 +176,7 @@ object OnDeviceOneWinCashLobby {
                 result = confirmedNew
                 previous = candidate
             }
+            confirmedMenu?.let { OnDeviceCashLobbySelection.onSortMenuConfirmed(context, it) }
             confirmedNew?.let { OnDeviceCashLobbySelection.onConfirmed(context, it) }
         }
     }
