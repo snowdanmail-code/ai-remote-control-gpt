@@ -86,7 +86,7 @@ object OpponentPopupStatsParser {
             val token = line.text.trim().split(whitespace).firstOrNull() ?: return@mapNotNull null
             val name = token.trimEnd(':')
             if (name.length !in 2..24 || !name.any { it.isLetter() } ||
-                !Regex("""[\\p{L}\\p{N}_.-]{2,24}""").matches(name) ||
+                !Regex("""[\p{L}\p{N}_.-]{2,24}""").matches(name) ||
                 name.lowercase() in setOf("настройки", "игрока", "player", "statistics", "статистика"))
                 null else name
         }.distinct()
