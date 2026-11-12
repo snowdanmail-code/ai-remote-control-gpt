@@ -53,6 +53,16 @@ class T043DeviceIdentityRegistry(devices: Collection<T043PinnedDevice>) {
             }
         }
 
+    /** Route selection only consults a locally provisioned, trusted key registry. */
+    fun requireReceiptSignerForRoute(deviceId:String):T043PinnedDevice =
+        requireNotNull(byId[deviceId]) { "Unknown signing device" }.also {
+            require(!it.revoked) { "Revoked signing device" }
+        }
+    fun requireEncryptionRecipientForRoute(deviceId:String):T043PinnedDevice =
+        requireNotNull(byId[deviceId]) { "Unknown recipient device" }.also {
+            require(!it.revoked) { "Revoked recipient device" }
+        }
+
     /** App receipts identify the device itself, not an observation namespace. */
     fun requireReceiptSigner(deviceId:String,keyId:String,version:Int):T043PinnedDevice =
         requireNotNull(byId[deviceId]) { "Unknown receipt signer" }.also { pinned ->
