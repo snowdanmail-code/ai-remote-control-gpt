@@ -450,6 +450,95 @@ class LiveGestureAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * One navigation-only touch on the *observed* cash-game lobby BUY-IN row.
+     * The OCR text anchor must still be confirmed by two matching frames,
+     * independent Android root/package, current epoch, per-session upper
+     * financial limits and operator ARM. Never confirms the actual buy-in.
+     */
+    internal fun offerOneWinCashLobbyEntry(
+        ticket: OneWinCashLobbyEntryTicket, onSubmitted: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { onSubmitted(false) }
+            val now = SystemClock.elapsedRealtime()
+            val lobby = OnDeviceOneWinCashLobby.latest()
+            val limits = OneWinCashLobbyLimitsStore.read(applicationContext)
+            if (lobby == null || limits?.valid() != true ||
+                !OnDeviceCashLobbySelection.latestTicketMatches(ticket, now) ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage ||
+                CaptureObservationMode.isSpectator() ||
+                !FrameStore.isCapturing || FrameStore.captureEpoch != ticket.captureEpoch ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive()) {
+                reject(); return@post
+            }
+            val matching = lobby.tables.singleOrNull {
+                it.stableKey() == ticket.key &&
+                    it.buyInOcrBox == ticket.anchor &&
+                    it.label == ticket.tableName
+            } ?: run { reject(); return@post }
+            if (matching.bigBlindCents > limits.maxBigBlindCents ||
+                matching.minBuyInCents > limits.maxBuyInCents ||
+                matching.occupiedSeats >= matching.totalSeats ||
+                ticket.permittedBuyInCapCents > limits.maxBuyInCents) {
+                reject(); return@post
+            }
+            val origin = FrameStore.windowOrigin
+            val actual = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(actual, now)
+            val root = LiveForegroundProbe.snapshot()
+            if (origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.windowGeneration != ticket.windowGeneration ||
+                actual != ticket.sourcePackage ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.windowGeneration ||
+                now - root.atMs > 700L) {
+                reject(); return@post
+            }
+            val b = ticket.anchor
+            if (!b.valid() || b.centerX() !in 690..970 ||
+                b.centerY() !in 185..945 ||
+                b.right - b.left !in 20..295 ||
+                b.bottom - b.top !in 8..90) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (m.widthPixels < 320 || m.heightPixels < 640 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            val x = (b.centerX().toLong() * m.widthPixels / 1000L).toInt()
+            val y = (b.centerY().toLong() * m.heightPixels / 1000L).toInt()
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x < overlay.x + overlay.width &&
+                y >= overlay.y && y < overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            // Exact final STOP/root/consent check before dispatchGesture.
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                !LiveGamePermissionGate.permitted() ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch) {
+                reject(); return@post
+            }
+            val gesturePath = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val description = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(gesturePath, 0, 65L)).build()
+            val submitted = dispatchGesture(description, object : GestureResultCallback() {
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    // A cancellation is NOT permission for an automatic retry.
+                    OnDeviceCashLobbySelection.reset("Вход в стол отменён Android")
+                }
+            }, main)
+            onSubmitted(submitted)
+        }
+    }
+
     private fun installMovableStop() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val density = resources.displayMetrics.density
