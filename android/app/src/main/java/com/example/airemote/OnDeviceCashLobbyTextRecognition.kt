@@ -24,6 +24,9 @@ object OnDeviceCashLobbyTextRecognition {
         "eng" to "90aadb5e0c368781f94add808f6b4dd31d8e244c9fecbe6a233070cac9a4fc071fd23a09e4a7e041db8e26880a6debbdf32a6b701c28687b2ed1cac81f4c1d14"
     )
     private val lengths = mapOf("rus" to 3_861_738, "eng" to 4_113_088)
+    // Single OCR worker owns this native engine for the entire capture
+    // session. Loading rus+eng neural models on every frame is too slow.
+    private var engine: TessBaseAPI? = null
     @Volatile private var languagePath: String? = null
     @Volatile var lastStatus: String = "Русско-английский OCR ещё не запускался"
         private set
@@ -56,6 +59,21 @@ object OnDeviceCashLobbyTextRecognition {
         return folder.absolutePath
     }
 
+    private fun engineFor(context: Context): TessBaseAPI {
+        engine?.let { return it }
+        val created = TessBaseAPI()
+        try {
+            check(created.init(ensureModels(context), "rus+eng",
+                TessBaseAPI.OEM_LSTM_ONLY)) { "Cyrillic OCR engine failed to initialize" }
+            created.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+            engine = created
+            return created
+        } catch (e: Exception) {
+            created.recycle()
+            throw e
+        }
+    }
+
     fun inspectStructured(context: Context, jpeg: ByteArray,
                           callback: (Result<LocalOcrSnapshot>) -> Unit) {
         val app = context.applicationContext
@@ -65,11 +83,8 @@ object OnDeviceCashLobbyTextRecognition {
                 val bitmap = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size)
                     ?: error("Cannot decode cash lobby screenshot")
                 try {
-                    val tess = TessBaseAPI()
+                    val tess = engineFor(app)
                     try {
-                        check(tess.init(ensureModels(app), "rus+eng",
-                            TessBaseAPI.OEM_LSTM_ONLY)) { "Cyrillic OCR engine failed to initialize" }
-                        tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
                         tess.setImage(bitmap)
                         tess.getUTF8Text() // initialize result iterator
                         val iterator = tess.getResultIterator()
@@ -96,7 +111,10 @@ object OnDeviceCashLobbyTextRecognition {
                             } finally { iterator.delete() }
                         }
                         LocalOcrSnapshot(lines, SystemClock.elapsedRealtime() - started)
-                    } finally { tess.recycle() }
+                    } finally {
+                        // Keep the engine warm; only drop the per-frame data.
+                        tess.clear()
+                    }
                 } finally { bitmap.recycle() }
             }
             lastStatus = result.fold(
