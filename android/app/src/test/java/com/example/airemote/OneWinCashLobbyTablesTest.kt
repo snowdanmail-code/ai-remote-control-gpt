@@ -11,26 +11,29 @@ class OneWinCashLobbyTablesTest {
     /** Based on the owner-supplied 354x768 portrait lobby screenshot. */
     private fun screenshotOcr(): List<PositionedOcrLine> = listOf(
         line("Кэш-Игры", 410, 55, 190),
-        line("77 Столы", 420, 118, 160),
-        line("Холдем", 45, 167, 190),
+        line("76 Столы", 420, 118, 160),
+        line("Холдем NL", 45, 205, 190),
         line("Бай-ин:", 742, 221, 160),
         line("8$/20 $", 742, 241, 170),
         line("Palma BP #4", 55, 253, 320),
         line("Средний банк: 4,93 $", 55, 280, 345),
         line("5/6", 515, 280, 110),
         line("0.10$/0.20$", 737, 280, 215),
+        line("Холдем NL", 45, 305, 190),
         line("Бай-ин:", 742, 322, 160),
         line("1.60$/4 $", 742, 342, 170),
         line("Viana MJP #5", 55, 353, 320),
         line("Средний банк: 0.61 $", 55, 380, 345),
         line("5/6", 515, 380, 110),
         line("0.02$/0.04$", 737, 380, 215),
+        line("Холдем NL", 45, 405, 190),
         line("Бай-ин:", 742, 421, 160),
         line("12$/30 $", 742, 441, 170),
         line("Norman #2", 55, 452, 320),
         line("Средний банк: 6.35 $", 55, 479, 345),
         line("5/6", 515, 479, 110),
         line("0.15$/0.30$", 737, 479, 215),
+        line("Холдем NL", 45, 505, 190),
         line("Бай-ин:", 742, 521, 160),
         line("0.80$/2 $", 742, 541, 170),
         line("Lubbock BP #3", 55, 553, 320),
@@ -58,6 +61,31 @@ class OneWinCashLobbyTablesTest {
         assertEquals(4L, b.bigBlindCents)
         assertEquals(160L, b.minBuyInCents)
         assertEquals(400L, b.maxBuyInCents)
+    }
+
+    @Test fun holdemIsVerifiedPerRowNotFromTheTopBar() {
+        val lines = screenshotOcr()
+        // The actual lobby top bar says 'Кэш-Игры', not 'Холдем'.
+        assertFalse(lines.filter { it.box.centerY() in 25..210 }
+            .any { it.text.contains("холдем", ignoreCase = true) })
+        assertEquals(4, OneWinCashLobbyParser.read(lines).tables.size)
+
+        val withoutSecondTag = lines.filterNot {
+            it.text == "Холдем NL" && it.box.top == 305
+        }
+        val partial = OneWinCashLobbyParser.read(withoutSecondTag)
+        assertTrue(partial.headerVerified)
+        assertEquals(3, partial.tables.size)
+        assertTrue(partial.tables.none { it.label == "Viana MJP #5" })
+
+        val withOmahaRow = lines.map {
+            if (it.text == "Холдем NL" && it.box.top == 405)
+                it.copy(text = "Омаха PL")
+            else it
+        }
+        val mixed = OneWinCashLobbyParser.read(withOmahaRow)
+        assertEquals(3, mixed.tables.size)
+        assertTrue(mixed.tables.none { it.label == "Norman #2" })
     }
 
     @Test fun noFinancialLimitsMeansNoAutomaticChoice() {
