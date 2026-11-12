@@ -64,7 +64,8 @@ class T043AndroidKeyVault(private val context: Context) {
         val cipher=Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE,wrapKey())
         cipher.updateAAD(keyId.toByteArray(Charsets.UTF_8))
-        val ciphertext=cipher.doFinal(secret.copyOf())
+        val temporary=secret.copyOf()
+        val ciphertext=try { cipher.doFinal(temporary) } finally { temporary.fill(0) }
         val data=byteArrayOf(1,cipher.iv.size.toByte())+cipher.iv+ciphertext
         val stream=f.startWrite()
         try {
