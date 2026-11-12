@@ -240,6 +240,30 @@ class MainActivity : Activity() {
             OnDeviceRealFrameRegions.clear()
             status.text = "Калибровка удалена, распознавание мест сброшено"
         }
+        button("1WIN — АВТОМАТИЧЕСКИ ПРОЧИТАТЬ ПРОФИЛИ СОПЕРНИКОВ") {
+            val started = OnDeviceOpponentProfileSweep.start(this@MainActivity)
+            val current = OnDeviceOpponentProfileSweep.status()
+            status.text = if (started) current.description +
+                ". Перейдите к игровому столу; программа обойдёт измеренные аватары " +
+                "и закроет панели касанием безопасной зоны стола."
+            else "Обход не запущен: требуется активный захват, разрешение касаний, " +
+                "калибровка SEAT_AVATAR + PROFILE_DISMISS и отсутствие активного CHECK/хода."
+        }
+        button("1WIN — ПОКАЗАТЬ ПРОЧИТАННУЮ СТАТИСТИКУ") {
+            val scan = OnDeviceOpponentProfileSweep.status()
+            val profile = OnDeviceOpponentPopupOcr.latest()
+            val observed = scan.results.joinToString("\\n") { item ->
+                "Место ${item.seatIndex}: ${item.displayedNickname ?: "имя неизвестно"}; " +
+                    item.metrics.joinToString { "${it.metric.label}=${it.amount}" }
+            }
+            val popup = profile?.let {
+                "Открытая панель: ${it.displayedNickname ?: "неизвестный игрок"}, " +
+                    it.metrics.joinToString { metric -> "${metric.metric.label}=${metric.amount}" }
+            } ?: "Нет двух совпадающих кадров окна статистики"
+            status.text = "Обход: ${scan.phase} — ${scan.description}. " +
+                "Результаты только диагностические, не связаны с постоянным ID.\\n" +
+                observed.ifBlank { "Профили пока не собраны" } + "\\n" + popup
+        }
         button("ДИАГНОСТИКА МЕСТ ИГРОКОВ") {
             status.text = FrameStore.lastSeatVisual?.summary()
                 ?: "Нет наблюдений. Для распознавания мест необходима калибровка " +
