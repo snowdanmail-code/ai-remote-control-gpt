@@ -105,4 +105,36 @@ class OpponentPopupStatsParserTest {
         assertEquals(OpponentPopupMetric.PFR, result.single().metric)
     }
 
+    @Test fun firstSuppliedOneWinScreenshotHasEightDistinctReadings() {
+        fun line(text: String, x: Int, y: Int) =
+            PositionedOcrLine(text, NormalizedTextBox(x, y, x + 110, y + 18))
+        val lines = listOf(
+            line("25%", 475, 132), line("25%", 758, 132),
+            line("VPIP", 475, 153), line("PFR", 758, 153),
+            line("0%", 475, 186), line("0%", 758, 186),
+            line("ATS", 475, 207), line("3-Бет", 758, 207),
+            line("0%", 475, 240), line("0%", 758, 240),
+            line("Контбет", 475, 261), line("Фолд на контбет", 728, 261),
+            line("0%", 475, 292), line("8", 758, 292),
+            line("Чек-рейз", 475, 313), line("Руки", 758, 313)
+        )
+        val stats = OpponentPopupStatsParser.parse(lines).associate { it.metric to it.amount }
+        assertEquals(8, stats.size)
+        assertEquals(25.0, stats[OpponentPopupMetric.VPIP] ?: -1.0, 0.01)
+        assertEquals(25.0, stats[OpponentPopupMetric.PFR] ?: -1.0, 0.01)
+        assertEquals(8.0, stats[OpponentPopupMetric.HANDS] ?: -1.0, 0.01)
+    }
+
+    @Test fun nicknameComesOnlyFromHeaderNotTableOrStats() {
+        val first = listOf(
+            ocr("krcv", 480, 60, 590, 85),
+            ocr("VPIP", 480, 155, 550, 175),
+            ocr("LadyElis", 480, 600, 600, 625))
+        assertEquals("krcv", OpponentPopupStatsParser.displayedNickname(first))
+        assertEquals("LadyElis", OpponentPopupStatsParser.displayedNickname(listOf(
+            ocr("LadyElis", 480, 56, 610, 82))))
+        assertNull(OpponentPopupStatsParser.displayedNickname(listOf(
+            ocr("116 $", 480, 60, 590, 85), ocr("VPIP", 480, 150, 590, 173))))
+    }
+
 }
