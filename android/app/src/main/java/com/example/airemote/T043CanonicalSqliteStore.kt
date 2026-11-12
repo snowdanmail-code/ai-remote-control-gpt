@@ -83,6 +83,82 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
 
     private fun comparable(d: T043MessageFingerprint.Digest) = d.comparisonDigest
 
+    /**
+     * Recalculate digests against stored ORIGINAL bytes, not the stored hash column.
+     * On any discrepancy throw -> outer write() rolls back and returns STORAGE_ERROR.
+     * A damaged row must NEVER be reported as a harmless duplicate.
+     */
+    private fun checkedObservation(db: SQLiteDatabase, key: String): String? =
+        db.rawQuery(
+            "SELECT payload_bytes,payload_json,raw_sha256,semantic_sha256,comparison_mode,canonicalization_id " +
+                "FROM t043_observations WHERE observation_key=?", arrayOf(key)
+        ).use { row ->
+            if (!row.moveToFirst()) return@use null
+            val bytes = row.getBlob(0)
+            check(row.getString(1) == decodeUtf8(bytes)) { "Observation raw JSON drift" }
+            val candidate = digest(bytes,"JSON_UTF8",row.getString(5))
+            check(candidate.rawSha256 == row.getString(2) &&
+                candidate.semanticSha256 == (if (row.isNull(3)) null else row.getString(3)) &&
+                candidate.comparisonMode == row.getString(4)) { "Observation checksum mismatch" }
+            candidate.comparisonDigest
+        }
+
+    private fun checkedVerifiedHand(db: SQLiteDatabase, handId: String): String? =
+        db.rawQuery(
+            "SELECT payload_bytes,payload_json,payload_sha256 FROM t043_verified_hands WHERE hand_record_id=?",
+            arrayOf(handId)
+        ).use { row ->
+            if (!row.moveToFirst()) return@use null
+            val bytes = row.getBlob(0)
+            check(row.getString(1) == decodeUtf8(bytes)) { "Verified hand raw JSON drift" }
+            val candidate = digest(bytes,"JSON_UTF8",T043MessageFingerprint.JSON_CANONICALIZATION)
+            check(!candidate.quarantine && candidate.comparisonDigest == row.getString(2)) {
+                "Verified hand checksum mismatch"
+            }
+            candidate.comparisonDigest
+        }
+
+    private fun checkedMessage(db: SQLiteDatabase, table: String, where: String,
+                               args: Array<String>): Pair<Long,String>? {
+        require(table == "t043_sync_inbox" || table == "t043_sync_outbox")
+        val sql = "SELECT * FROM $table WHERE $where"
+        return db.rawQuery(sql,args).use { row ->
+            if (!row.moveToFirst()) return@use null
+            fun str(key: String): String? = row.getColumnIndexOrThrow(key).let { index ->
+                if (row.isNull(index)) null else row.getString(index)
+            }
+            fun number(key: String): Int? = row.getColumnIndexOrThrow(key).let { index ->
+                if (row.isNull(index)) null else row.getInt(index)
+            }
+            val raw = row.getBlob(row.getColumnIndexOrThrow("payload_bytes"))
+            val d = digest(raw,requireNotNull(str("payload_encoding")),
+                requireNotNull(str("canonicalization_id")))
+            check(d.rawSha256 == str("raw_sha256") &&
+                d.semanticSha256 == str("semantic_sha256") &&
+                d.comparisonMode == str("comparison_mode")) { "Message payload checksum mismatch" }
+            val seq = row.getLong(row.getColumnIndexOrThrow("sequence_no"))
+            val header = T043MessageFingerprint.Envelope(
+                senderId=requireNotNull(str("sender_id")),
+                messageId=requireNotNull(str("message_id")),
+                recipientId=requireNotNull(str("recipient_id")),
+                streamId=requireNotNull(str("stream_id")),
+                sequenceNo=seq,
+                contentType=requireNotNull(str("content_type")),
+                sourceNamespace=str("source_namespace"),
+                relatedRecordType=str("related_record_type"),
+                relatedRecordKey=str("related_record_key"),
+                rulesetId=str("ruleset_id"),
+                payloadEncoding=requireNotNull(str("payload_encoding")),
+                schemaMajor=number("payload_schema_major"),
+                schemaMinor=number("payload_schema_minor"),
+                canonicalizationId=requireNotNull(str("canonicalization_id"))
+            )
+            val envelope = T043MessageFingerprint.envelopeSha256(header,d)
+            check(envelope == str("envelope_sha256")) { "Envelope checksum mismatch" }
+            seq to envelope
+        }
+    }
+
     /** Observation import stores ORIGINAL bytes. Future schema minor is diagnostic-only.
      * The caller MUST supply the real upstream observation ID; no fabricated IDs. */
     @Synchronized fun importObservation(rawBytes: ByteArray): T043WriteResult {
@@ -95,9 +171,7 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
         val incoming = comparable(d)
         return write { db ->
             db.execSQL("SAVEPOINT t043_import")
-            val previous = singleText(db,
-                "SELECT COALESCE(semantic_sha256,raw_sha256) FROM t043_observations WHERE observation_key=?",
-                key)
+            val previous = checkedObservation(db,key)
             if (previous != null) {
                 db.execSQL("ROLLBACK TO SAVEPOINT t043_import")
                 db.execSQL("RELEASE SAVEPOINT t043_import")
@@ -166,8 +240,7 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
         val incoming = comparable(d)
         return write { db ->
             db.execSQL("SAVEPOINT t043_import")
-            val previous = singleText(db,
-                "SELECT payload_sha256 FROM t043_verified_hands WHERE hand_record_id=?",handId)
+            val previous = checkedVerifiedHand(db,handId)
             if (previous != null) {
                 db.execSQL("ROLLBACK TO SAVEPOINT t043_import")
                 db.execSQL("RELEASE SAVEPOINT t043_import")
@@ -234,12 +307,8 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
              (draft.schemaMajor != 1 || draft.schemaMinor != 0))
         return write { db ->
             db.execSQL("SAVEPOINT t043_import")
-            val prior = db.rawQuery(
-                "SELECT sequence_no,envelope_sha256 FROM t043_sync_outbox WHERE sender_id=? AND message_id=?",
-                arrayOf(draft.senderId,draft.messageId)
-            ).use { c ->
-                if (c.moveToFirst()) Pair(c.getLong(0),c.getString(1)) else null
-            }
+            val prior = checkedMessage(db,"t043_sync_outbox",
+                "sender_id=? AND message_id=?",arrayOf(draft.senderId,draft.messageId))
             if (prior != null) {
                 val candidateHash = T043MessageFingerprint.envelopeSha256(
                     draft.header(prior.first),computed)
@@ -289,9 +358,8 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
             (header.schemaMajor != null && (header.schemaMajor != 1 || header.schemaMinor != 0))
         return write { db ->
             db.execSQL("SAVEPOINT t043_import")
-            val prior = singleText(db,
-                "SELECT envelope_sha256 FROM t043_sync_inbox WHERE sender_id=? AND message_id=?",
-                header.senderId,header.messageId)
+            val prior = checkedMessage(db,"t043_sync_inbox",
+                "sender_id=? AND message_id=?",arrayOf(header.senderId,header.messageId))?.second
             if (prior != null) {
                 db.execSQL("ROLLBACK TO SAVEPOINT t043_import")
                 db.execSQL("RELEASE SAVEPOINT t043_import")
@@ -304,9 +372,9 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
             } else {
                 val ms = now()
                 // Different message IDs cannot claim the same sender/recipient/stream/sequence.
-                val occupied = singleText(db,
-                    "SELECT envelope_sha256 FROM t043_sync_inbox WHERE sender_id=? AND recipient_id=? AND stream_id=? AND sequence_no=?",
-                    header.senderId,header.recipientId,header.streamId,header.sequenceNo.toString())
+                val occupied = checkedMessage(db,"t043_sync_inbox",
+                    "sender_id=? AND recipient_id=? AND stream_id=? AND sequence_no=?",
+                    arrayOf(header.senderId,header.recipientId,header.streamId,header.sequenceNo.toString()))?.second
                 if (occupied != null) {
                     db.execSQL("ROLLBACK TO SAVEPOINT t043_import")
                     db.execSQL("RELEASE SAVEPOINT t043_import")
