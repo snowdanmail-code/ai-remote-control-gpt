@@ -51,6 +51,8 @@ object OnDeviceOpponentProfileSweep {
     private var window: Long = -1L
     private var sequence = 0L
     private var sinceMs = 0L
+    private var surfaceAtMs = 0L
+    private var surfaceState = RecordedSurfaceStatus.UNKNOWN
     private var results = mutableListOf<ObservedOpponentProfile>()
     private var phase = OpponentProfileSweepPhase.OFF
     @Volatile private var report = OpponentProfileSweepStatus(
@@ -72,8 +74,29 @@ object OnDeviceOpponentProfileSweep {
         window = -1
         sequence++
         sinceMs = 0L
+        surfaceAtMs = 0L
+        surfaceState = RecordedSurfaceStatus.UNKNOWN
         results.clear()
         status(OpponentProfileSweepPhase.OFF, reason)
+    }
+
+    /**
+     * Exact one-shot proof for the service-side gesture path. A newly read
+     * PANEL_VISIBLE frame suffices for a safe-dismiss tap even if text OCR
+     * failed; the popup must not remain stuck behind an unreadable label.
+     */
+    @Synchronized fun navigationSurfaceMatches(
+        ticket: OpponentProfileTapTicket, nowMs: Long
+    ): Boolean {
+        val expectedState = if (ticket.purpose == OpponentProfileNavPurpose.OPEN_AVATAR)
+            RecordedSurfaceStatus.TABLE_LIKE else RecordedSurfaceStatus.PANEL_VISIBLE
+        val expectedPhase = if (ticket.purpose == OpponentProfileNavPurpose.OPEN_AVATAR)
+            OpponentProfileSweepPhase.OPEN_SUBMITTED else OpponentProfileSweepPhase.DISMISS_SUBMITTED
+        return phase == expectedPhase && pendingTicket == ticket &&
+            current?.seatIndex == ticket.seatIndex && epoch == ticket.captureEpoch &&
+            window == ticket.windowGeneration && surfaceState == expectedState &&
+            surfaceAtMs >= ticket.capturedAtMs &&
+            nowMs >= surfaceAtMs && nowMs - surfaceAtMs <= 900L
     }
 
     /** One explicit session start: all subsequently measured seats are visited automatically. */
@@ -136,6 +159,8 @@ object OnDeviceOpponentProfileSweep {
             status(OpponentProfileSweepPhase.BLOCKED, "Сменилось окно или сеанс захвата")
             return
         }
+        surfaceState = surface
+        surfaceAtMs = nowMs
         if (sinceMs > 0 && nowMs - sinceMs > 8_000L &&
             phase !in setOf(OpponentProfileSweepPhase.WAITING_TABLE,
                 OpponentProfileSweepPhase.COMPLETE)) {
