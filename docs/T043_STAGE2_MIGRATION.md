@@ -69,8 +69,18 @@ the original transaction. The public result is `CONFLICT` only after commit.
 If conflict recording fails, the result is `STORAGE_ERROR`, not a false success.
 
 Identical ID + semantic content is `ALREADY_SEEN`; changed payload with
-same ID is `CONFLICT` (original remains untouched). A SHA-256 digest is
-an integrity marker, not cryptographic source authentication.
+same ID is `CONFLICT` (original remains untouched). Before declaring a
+duplicate, the store re-reads ORIGINAL payload bytes, recalculates raw and
+semantic SHA-256, and checks the full envelope digest. A stored checksum with
+corrupted bytes returns `STORAGE_ERROR`, NEVER `ALREADY_SEEN`.
+A SHA-256 digest is an integrity marker, not source authentication.
+
+Each verified hand and its deterministic pending outbox receipt are inserted
+in the SAME SQLite transaction. The recipient `t043:pending-route` is an
+internal staging label, NOT a transport endpoint. A failure after the hand
+insert but before the outbox insert rolls back the entire hand and all events;
+reimport with trusted proof repairs any previously absent pending receipt
+idempotently. Message sequencing is allocated inside the same transaction.
 
 Each new production stream starts at checkpoint zero; the local store exposes
 no nonzero-checkpoint insertion API. The schema reserves a nonzero checkpoint
@@ -85,10 +95,16 @@ sender+recipient+stream+sequence.
 
 Inbound messages may arrive out of order. The contiguous cursor advances
 only when each predecessor is applied. The cursor trigger blocks skipped
-numbers; a trusted, local processing callback binds inbound domain changes
-to the transition `RECEIVED -> APPLIED` and cursor update in one transaction.
-Untrusted/quarantined records cannot be applied. There is no remote ACK
-implementation; `SENT_UNCONFIRMED` does not mean delivery.
+numbers. The previous arbitrary `domainChange(SQLiteDatabase)` callback
+was REMOVED from `applyInboxAtomically`. This method now applies only
+a supported, checksum-valid diagnostic `poker.observation` by atomically
+marking the receipt `APPLIED` and advancing its contiguous cursor; it has
+no callback capable of writing any confirmed history. A message that claims
+`poker.verified-hand.v1` is explicitly rejected by this method. Such a
+payload can reach confirmed tables ONLY through `importVerifiedHand`
+with BOTH independent trusted verifiers. Untrusted/quarantined records
+cannot be applied. There is no remote ACK implementation;
+`SENT_UNCONFIRMED` does not mean delivery.
 
 Terminal triggers prevent regression from `APPLIED` or `ACKNOWLEDGED`,
 modification of their recorded times/receipts and DELETE of inbox/outbox.
@@ -115,6 +131,14 @@ values are never rewritten or silently reinterpreted.
   delivery, and terminal mutation protections.
 - `tools/T043FingerprintScenarios.kt`: 8 SHA test vectors and 4 envelope
   digest test vectors, numeric precision and quarantine.
+- `android/app/src/test/java/com/example/airemote/T043CanonicalSqliteRobolectricTest.kt`
+  executes the actual Android `SQLiteOpenHelper` / `SQLiteDatabase`
+  public Kotlin API inside Robolectric's Android runtime: new database,
+  real v1→v2 upgrade of all four filled tables, original `HandLearningStore`,
+  observation and independently verified hand import, queue/idempotence,
+  inbound ordered diagnostics and verified-payload rejection, atomic
+  rollback under an injected SQLite failure, persisted-byte integrity,
+  and terminal-state protection. No real phone is required.
 - Existing Stage 0/1 Python/JVM/Android unit suites remain active.
 - Actual Android instrumentation execution requires a device/emulator;
   Github CI currently compiles instrumentation but does not run an emulator.
