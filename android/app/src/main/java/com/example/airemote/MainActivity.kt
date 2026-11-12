@@ -252,7 +252,7 @@ class MainActivity : Activity() {
         button("1WIN — ПОКАЗАТЬ ПРОЧИТАННУЮ СТАТИСТИКУ") {
             val scan = OnDeviceOpponentProfileSweep.status()
             val profile = OnDeviceOpponentPopupOcr.latest()
-            val observed = scan.results.joinToString("\\n") { item ->
+            val observed = scan.results.joinToString("\n") { item ->
                 "Место ${item.seatIndex}: ${item.displayedNickname ?: "имя неизвестно"}; " +
                     item.metrics.joinToString { "${it.metric.label}=${it.amount}" }
             }
@@ -262,7 +262,7 @@ class MainActivity : Activity() {
             } ?: "Нет двух совпадающих кадров окна статистики"
             status.text = "Обход: ${scan.phase} — ${scan.description}. " +
                 "Результаты только диагностические, не связаны с постоянным ID.\\n" +
-                observed.ifBlank { "Профили пока не собраны" } + "\\n" + popup
+                observed.ifBlank { "Профили пока не собраны" } + "\n" + popup
         }
         button("ДИАГНОСТИКА МЕСТ ИГРОКОВ") {
             status.text = FrameStore.lastSeatVisual?.summary()
@@ -294,7 +294,7 @@ class MainActivity : Activity() {
                     ". Это независимые UI-кнопки, но ещё НЕ подтверждение раздачи."
             else "Android не дал пригодных подтверждённых кнопок из дерева UI. " +
                 "Возможно, интерфейс нарисован Canvas/WebGL."
-            status.text = native + "\\n" +
+            status.text = native + "\n" +
                 (FrameStore.lastActionStrip?.summary()
                     ?: "Согласованных OCR-кнопок пока нет.") +
                 "\\nНикаких касаний без подтверждённого хода."
@@ -312,7 +312,7 @@ class MainActivity : Activity() {
             } else {
                 refreshHandState()
                 status.text = PlayerEngineeringReport.brief(this@MainActivity) +
-                    "\\n" + PlayerVisionJournal.summary(this@MainActivity)
+                    "\n" + PlayerVisionJournal.summary(this@MainActivity)
             }
         }
         button("ИИ-ИГРОК — ПОКАЗАТЬ ГОТОВУЮ КОМБИНАЦИЮ") {
