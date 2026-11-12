@@ -76,6 +76,10 @@ object OneWinCashLobbyParser {
     fun read(lines: List<PositionedOcrLine>): OneWinCashLobbyReading {
         if (lines.size !in 5..130) return OneWinCashLobbyReading(false, emptyList(), "NO_OCR")
         val valid = lines.filter { it.box.valid() && it.text.length in 1..70 }
+        // A dropdown overlays the left half of the rows. Never treat OCR
+        // of partly concealed table names as a legal table-entry target.
+        if (OneWinCashLobbySortParser.read(valid) != null)
+            return OneWinCashLobbyReading(false, emptyList(), "SORT_MENU_VISIBLE")
         val upper = valid.filter { it.box.centerY() in 25..210 }
             .joinToString(" ") { it.text.lowercase().replace(ws, " ") }
         val isCashGames = (upper.contains("кэш") && upper.contains("игр")) ||
