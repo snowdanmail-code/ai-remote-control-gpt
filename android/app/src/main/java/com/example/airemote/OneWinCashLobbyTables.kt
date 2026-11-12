@@ -80,8 +80,9 @@ object OneWinCashLobbyParser {
             .joinToString(" ") { it.text.lowercase().replace(ws, " ") }
         val isCashGames = (upper.contains("кэш") && upper.contains("игр")) ||
             upper.contains("cash games")
-        val isHoldem = upper.contains("холдем") || upper.contains("holdem") ||
-            upper.contains("столы") || upper.contains("tables")
+        // A generic 'tables' heading is not evidence that the variant
+        // filter is actually Hold'em; do not enter an Omaha/mixed-game row.
+        val isHoldem = upper.contains("холдем") || upper.contains("holdem")
         if (!isCashGames || !isHoldem)
             return OneWinCashLobbyReading(false, emptyList(), "NOT_CASH_GAMES_LOBBY")
 
