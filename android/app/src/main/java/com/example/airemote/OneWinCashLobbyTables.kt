@@ -99,6 +99,7 @@ object OneWinCashLobbyParser {
             if (row.size < 4) continue
             val right = row.filter { it.box.centerX() >= 690 }
             val rangeTokens = right.distinct()
+                .filter { it.box.centerY() in (anchor.box.centerY()-12)..(anchor.box.centerY()+36) }
                 .mapNotNull { line -> amountPair(line.text, buyinRange)?.let { it to line } }
             val buyin = when {
                 rangeTokens.size == 1 -> rangeTokens.single().first
@@ -112,7 +113,7 @@ object OneWinCashLobbyParser {
             } ?: continue
 
             val blind = right.mapNotNull { l ->
-                amountPair(l.text, blindsRange)?.takeIf { l.box.centerY() > anchor.box.centerY() + 18 }
+                amountPair(l.text, blindsRange)?.takeIf { l.box.centerY() > anchor.box.centerY() + 38 }
             }.singleOrNull() ?: continue
             if (blind.first == 0L || blind.first >= blind.second) continue
             val seats = row.mapNotNull { l ->
