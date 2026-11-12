@@ -29,6 +29,8 @@ data class T043PinnedDevice(
     val encryptionKeyId: String,
     val encryptionVersion: Int,
     val encryptionPublicKey: ByteArray,
+    /** Game namespaces explicitly delegated to this authenticated device. */
+    val allowedLogicalSenders: Set<String> = emptySet(),
     val revoked: Boolean = false
 ) {
     init {
@@ -45,7 +47,10 @@ class T043DeviceIdentityRegistry(devices: Collection<T043PinnedDevice>) {
     fun requireSender(header: T043SyncProtocol.Header): T043PinnedDevice =
         requireNotNull(byId[header.senderDeviceId]) { "Unknown sender device" }.also { pinned ->
             require(!pinned.revoked && pinned.signingKeyId==header.senderSigningKeyId &&
-                pinned.signingVersion==header.senderKeyVersion) { "Untrusted signing key" }
+                pinned.signingVersion==header.senderKeyVersion &&
+                header.logicalSenderId in pinned.allowedLogicalSenders) {
+                "Untrusted signing key or unauthorized game namespace"
+            }
         }
 
     fun requireRecipient(header: T043SyncProtocol.Header): T043PinnedDevice =
@@ -74,6 +79,12 @@ object T043SyncCrypto {
         require(MessageDigest.isEqual(
             hex(T043MessageFingerprint.sha256(originalBytes)),
             hex(header.originalRawSha256))) { "Original payload mismatch" }
+        val computed=T043MessageFingerprint.digest(originalBytes,
+            header.payloadEncoding,header.canonicalizationId)
+        require(T043MessageFingerprint.envelopeSha256(
+            header.originalEnvelope(),computed)==header.originalEnvelopeSha256) {
+            "Outbox envelope is inconsistent"
+        }
         val immutableHeader = T043SyncProtocol.headerBytes(header)
         val receiver = X25519PublicKeyParameters(recipientPublicX25519,0)
         val context = hpke().setupBaseS(receiver,hpkeInfo)
@@ -114,6 +125,9 @@ object T043SyncCrypto {
             } finally { copy.fill(0) }
         }
         require(clear.size <= T043SyncProtocol.MAX_PAYLOAD)
+        val computed=T043MessageFingerprint.digest(clear,h.payloadEncoding,h.canonicalizationId)
+        require(T043MessageFingerprint.envelopeSha256(h.originalEnvelope(),computed) ==
+            h.originalEnvelopeSha256) { "Original Stage-2 envelope does not match plaintext" }
         require(MessageDigest.isEqual(
             hex(T043MessageFingerprint.sha256(clear)),
             hex(h.originalRawSha256))) { "Payload digest mismatch" }
