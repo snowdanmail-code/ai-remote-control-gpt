@@ -20,7 +20,8 @@ object T043GptDecisionContract {
     fun buildPrompt(
         observation: AutonomousObservation,
         cards: StableCardReading,
-        nowMs: Long
+        nowMs: Long,
+        verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList()
     ): String? {
         val view = observation.view
         if (observation.tableId.isBlank() || observation.handId.isBlank() ||
@@ -66,10 +67,35 @@ object T043GptDecisionContract {
             .put("min_bet_chips", observation.minVerifiedBetChips ?: JSONObject.NULL)
             .put("max_bet_chips", observation.maxVerifiedBetChips ?: JSONObject.NULL)
             .put("selected_bet_chips", observation.selectedBetChips ?: JSONObject.NULL)
+        // Prior verified-hand profiles only. Names/IDs are deliberately omitted
+        // from the model prompt; counters have explicit opportunity denominators.
+        val profiles = JSONArray()
+        verifiedOpponentProfiles.take(3).forEachIndexed { index, p ->
+            if (p.observedHands >= 0 && p.vpipOpportunities >= 0 &&
+                p.pfrOpportunities >= 0 && p.facedBetOpportunities >= 0 &&
+                p.vpipSeen in 0..p.vpipOpportunities &&
+                p.pfrSeen in 0..p.pfrOpportunities &&
+                p.foldsFacingBet in 0..p.facedBetOpportunities) {
+                profiles.put(JSONObject()
+                    .put("ref", "opponent_${index + 1}")
+                    .put("observed_hands", p.observedHands)
+                    .put("vpip_seen", p.vpipSeen)
+                    .put("vpip_opportunities", p.vpipOpportunities)
+                    .put("pfr_seen", p.pfrSeen)
+                    .put("pfr_opportunities", p.pfrOpportunities)
+                    .put("postflop_aggression_actions", p.aggressionActions.coerceAtLeast(0))
+                    .put("postflop_calls", p.postflopCalls.coerceAtLeast(0))
+                    .put("folds_facing_bet", p.foldsFacingBet)
+                    .put("faced_bet_opportunities", p.facedBetOpportunities)
+                    .put("showdowns_seen", p.showdownsSeen.coerceAtLeast(0))
+                    .put("showdowns_won", p.showdownsWon.coerceAtLeast(0)))
+            }
+        }
+        packet.put("verified_opponent_statistics", profiles)
         // JSON-escape every external field. No free-text player names or OCR
         // instructions are interpolated into the system directive.
         val prompt = "Analyze this Texas Hold'em turn with virtual chips. " +
-            "Unknown values are unknown; do not invent cards or opponent stats. " +
+            "Unknown values are unknown; do not invent cards or opponent stats. Player statistics have limited samples. " +
             "Return ONLY a JSON object with keys schema, action, amount_chips. " +
             "schema must be $SCHEMA; action must be one of legal_actions. " +
             "For BET/RAISE use the already selected and verified amount, " +
