@@ -409,14 +409,14 @@ class LiveGestureAccessibilityService : AccessibilityService() {
             val box = ticket.area
             val xN = box.centerX()
             val yN = box.centerY()
-            val safeRegion = when (ticket.purpose) {
+            val surfaceBound = OnDeviceOpponentProfileSweep.navigationSurfaceMatches(ticket, now)
+            val safeRegion = surfaceBound && when (ticket.purpose) {
                 OpponentProfileNavPurpose.OPEN_AVATAR ->
                     xN in 35..950 && yN in 100..820 &&
                         FrameStore.turnConsensus.current(now)?.state in
                             setOf(TurnDisplayState.WAITING, TurnDisplayState.PREACTION)
                 OpponentProfileNavPurpose.DISMISS_ON_TABLE ->
-                    xN in 30..285 && yN in 170..820 &&
-                        OnDeviceOpponentPopupOcr.latest() != null
+                    xN in 30..285 && yN in 170..820
             }
             val metrics = resources.displayMetrics
             if (!safeRegion || metrics.widthPixels != ticket.frameWidth ||
