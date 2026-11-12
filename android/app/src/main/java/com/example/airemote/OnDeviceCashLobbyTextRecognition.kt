@@ -20,7 +20,7 @@ object OnDeviceCashLobbyTextRecognition {
         Thread(task, "cash-lobby-ru-en-ocr").apply { isDaemon = true }
     }
     private val hashes = mapOf(
-        "rus" to "65254c36df8274cee0a2c32e9632f3c2c0032314bf0a99a4c23309e862da7c038ed85745d58697a814f44c656f22ef5a7815ae2bec33f80de1de8e1ea9dd",
+        "rus" to "65254c36df8274cee0a2c32e9632f3c2c3c2c0032314bf0a99a4c23309e862da7c038ed85745d58697a814f44c656f22ef5a7815ae2bec33f80de1de8e1ea9dd",
         "eng" to "90aadb5e0c368781f94add808f6b4dd31d8e244c9fecbe6a233070cac9a4fc071fd23a09e4a7e041db8e26880a6debbdf32a6b701c28687b2ed1cac81f4c1d14"
     )
     private val lengths = mapOf("rus" to 3_861_738, "eng" to 4_113_088)
