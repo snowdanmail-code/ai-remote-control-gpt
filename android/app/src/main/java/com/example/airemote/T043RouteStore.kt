@@ -24,9 +24,8 @@ class T043RouteStore(context: Context) {
 
     private fun file(sender: String,message: String): AtomicFile {
         require(sender.isNotBlank() && message.isNotBlank())
-        val bound = sender.toByteArray(StandardCharsets.UTF_8) +
-            byteArrayOf(0) + message.toByteArray(StandardCharsets.UTF_8)
-        return AtomicFile(File(directory,T043MessageFingerprint.sha256(bound)+".route"))
+        return AtomicFile(File(directory,
+            T043SyncProtocol.stableIdentityHash(sender,message)+".route"))
     }
     private fun encode(snapshot: Snapshot): ByteArray {
         val bytes=ByteArrayOutputStream()
