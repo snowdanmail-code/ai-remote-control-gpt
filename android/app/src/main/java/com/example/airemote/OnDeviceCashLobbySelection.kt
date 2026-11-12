@@ -27,8 +27,22 @@ data class OneWinCashLobbyEntryTicket(
 )
 
 enum class CashLobbySelectionPhase {
-    OFF, WAITING_LOBBY, RECOMMENDED, ENTRY_SUBMITTED, REJECTED, EXPIRED, STOPPED
+    OFF, WAITING_LOBBY, RECOMMENDED, ENTRY_SUBMITTED, REJECTED, EXPIRED, STOPPED,
+    NAVIGATION_PENDING, WAITING_SORT_MENU, WAITING_SORTED_LOBBY,
+    WAITING_SCROLLED_LOBBY, SCAN_EXHAUSTED
 }
+
+enum class OneWinCashLobbyNavAction { OPEN_SORT, CHOOSE_STAKES_ASC, SWIPE_UP }
+
+data class OneWinCashLobbyNavTicket(
+    val action: OneWinCashLobbyNavAction,
+    val sourcePackage: String,
+    val captureEpoch: Long,
+    val windowGeneration: Long,
+    val observedAtMs: Long,
+    val sequence: Long,
+    val optionBox: NormalizedTextBox? = null
+)
 data class CashLobbySelectionStatus(
     val phase: CashLobbySelectionPhase,
     val message: String,
@@ -78,18 +92,48 @@ object OnDeviceCashLobbySelection {
     private var armed = false
     private var dispatched = false
     private var pending: OneWinCashLobbyEntryTicket? = null
+    private var pendingNavigation: OneWinCashLobbyNavTicket? = null
+    private var navSequence = 0L
+    private var sorted = false
+    private var sortAttempted = false
+    private var lastNavigationAtMs = 0L
+    private var pageBeforeSwipe = ""
+    private val pageTracker = OneWinCashLobbyBrowseTracker(18)
     @Volatile private var current = CashLobbySelectionStatus(
         CashLobbySelectionPhase.OFF, "Автоматический выбор стола выключен")
 
     @Synchronized fun status() = current
     @Synchronized fun scanning(): Boolean = armed && !dispatched &&
-        current.phase in setOf(CashLobbySelectionPhase.WAITING_LOBBY,
-            CashLobbySelectionPhase.RECOMMENDED)
+        current.phase !in setOf(CashLobbySelectionPhase.OFF,
+            CashLobbySelectionPhase.ENTRY_SUBMITTED, CashLobbySelectionPhase.STOPPED,
+            CashLobbySelectionPhase.REJECTED, CashLobbySelectionPhase.EXPIRED,
+            CashLobbySelectionPhase.SCAN_EXHAUSTED)
+
+    @Synchronized fun onCaptureTick(nowMs: Long) {
+        if (!scanning()) return
+        val phase = current.phase
+        if (phase in setOf(CashLobbySelectionPhase.WAITING_SORT_MENU,
+                CashLobbySelectionPhase.WAITING_SORTED_LOBBY,
+                CashLobbySelectionPhase.WAITING_SCROLLED_LOBBY) &&
+            lastNavigationAtMs > 0L && nowMs - lastNavigationAtMs > 7_000L) {
+            armed = false
+            pendingNavigation = null
+            current = CashLobbySelectionStatus(CashLobbySelectionPhase.EXPIRED,
+                "После жеста не подтверждено ожидаемое меню/прокрутка за 7 секунд")
+        }
+    }
 
     @Synchronized fun reset(reason: String = "STOP") {
         armed = false
         dispatched = false
         pending = null
+        pendingNavigation = null
+        navSequence++
+        sorted = false
+        sortAttempted = false
+        pageBeforeSwipe = ""
+        lastNavigationAtMs = 0L
+        pageTracker.reset()
         current = CashLobbySelectionStatus(CashLobbySelectionPhase.STOPPED, reason)
     }
 
@@ -102,11 +146,116 @@ object OnDeviceCashLobbySelection {
             LocalPlayerCheckPilot.isActive() ||
             OnDeviceLiveActionControl.guard.hasUnconfirmedAction()) return false
         pending = null
+        pendingNavigation = null
         dispatched = false
         armed = true
+        sortAttempted = false
+        sorted = false
+        pageBeforeSwipe = ""
+        lastNavigationAtMs = 0L
+        pageTracker.reset()
         current = CashLobbySelectionStatus(CashLobbySelectionPhase.WAITING_LOBBY,
             "Ожидается подтверждённый экран кэш-игр 1win")
         return true
+    }
+
+    /**
+     * A navigation gesture is an observation transition, never a cash
+     * transaction. The receiving Accessibility service rechecks exact
+     * package/window/epoch, fresh OCR proof, STOP and screen geometry.
+     */
+    @Synchronized fun latestNavigationTicketMatches(
+        ticket: OneWinCashLobbyNavTicket, nowMs: Long
+    ): Boolean {
+        if (!armed || dispatched || pendingNavigation != ticket ||
+            current.phase != CashLobbySelectionPhase.NAVIGATION_PENDING ||
+            nowMs < ticket.observedAtMs || nowMs - ticket.observedAtMs > 1_100L)
+            return false
+        return when (ticket.action) {
+            OneWinCashLobbyNavAction.OPEN_SORT, OneWinCashLobbyNavAction.SWIPE_UP -> {
+                val screen = OnDeviceOneWinCashLobby.latest()
+                screen != null && screen.sourcePackage == ticket.sourcePackage &&
+                    screen.captureEpoch == ticket.captureEpoch &&
+                    screen.windowGeneration == ticket.windowGeneration &&
+                    screen.confirmedAtMs >= ticket.observedAtMs
+            }
+            OneWinCashLobbyNavAction.CHOOSE_STAKES_ASC -> {
+                val menu = OnDeviceOneWinCashLobby.latestSortMenu()
+                menu != null && menu.sourcePackage == ticket.sourcePackage &&
+                    menu.captureEpoch == ticket.captureEpoch &&
+                    menu.windowGeneration == ticket.windowGeneration &&
+                    menu.confirmedAtMs >= ticket.observedAtMs &&
+                    menu.options.getValue(OneWinLobbySort.STAKES_ASC) == ticket.optionBox
+            }
+        }
+    }
+
+    private fun submitNavigation(
+        context: Context, action: OneWinCashLobbyNavAction,
+        sourcePackage: String, epoch: Long, window: Long, evidenceAt: Long,
+        option: NormalizedTextBox? = null
+    ) {
+        if (pendingNavigation != null) return
+        navSequence++
+        val ticket = OneWinCashLobbyNavTicket(action, sourcePackage, epoch, window,
+            evidenceAt, navSequence, option)
+        pendingNavigation = ticket
+        current = CashLobbySelectionStatus(CashLobbySelectionPhase.NAVIGATION_PENDING,
+            "Навигация 1win: ${action.name}; ожидание результата жеста")
+        val service = LiveForegroundProbe.activeService()
+        if (service == null) {
+            armed = false
+            pendingNavigation = null
+            current = CashLobbySelectionStatus(CashLobbySelectionPhase.REJECTED,
+                "Accessibility недоступна для прокрутки/сортировки")
+            return
+        }
+        service.offerOneWinCashLobbyNavigation(ticket) { completed ->
+            synchronized(this) {
+                if (pendingNavigation != ticket || !armed) return@synchronized
+                pendingNavigation = null
+                if (!completed) {
+                    armed = false
+                    current = CashLobbySelectionStatus(CashLobbySelectionPhase.REJECTED,
+                        "Android не подтвердил жест ${ticket.action}; повтор запрещён")
+                    return@synchronized
+                }
+                lastNavigationAtMs = SystemClock.elapsedRealtime()
+                when (ticket.action) {
+                    OneWinCashLobbyNavAction.OPEN_SORT ->
+                        current = CashLobbySelectionStatus(
+                            CashLobbySelectionPhase.WAITING_SORT_MENU,
+                            "Меню сортировки нажато; ждём 2 совпадающих OCR-кадра")
+                    OneWinCashLobbyNavAction.CHOOSE_STAKES_ASC -> {
+                        pageTracker.reset()
+                        current = CashLobbySelectionStatus(
+                            CashLobbySelectionPhase.WAITING_SORTED_LOBBY,
+                            "Выбраны ставки по возрастанию; ждём обновления списка")
+                    }
+                    OneWinCashLobbyNavAction.SWIPE_UP -> {
+                        pageTracker.markSwipeSubmitted()
+                        current = CashLobbySelectionStatus(
+                            CashLobbySelectionPhase.WAITING_SCROLLED_LOBBY,
+                            "Свайп вверх завершён; ждём следующую страницу")
+                    }
+                }
+            }
+        }
+    }
+
+    @Synchronized fun onSortMenuConfirmed(
+        context: Context, menu: OneWinCashLobbySortMenuSnapshot
+    ) {
+        if (!armed || dispatched || pendingNavigation != null ||
+            current.phase !in setOf(CashLobbySelectionPhase.WAITING_LOBBY,
+                CashLobbySelectionPhase.WAITING_SORT_MENU)) return
+        if (!menu.options.containsKey(OneWinLobbySort.STAKES_ASC) ||
+            menu.sourcePackage != LiveGamePermissionGate.packageName() ||
+            menu.captureEpoch != FrameStore.captureEpoch) return
+        sortAttempted = true
+        submitNavigation(context, OneWinCashLobbyNavAction.CHOOSE_STAKES_ASC,
+            menu.sourcePackage, menu.captureEpoch, menu.windowGeneration,
+            menu.confirmedAtMs, menu.options.getValue(OneWinLobbySort.STAKES_ASC))
     }
 
     @Synchronized fun latestTicketMatches(ticket: OneWinCashLobbyEntryTicket,
@@ -139,9 +288,42 @@ object OnDeviceCashLobbySelection {
                     choice)
             return
         }
-        if (choice == null) {
+        if (pendingNavigation != null ||
+            current.phase == CashLobbySelectionPhase.WAITING_SORT_MENU) return
+        if (current.phase == CashLobbySelectionPhase.WAITING_SORTED_LOBBY) {
+            if (lobby.capturedAtMs <= lastNavigationAtMs) return
+            sorted = true
+            pageTracker.reset()
             current = CashLobbySelectionStatus(CashLobbySelectionPhase.WAITING_LOBBY,
-                "Пока нет видимых столов, подходящих под установленные лимиты")
+                "Меню закрыто, начинаем сканирование по возрастанию ставок")
+        }
+        if (current.phase == CashLobbySelectionPhase.WAITING_SCROLLED_LOBBY) {
+            if (lobby.capturedAtMs <= lastNavigationAtMs) return
+            if (pageTracker.pageSignature(lobby.tables) == pageBeforeSwipe) return
+            current = CashLobbySelectionStatus(CashLobbySelectionPhase.WAITING_LOBBY,
+                "Получен новый участок списка после свайпа")
+        }
+        if (current.phase != CashLobbySelectionPhase.WAITING_LOBBY) return
+        if (!sortAttempted) {
+            sortAttempted = true
+            submitNavigation(context, OneWinCashLobbyNavAction.OPEN_SORT,
+                lobby.sourcePackage, lobby.captureEpoch, lobby.windowGeneration,
+                lobby.confirmedAtMs)
+            return
+        }
+        pageTracker.recordConfirmedPage(lobby.tables)
+        if (choice == null) {
+            if (!pageTracker.canSwipe()) {
+                armed = false
+                current = CashLobbySelectionStatus(CashLobbySelectionPhase.SCAN_EXHAUSTED,
+                    "Поиск завершён: ${pageTracker.distinctTablesSeen()} разных столов, " +
+                        "${pageTracker.swipesSent} свайпов, подходящих по лимитам нет")
+                return
+            }
+            pageBeforeSwipe = pageTracker.pageSignature(lobby.tables)
+            submitNavigation(context, OneWinCashLobbyNavAction.SWIPE_UP,
+                lobby.sourcePackage, lobby.captureEpoch, lobby.windowGeneration,
+                lobby.confirmedAtMs)
             return
         }
         if (CaptureObservationMode.isSpectator() ||
