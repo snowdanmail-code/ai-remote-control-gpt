@@ -63,6 +63,17 @@ object OnDeviceAutonomousRuntime {
             nowMs = { SystemClock.elapsedRealtime() })
     }
 
+    /**
+     * The project's primary strategy is ChatGPT-only. Unlike the old
+     * local-math adapter, missing/rejected cloud advice means NO decision,
+     * never a guessed or silent local fallback.
+     */
+    @Synchronized fun ensureGptOnlyStrategy() {
+        if (strategy == null && controller == null) strategy = ValidatedPlayerStrategy(
+            local = AutonomousStrategy { null }, proposals = modelProposals,
+            nowMs = { SystemClock.elapsedRealtime() })
+    }
+
     /** Optional structured model advice. NEVER a gesture or a replacement
      * for an independent provider. Absence of cloud simply uses local math. */
     fun offerFrameBoundModelAdvice(context: Context, candidate: PlayerModelProposal): Boolean {
@@ -284,7 +295,7 @@ object OnDeviceAutonomousRuntime {
         !FrameStore.isCapturing -> "Нет действующего захвата MediaProjection"
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
         !LiveGamePermissionGate.permitted() -> "Разрешите касания для недавно открытого 1win в панели оператора"
-        strategy == null -> "Локальная стратегия не подключена"
+        strategy == null -> "Стратегия GPT не подключена"
         identityBinding != null &&
             TrustedPlayerInputPolicy.route(OnDeviceAuthorizedPlayerCycle.providerConnected(),
                 OnDeviceAuthorizedPlayerFeed.available()) == TrustedPlayerInputRoute.CONFLICT ->
