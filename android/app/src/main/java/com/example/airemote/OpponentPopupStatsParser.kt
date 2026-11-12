@@ -81,7 +81,7 @@ object OpponentPopupStatsParser {
                 val match = label.find(raw) ?: continue
                 if (match.range.first != 0) continue
                 // A label and one numeric value on the SAME line, nothing else.
-                val suffix = raw.substring(match.range.last + 1).trimStart(' ', ':', '=', '-')
+                val suffix = raw.substring(match.range.last + 1).trimStart(' ', ':', '=')
                 if (suffix.isNotBlank()) record(metric, suffix)
             }
         }
