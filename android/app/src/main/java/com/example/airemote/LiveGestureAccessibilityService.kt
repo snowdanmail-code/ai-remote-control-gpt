@@ -358,6 +358,98 @@ class LiveGestureAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Bounded non-betting UI navigation for a measured opponent avatar or
+     * an empty TABLE region used to dismiss its statistics panel.
+     *
+     * This path intentionally cannot accept arbitrary coordinates, card
+     * actions, a model proposal, or a claimed game result.
+     */
+    internal fun offerOpponentProfileNavigationTap(
+        ticket: OpponentProfileTapTicket, onSubmitted: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { onSubmitted(false) }
+            val now = SystemClock.elapsedRealtime()
+            val profile = OnDeviceRealFrameRegions.activeProfile() ?: run { reject(); return@post }
+            val role = if (ticket.purpose == OpponentProfileNavPurpose.OPEN_AVATAR)
+                RealFieldRole.SEAT_AVATAR else RealFieldRole.PROFILE_DISMISS
+            val exact = profile.zones.singleOrNull { zone ->
+                zone.role == role &&
+                    (role != RealFieldRole.SEAT_AVATAR || zone.seatIndex == ticket.seatIndex)
+            }
+            if (!profile.valid() || exact?.box != ticket.area ||
+                profile.expectedPackage != ticket.expectedPackage ||
+                profile.frameWidth != ticket.frameWidth ||
+                profile.frameHeight != ticket.frameHeight ||
+                now < ticket.capturedAtMs || now - ticket.capturedAtMs > 900L ||
+                ticket.captureEpoch != FrameStore.captureEpoch ||
+                !FrameStore.isCapturing ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.expectedPackage ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT) {
+                reject(); return@post
+            }
+            val rootPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(rootPackage, now)
+            val foreground = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (rootPackage != ticket.expectedPackage ||
+                origin?.observedPackage != ticket.expectedPackage ||
+                origin.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                foreground?.packageName != ticket.expectedPackage ||
+                origin.windowGeneration != ticket.windowGeneration ||
+                foreground.windowGeneration != ticket.windowGeneration ||
+                now - foreground.atMs > 700L) {
+                reject(); return@post
+            }
+            val box = ticket.area
+            val xN = box.centerX()
+            val yN = box.centerY()
+            val safeRegion = when (ticket.purpose) {
+                OpponentProfileNavPurpose.OPEN_AVATAR ->
+                    xN in 35..950 && yN in 100..820 &&
+                        FrameStore.turnConsensus.current(now)?.state in
+                            setOf(TurnDisplayState.WAITING, TurnDisplayState.PREACTION)
+                OpponentProfileNavPurpose.DISMISS_ON_TABLE ->
+                    xN in 30..285 && yN in 170..820 &&
+                        OnDeviceOpponentPopupOcr.latest() != null
+            }
+            val metrics = resources.displayMetrics
+            if (!safeRegion || metrics.widthPixels != ticket.frameWidth ||
+                metrics.heightPixels != ticket.frameHeight) {
+                reject(); return@post
+            }
+            val x = (xN.toLong() * metrics.widthPixels / 1000L).toInt()
+            val y = (yN.toLong() * metrics.heightPixels / 1000L).toInt()
+            val stop = params
+            if (stop != null && stopOverlay != null &&
+                x >= stop.x && x < stop.x + stop.width &&
+                y >= stop.y && y < stop.y + stop.height) {
+                reject(); return@post
+            }
+            // Recheck STOP immediately before the one-shot Android gesture.
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                rootInActiveWindow?.packageName?.toString() != ticket.expectedPackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch) {
+                reject(); return@post
+            }
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 65L)).build()
+            val submitted = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    // Never resubmit blindly after a canceled/ambiguous gesture.
+                    OnDeviceOpponentProfileSweep.reset("Навигационный жест отменён Android")
+                }
+            }, main)
+            onSubmitted(submitted)
+        }
+    }
+
     private fun installMovableStop() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val density = resources.displayMetrics.density
