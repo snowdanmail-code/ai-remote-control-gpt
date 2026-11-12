@@ -41,6 +41,15 @@ class T043FtpsTransport(private val endpoint:T043FtpsEndpoint,
     private fun <T> withClient(block:(FTPSClient)->T):T {
         check(endpoint.approved) { "FTPS configuration not approved" }
         val ftp=FTPSClient("TLS",false)
+        // FTPSClient's default trust manager may validate certificate DATES
+        // without checking a trusted CA chain. Require the platform CA roots
+        // explicitly, in addition to the TLS endpoint hostname check.
+        val trustFactory=javax.net.ssl.TrustManagerFactory.getInstance(
+            javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm())
+        trustFactory.init(null as java.security.KeyStore?)
+        val caTrust=trustFactory.trustManagers.filterIsInstance<javax.net.ssl.X509TrustManager>()
+        require(caTrust.size==1) { "Platform CA trust manager unavailable" }
+        ftp.setTrustManager(caTrust.single())
         ftp.setEndpointCheckingEnabled(true)
         ftp.setEnabledProtocols(arrayOf("TLSv1.3","TLSv1.2"))
         ftp.connectTimeout=endpoint.timeoutMs
