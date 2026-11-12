@@ -170,6 +170,9 @@ class CaptureService : Service() {
                                 // Block all read-only evidence until the whole observed
                                 // surface looks like the measured layout again. A table-like
                                 // color pattern is NEVER table identity or tap permission.
+                                // Enforce a bounded wait after every UI menu or
+                                // scrolling gesture even if OCR produces no text.
+                                OnDeviceCashLobbySelection.onCaptureTick(now)
                                 // Cash-game lobby is NOT a game table. Only a
                                 // separately armed, budget-capped lobby selector
                                 // receives read-only OCR frames. Card recognition
