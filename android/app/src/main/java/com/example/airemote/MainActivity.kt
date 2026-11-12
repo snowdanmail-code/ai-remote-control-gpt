@@ -63,7 +63,7 @@ class MainActivity : Activity() {
         AppVisibilityGate.onActivityVisible()
         // Persistent per-hand learning is local and available without Windows or cloud.
         OnDevicePostHandLearning.initialize(applicationContext)
-        OnDeviceAutonomousRuntime.ensureLocalStrategy()
+        OnDeviceAutonomousRuntime.ensureGptOnlyStrategy()
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         // Android 15+/target 35 draw edge-to-edge: keep emergency STOP below status icons.
         root.setOnApplyWindowInsetsListener { view, insets ->
@@ -141,7 +141,7 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         label("AI Remote Control v${packageManager.getPackageInfo(packageName, 0).versionName} — Android + ChatGPT")
         label("Захват и OCR локально. Windows-сервер и его настройки удалены. " +
-            "Локальная стратегия сохранена. Подключение ChatGPT проверяется через защищённую вкладку OpenAI. " +
+            "Основная стратегия — ChatGPT; без подтверждённого ответа автоматический ход запрещён. Подключение ChatGPT проверяется через защищённую вкладку OpenAI. " +
             "Исполнитель Android-касаний доступен после разрешения оператора, проверки игрового состояния и кнопок.")
         label("ОБЛАЧНЫЙ ИИ / CHATGPT")
         label("Вход на официальном сайте OpenAI во вкладке приложения: пароль и 2FA не передаются приложению. " +
