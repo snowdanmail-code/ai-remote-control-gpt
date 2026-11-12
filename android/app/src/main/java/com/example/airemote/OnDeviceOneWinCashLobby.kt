@@ -31,7 +31,9 @@ data class OneWinCashLobbySortMenuSnapshot(
 
 object OnDeviceOneWinCashLobby {
     private const val INTERVAL_MS = 1_300L
-    private const val MAX_AGE_MS = 2_500L
+    // Full-frame multilingual Tesseract is slower than Latin-only ML Kit.
+    // Navigation still separately requires a fresh capture-window proof.
+    private const val MAX_AGE_MS = 6_000L
     private data class Candidate(
         val sourcePackage: String,
         val epoch: Long,
@@ -111,7 +113,7 @@ object OnDeviceOneWinCashLobby {
             synchronized(this) { if (currentToken == generation) busy = false }
             return
         }
-        OnDeviceTextRecognition.inspectStructured(jpeg) { outcome ->
+        OnDeviceCashLobbyTextRecognition.inspectStructured(context, jpeg) { outcome ->
             val endMs = SystemClock.elapsedRealtime()
             var confirmedNew: OneWinCashLobbySnapshot? = null
             var confirmedMenu: OneWinCashLobbySortMenuSnapshot? = null
