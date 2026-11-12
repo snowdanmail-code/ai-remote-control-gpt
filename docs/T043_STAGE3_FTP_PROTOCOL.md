@@ -54,7 +54,7 @@ credentials, generated test seeds or plaintext dumps are checked in.
 - Remote location:
   `/t043/v1/inbox/{recipientDeviceId}/{first32Hex(SHA256(streamId))}/`
   with final filename
-  `m-{SHA256(logicalSenderId||"|"||messageId)}-{sequenceNo:020d}.t043`.
+  `m-{SHA256(domain-separated length-prefixed sender/message tuple)}-{sequenceNo:020d}.t043`.
   Device IDs are strictly ASCII-safe and no user-supplied path is concatenated
   without validation.
 - Files upload to an unlisted dot-prefixed `.tmp` name; stored bytes are
@@ -125,12 +125,13 @@ already terminal ACK.
 
 - Existing 456 Python tests, 88 canonical JVM tests, 21 fingerprint JVM tests,
   and existing Android unit/regression tests stay enabled.
-- `T043Stage3RobolectricTest` has 37 named T3-01..T3-37 tests of:
+- `T043Stage3RobolectricTest` has 40 named T3-01..T3-40 tests of:
   real RFC9180/Ed25519 roundtrip, signature/enc/header/ciphertext/key tampering,
   revoked or unapproved devices, durable dedupe, gap ordering, no FTP ACK,
   offline recovery, fixed route/byte preservation, independent source names,
   absence of a trusted production verifier, synthetic verified import+signed
-  receipt, forced SQLite crash rollback, no echo, and repeated receipt ACK.
+  receipt, forced SQLite crash rollback, no echo, repeated receipt ACK,
+  delimiter-alias-free stable IDs, and rejection of non-pinned local packet or receipt signers.
 - Fault injection for transport is through a fully **isolated in-memory
   adversarial transport**, not a network FTP/FTPS server.
 - `T043FtpsSecurityJvmTest` uses an **isolated loopback Apache FTPServer**
