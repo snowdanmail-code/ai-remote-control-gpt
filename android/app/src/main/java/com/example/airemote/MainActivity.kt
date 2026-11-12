@@ -124,7 +124,8 @@ class MainActivity : Activity() {
             "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ",
             "АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ",
             "НАЧАТЬ ЗАХВАТ ЭКРАНА",
-            "ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)"
+            "ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)",
+            "1WIN — АВТОВЫБОР СТОЛА ПО ЛИМИТАМ"
         )
         fun label(text: String) {
             val target = if (text.startsWith("AI Remote Control v")) content else advanced
@@ -239,6 +240,60 @@ class MainActivity : Activity() {
         button("ОЧИСТИТЬ КАЛИБРОВКУ") {
             OnDeviceRealFrameRegions.clear()
             status.text = "Калибровка удалена, распознавание мест сброшено"
+        }
+        // Table selection is a separate pre-game step. Max blind/buy-in
+        // remain explicitly configured by the operator, never guessed from
+        // a bankroll screenshot or substituted by GPT.
+        label("1WIN — КЭШ-ИГРЫ: ВЫБОР СТОЛА ПО ЗАДАННЫМ ЛИМИТАМ")
+        val savedTableLimits = OneWinCashLobbyLimitsStore.read(this)
+        fun moneyInDollars(cents: Long): String =
+            "${cents / 100}.${(cents % 100).toString().padStart(2, '0')}"
+        val maxBigBlindEntry = EditText(this).apply {
+            hint = "Максимальный большой блайнд, $"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            savedTableLimits?.let { setText(moneyInDollars(it.maxBigBlindCents)) }
+        }
+        advanced.addView(maxBigBlindEntry)
+        val maxBuyinEntry = EditText(this).apply {
+            hint = "Максимальный бай-ин, $"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            savedTableLimits?.let { setText(moneyInDollars(it.maxBuyInCents)) }
+        }
+        advanced.addView(maxBuyinEntry)
+        button("1WIN — СОХРАНИТЬ ЛИМИТЫ СТОЛОВ") {
+            if (OnDeviceCashLobbySelection.scanning()) {
+                status.text = "Во время активного обхода лимиты нельзя изменять"
+                return@button
+            }
+            val big = OneWinCashLobbyLimitsStore.parseDollars(maxBigBlindEntry.text.toString())
+            val buyin = OneWinCashLobbyLimitsStore.parseDollars(maxBuyinEntry.text.toString())
+            status.text = if (big != null && buyin != null &&
+                OneWinCashLobbyLimitsStore.save(this, big, buyin))
+                "Лимиты выбора столов сохранены. Большой блайнд не выше " +
+                    moneyInDollars(big) + " $, бай-ин не выше " + moneyInDollars(buyin) +
+                    " $. Оплата бай-ина не автоматизирована."
+            else "Неверные суммы. Укажите положительные доллары с точностью до центов."
+        }
+        button("1WIN — АВТОВЫБОР СТОЛА ПО ЛИМИТАМ") {
+            val started = OnDeviceCashLobbySelection.start(this@MainActivity)
+            status.text = if (started)
+                "Автовыбор включён. Откройте «Кэш-Игры» в 1win: " +
+                    "ИИ прочитает видимые строки, выберет допустимый стол " +
+                    "и единожды нажмёт его вход. Оплата бай-ина не подтверждается."
+            else "Не удалось запустить выбор стола: нужны сохранённые лимиты, " +
+                "активный захват, ARM, разрешение касаний и отсутствие другого игрового действия."
+        }
+        button("1WIN — СТАТУС И РЕКОМЕНДАЦИЯ СТОЛА") {
+            val state = OnDeviceCashLobbySelection.status()
+            val lobby = OnDeviceOneWinCashLobby.latest()
+            status.text = "Автовыбор: ${state.phase}. ${state.message}. " +
+                "Распознано видимых столов: ${lobby?.tables?.size ?: 0}. " +
+                (state.recommended?.let {
+                    "Выбор: ${it.table.label}, блайнды ${moneyInDollars(it.table.bigBlindCents)} $, " +
+                    "разрешённый потолок бай-ина ${moneyInDollars(it.permittedBuyInCapCents)} $."
+                } ?: "Подтверждённой рекомендации пока нет")
         }
         button("1WIN — АВТОМАТИЧЕСКИ ПРОЧИТАТЬ ПРОФИЛИ СОПЕРНИКОВ") {
             val started = OnDeviceOpponentProfileSweep.start(this@MainActivity)
