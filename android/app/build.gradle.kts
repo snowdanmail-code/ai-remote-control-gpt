@@ -69,10 +69,15 @@ dependencies {
     testImplementation("org.json:json:20240303")
     // Device-side SQLiteOpenHelper and ContentValues exercised against Robolectric SQLite.
     testImplementation("org.robolectric:robolectric:4.14.1")
+    // Embedded loopback-only FTPS certificate/downgrade negative-handshake fixture.
+    testImplementation("org.apache.ftpserver:ftpserver-core:1.2.1")
     // Browser-owned sign-in within the app; never collect ChatGPT passwords or 2FA codes.
     implementation("androidx.browser:browser:1.8.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
     // Offline OCR model; no Windows or Python service.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // T043 Stage 3: RFC 9180 HPKE + Ed25519; explicit FTPS only.
+    implementation("org.bouncycastle:bcprov-jdk18on:1.85")
+    implementation("commons-net:commons-net:3.13.0")
 }
