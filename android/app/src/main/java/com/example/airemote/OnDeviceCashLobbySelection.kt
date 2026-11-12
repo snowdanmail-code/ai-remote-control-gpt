@@ -32,7 +32,7 @@ enum class CashLobbySelectionPhase {
     WAITING_SCROLLED_LOBBY, SCAN_EXHAUSTED
 }
 
-enum class OneWinCashLobbyNavAction { OPEN_SORT, CHOOSE_STAKES_ASC, SWIPE_UP }
+enum class OneWinCashLobbyNavAction { OPEN_SORT, CHOOSE_STAKES_ASC, SWIPE_UP, SWIPE_DOWN }
 
 data class OneWinCashLobbyNavTicket(
     val action: OneWinCashLobbyNavAction,
@@ -172,7 +172,7 @@ object OnDeviceCashLobbySelection {
             nowMs < ticket.observedAtMs || nowMs - ticket.observedAtMs > 1_100L)
             return false
         return when (ticket.action) {
-            OneWinCashLobbyNavAction.OPEN_SORT, OneWinCashLobbyNavAction.SWIPE_UP -> {
+            OneWinCashLobbyNavAction.OPEN_SORT, OneWinCashLobbyNavAction.SWIPE_UP, OneWinCashLobbyNavAction.SWIPE_DOWN -> {
                 val screen = OnDeviceOneWinCashLobby.latest()
                 screen != null && screen.sourcePackage == ticket.sourcePackage &&
                     screen.captureEpoch == ticket.captureEpoch &&
@@ -232,7 +232,7 @@ object OnDeviceCashLobbySelection {
                             CashLobbySelectionPhase.WAITING_SORTED_LOBBY,
                             "Выбраны ставки по возрастанию; ждём обновления списка")
                     }
-                    OneWinCashLobbyNavAction.SWIPE_UP -> {
+                    OneWinCashLobbyNavAction.SWIPE_UP, OneWinCashLobbyNavAction.SWIPE_DOWN -> {
                         pageTracker.markSwipeSubmitted()
                         current = CashLobbySelectionStatus(
                             CashLobbySelectionPhase.WAITING_SCROLLED_LOBBY,
