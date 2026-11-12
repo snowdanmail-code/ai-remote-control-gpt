@@ -12,8 +12,8 @@ class T043InboundPacketStore(context:Context) {
     }
     private fun file(sender:String,message:String):AtomicFile {
         require(sender.isNotBlank() && message.isNotBlank())
-        val label=(sender+"\u0000"+message).toByteArray(Charsets.UTF_8)
-        return AtomicFile(File(directory,T043MessageFingerprint.sha256(label)+".signed"))
+        return AtomicFile(File(directory,
+            T043SyncProtocol.stableIdentityHash(sender,message)+".signed"))
     }
     @Synchronized fun save(header:T043SyncProtocol.Header,packet:ByteArray) {
         require(packet.size in 1..T043SyncProtocol.MAX_PACKET)
