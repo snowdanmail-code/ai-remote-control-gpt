@@ -50,6 +50,30 @@ object T043GptDecisionContract {
         } catch (_: IllegalArgumentException) { return null }
         if (normalizedCards.toSet().size != normalizedCards.size) return null
 
+        // Reuse the EXISTING verified poker-math bridge. It computes the best
+        // made hand and call threshold but does not invent hidden cards or
+        // estimate an opponent range. Missing amounts remain JSON null.
+        val math = VerifiedPokerMathBridge.analyze(VerifiedPokerMathInput(
+            tableId = observation.tableId,
+            handId = observation.handId,
+            captureEpoch = view.captureEpoch,
+            frameSequence = view.frameSequence,
+            independentTableHandProof = observation.tableHandIndependentlyVerified,
+            frameIsCurrent = true,
+            phase = observation.phase,
+            heroHoleCards = normalizedCards.take(2).map(PokerCard::parse),
+            boardCards = normalizedCards.drop(2).map(PokerCard::parse),
+            potBeforeCall = observation.potChips,
+            callChips = observation.callChips
+        )) ?: return null
+        val trustedEquity = observation.equityEvidence?.takeIf { it.matches(observation) }
+        val mathJson = JSONObject()
+            .put("made_hand", math.bestHand?.category?.name ?: JSONObject.NULL)
+            .put("made_hand_kickers", math.bestHand?.let { JSONArray(it.tiebreak) } ?: JSONObject.NULL)
+            .put("pot_odds_required_equity", math.potOddsRequiredEquity ?: JSONObject.NULL)
+            .put("verified_pot_share_equity", trustedEquity?.potShare ?: JSONObject.NULL)
+            .put("equity_basis", trustedEquity?.provenance ?: "UNKNOWN")
+
         val packet = JSONObject()
             .put("schema", SCHEMA)
             .put("mode", "RECOMMENDATION_ONLY")
@@ -67,6 +91,7 @@ object T043GptDecisionContract {
             .put("min_bet_chips", observation.minVerifiedBetChips ?: JSONObject.NULL)
             .put("max_bet_chips", observation.maxVerifiedBetChips ?: JSONObject.NULL)
             .put("selected_bet_chips", observation.selectedBetChips ?: JSONObject.NULL)
+            .put("poker_math", mathJson)
         // Prior verified-hand profiles only. Names/IDs are deliberately omitted
         // from the model prompt; counters have explicit opportunity denominators.
         val profiles = JSONArray()
@@ -96,7 +121,8 @@ object T043GptDecisionContract {
         // instructions are interpolated into the system directive.
         val directive = "Analyze this Texas Hold'em turn with virtual chips. " +
             "Unknown values are unknown; do not invent cards or opponent stats. " +
-            "Player statistics have limited samples. " +
+            "Verified poker_math contains deterministic made-hand and pot-odds values. " +
+            "Null equity means unknown, not zero. Player statistics have limited samples. " +
             "Return ONLY a JSON object with keys schema, action, amount_chips. " +
             "schema must be $SCHEMA; action must be one of legal_actions. " +
             "For BET/RAISE use the already selected and verified amount, " +
