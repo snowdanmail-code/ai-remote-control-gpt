@@ -293,7 +293,9 @@ class MainActivity : Activity() {
                 "Распознано видимых столов: ${lobby?.tables?.size ?: 0}. " +
                 "Русский OCR: ${OnDeviceCashLobbyTextRecognition.lastStatus}. " +
                 (state.recommended?.let {
-                    "Выбор: ${it.table.label}, блайнды ${moneyInDollars(it.table.bigBlindCents)} $, " +
+                    "Выбор: ${it.table.label}, занято ${it.table.occupiedSeats}/${it.table.totalSeats}; " +
+                    "блайнды ${moneyInDollars(it.table.smallBlindCents)} / ${moneyInDollars(it.table.bigBlindCents)} $, " +
+                    "вход ${moneyInDollars(it.table.minBuyInCents)}–${moneyInDollars(it.table.maxBuyInCents)} $, " +
                     "разрешённый потолок бай-ина ${moneyInDollars(it.permittedBuyInCapCents)} $."
                 } ?: "Подтверждённой рекомендации пока нет")
         }
