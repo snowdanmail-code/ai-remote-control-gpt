@@ -1,3 +1,6 @@
+import java.security.MessageDigest
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -21,13 +24,13 @@ val prepareLobbyOcrModels = tasks.register("prepareLobbyOcrModels") {
             "eng" to "90aadb5e0c368781f94add808f6b4dd31d8e244c9fecbe6a233070cac9a4fc071fd23a09e4a7e041db8e26880a6debbdf32a6b701c28687b2ed1cac81f4c1d14"
         )
         val sizes = mapOf("rus" to 3_861_738, "eng" to 4_113_088)
-        fun sha512(data: ByteArray) = java.security.MessageDigest.getInstance("SHA-512")
+        fun sha512(data: ByteArray) = MessageDigest.getInstance("SHA-512")
             .digest(data).joinToString("") { "%02x".format(it) }
         for ((lang, expectedSha) in hashes) {
             val target = dest.resolve("$lang.traineddata")
             if (target.exists() && target.length() == sizes.getValue(lang).toLong() &&
                 sha512(target.readBytes()) == expectedSha) continue
-            val url = java.net.URI(
+            val url = URI(
                 "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/$lang.traineddata"
             ).toURL()
             val conn = url.openConnection().apply {
