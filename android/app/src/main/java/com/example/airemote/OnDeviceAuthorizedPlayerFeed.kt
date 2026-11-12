@@ -122,6 +122,9 @@ object OnDeviceAuthorizedPlayerFeed {
             return PlayerFeedResult(PlayerFeedStatus.REJECTED, result.error)
         val loop = OnDeviceAutonomousRuntime.acceptVerifiedObservation(
             context.applicationContext, result.observation, result.sourceProof)
+        if (loop.state == AutoLoopState.WAITING_FOR_DECISION)
+            OnDeviceVerifiedGptTurnRequests.schedule(context, result.observation,
+                f.playerCardsAtCapture)
         return PlayerFeedResult(PlayerFeedStatus.ACCEPTED_TO_EXISTING_AUTONOMOUS_LOOP,
             loop.explanation, loop.state)
     }
