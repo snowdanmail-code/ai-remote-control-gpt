@@ -127,12 +127,12 @@ class OpponentPopupStatsParserTest {
 
     @Test fun nicknameComesOnlyFromHeaderNotTableOrStats() {
         val first = listOf(
-            ocr("krcv", 480, 60, 590, 85),
+            ocr("SampleAlpha", 480, 60, 590, 85),
             ocr("VPIP", 480, 155, 550, 175),
-            ocr("LadyElis", 480, 600, 600, 625))
-        assertEquals("krcv", OpponentPopupStatsParser.displayedNickname(first))
-        assertEquals("LadyElis", OpponentPopupStatsParser.displayedNickname(listOf(
-            ocr("LadyElis", 480, 56, 610, 82))))
+            ocr("SampleBeta", 480, 600, 600, 625))
+        assertEquals("SampleAlpha", OpponentPopupStatsParser.displayedNickname(first))
+        assertEquals("SampleBeta", OpponentPopupStatsParser.displayedNickname(listOf(
+            ocr("SampleBeta", 480, 56, 610, 82))))
         assertNull(OpponentPopupStatsParser.displayedNickname(listOf(
             ocr("116 $", 480, 60, 590, 85), ocr("VPIP", 480, 150, 590, 173))))
     }
