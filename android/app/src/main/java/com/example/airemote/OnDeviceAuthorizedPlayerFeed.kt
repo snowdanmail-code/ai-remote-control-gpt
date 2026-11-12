@@ -52,7 +52,7 @@ object OnDeviceAuthorizedPlayerFeed {
         OnDeviceEffectAuthority.install(IndependentEffectVerifier { receipt ->
             authorized.verifyEffectProof(receipt)
         })
-        OnDeviceAutonomousRuntime.ensureLocalStrategy()
+        OnDeviceAutonomousRuntime.ensureGptOnlyStrategy()
         return true
     }
 
