@@ -73,6 +73,26 @@ object OpponentPopupStatsParser {
         }
     }
 
+    /**
+     * Header ABOVE the 2-column statistics grid in the supplied portrait
+     * popup screenshots. Only a readable nickname candidate: never enough
+     * by itself to bind a seat or authorize history persistence.
+     */
+    fun displayedNickname(lines: List<PositionedOcrLine>): String? {
+        val names = lines.mapNotNull { line ->
+            val center = line.box
+            if (!center.valid() || center.centerX() !in 380..945 ||
+                center.centerY() !in 40..115) return@mapNotNull null
+            val token = line.text.trim().split(whitespace).firstOrNull() ?: return@mapNotNull null
+            val name = token.trimEnd(':')
+            if (name.length !in 2..24 || !name.any { it.isLetter() } ||
+                !Regex("""[\\p{L}\\p{N}_.-]{2,24}""").matches(name) ||
+                name.lowercase() in setOf("настройки", "игрока", "player", "statistics", "статистика"))
+                null else name
+        }.distinct()
+        return names.singleOrNull()
+    }
+
     /** Strict labels, bounded numbers and no fuzzy guesses from opponent names. */
     fun parse(lines: List<PositionedOcrLine>): List<OpponentPopupMetricValue> {
         if (lines.size > 100) return emptyList()
