@@ -45,7 +45,7 @@ credentials, generated test seeds or plaintext dumps are checked in.
 ## FTPS file transport
 
 - `T043FtpsTransport` uses Apache Commons Net 3.13.0 `FTPSClient("TLS",false)`.
-- System certificate validation + **endpoint hostname verification enabled**.
+- Explicit platform CA trust-chain validation via `TrustManagerFactory` + **TLS endpoint hostname verification** (Commons Net's validity-only default must not be used).
   Only TLS 1.2/1.3; `PBSZ 0` + **`PROT P`** mandatory for file channel.
   No plaintext downgrade, trust-all SSL, or automatic retry as unencrypted FTP.
 - Real access requires an explicitly approved `T043FtpsEndpoint`;
@@ -133,16 +133,19 @@ already terminal ACK.
   receipt, forced SQLite crash rollback, no echo, and repeated receipt ACK.
 - Fault injection for transport is through a fully **isolated in-memory
   adversarial transport**, not a network FTP/FTPS server.
-- Certificate/hostname validation cannot be claimed verified by a real
-  FTPS negative-handshake run until a dedicated isolated FTPS test server
-  with controlled test certificates is added and executed.
+- `T043FtpsSecurityJvmTest` uses an **isolated loopback Apache FTPServer**
+  with a freshly generated ephemeral test certificate. T3-35a requires
+  rejection of its untrusted self-signed certificate; T3-35b requires
+  rejection of a plaintext FTP endpoint without downgrade.
+  Neither test uses the actual FTP server or production credentials.
 - Hardware-backed AndroidKeyStore provisioning remains subject to actual
   target-device verification before deploying production secrets.
 
 ## Outstanding acceptance gates
 
-Real server endpoint/certificate, network login, FTPS negative-handshake
-test fixture, target-device AndroidKeyStore support/hardware backing, and
-independent proof service remain unconfigured/not executed. These are
+Real server endpoint/certificate and network login, target-device
+AndroidKeyStore support/hardware backing, and independent proof service
+remain unconfigured/not executed. A separate loopback FTPS negative-handshake
+fixture has been added; its CI result must be checked before approval. These are
 explicit requirements before deployment, not implicit production readiness.
 No PR may be merged or app package built without separate authorization.
