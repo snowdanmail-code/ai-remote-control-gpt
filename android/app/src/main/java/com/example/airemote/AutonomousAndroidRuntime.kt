@@ -263,6 +263,8 @@ object OnDeviceAutonomousRuntime {
         OnDeviceVerifiedGptTurnRequests.reset()
         OnDeviceOpponentPopupOcr.reset()
         OnDeviceOpponentProfileSweep.reset(reason)
+        OnDeviceCashLobbySelection.reset(reason)
+        OnDeviceOneWinCashLobby.reset()
         OnDevicePlayerContextBuffer.memory.clear()
         OnDeviceAuthorizedPlayerCycle.clear(reason)
         OnDeviceAuthorizedPlayerFeed.invalidateOnStop()
