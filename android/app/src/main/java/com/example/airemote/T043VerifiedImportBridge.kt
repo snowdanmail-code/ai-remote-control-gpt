@@ -207,9 +207,8 @@ class T043VerifiedImportBridge(
     }
 
     private fun stableReceiptId(h:T043SyncProtocol.Header):String {
-        val key=(h.logicalSenderId + "\u0000" + h.messageId)
-            .toByteArray(StandardCharsets.UTF_8)
-        return "receipt-" + T043MessageFingerprint.sha256(key)
+        return "receipt-" +
+            T043SyncProtocol.stableIdentityHash(h.logicalSenderId,h.messageId)
     }
 
     private fun enqueueReceiptInTransaction(db:SQLiteDatabase,h:T043SyncProtocol.Header,
