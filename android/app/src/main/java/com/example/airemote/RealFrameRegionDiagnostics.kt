@@ -47,9 +47,12 @@ data class RealFrameCalibration(
                 d.box.centerX() !in 30..285 || d.box.centerY() !in 170..820 ||
                 d.box.right - d.box.left !in 25..210 ||
                 d.box.bottom - d.box.top !in 25..210 ||
-                avatars.any { a ->
-                    d.box.left < a.box.right && a.box.left < d.box.right &&
-                    d.box.top < a.box.bottom && a.box.top < d.box.bottom
+                zones.any { z ->
+                    z.role in setOf(RealFieldRole.SEAT_AVATAR, RealFieldRole.SEAT_ACTION,
+                        RealFieldRole.SEAT_STACK, RealFieldRole.HERO_FOLD,
+                        RealFieldRole.HERO_CHECK_CALL, RealFieldRole.HERO_BET_RAISE) &&
+                    d.box.left < z.box.right && z.box.left < d.box.right &&
+                    d.box.top < z.box.bottom && z.box.top < d.box.bottom
                 }
             }) return false
         val hero = zones.filter { it.role.name.startsWith("HERO_") }
