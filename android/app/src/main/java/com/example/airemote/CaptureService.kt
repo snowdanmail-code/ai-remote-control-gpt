@@ -457,6 +457,7 @@ class CaptureService : Service() {
         worker?.quitSafely()
         FrameStore.clear()
         OnDeviceAutomaticOcr.reset()
+        OnDeviceOpponentPopupOcr.reset()
         OnDeviceHandState.reset("Захват завершён")
         OnDeviceStageBridge.reset("Захват завершён")
         OnDeviceVerifiedHandCompletion.resetTransientEvidence()
