@@ -58,6 +58,7 @@ class CaptureService : Service() {
             OnDeviceLiveActionControl.stop()
             FrameStore.clear()
             OnDeviceAutomaticOcr.reset()
+            OnDeviceOpponentPopupOcr.reset()
             stopSelf()
         }
     }
@@ -80,6 +81,7 @@ class CaptureService : Service() {
                 OnDeviceLiveActionControl.stop()
                 FrameStore.clear() // Clear immediately, not only in onDestroy().
                 OnDeviceAutomaticOcr.reset()
+            OnDeviceOpponentPopupOcr.reset()
                 stopSelf()
             }
             ACTION_START -> {
@@ -173,10 +175,34 @@ class CaptureService : Service() {
                                 }
                                 if (surface.status != RecordedSurfaceStatus.TABLE_LIKE) {
                                     FrameStore.captureError = "Кадры поступают; экран не прошёл фильтр игрового стола"
+                                    // The popup is NOT a playable table. Keep all
+                                    // gameplay observations invalid, but allow a
+                                    // separate read-only OCR of visible avatar stats.
                                     val invalidated = FrameStore.invalidateOccludedSurface(captureEpoch, origin)
                                     if (invalidated) {
                                         OnDeviceAutomaticOcr.reset()
+            OnDeviceOpponentPopupOcr.reset()
                                         OnDeviceStageBridge.reset("Panel or unknown recorded game surface")
+                                    }
+                                    if (surface.status == RecordedSurfaceStatus.PANEL_VISIBLE &&
+                                        origin.safeForLocalDiagnostics &&
+                                        !OperatorStopStore.isStopped(applicationContext) &&
+                                        AppVisibilityGate.canPublish(visibilityTicket)) {
+                                        OnDeviceOpponentPopupOcr.offer(
+                                            applicationContext, screen, origin, now
+                                        ) {
+                                            !closing && FrameStore.isCapturing &&
+                                            FrameStore.captureEpoch == captureEpoch &&
+                                            FrameStore.windowOrigin?.captureEpoch == captureEpoch &&
+                                            FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                            FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                            LiveForegroundProbe.snapshot()?.let { root ->
+                                                root.packageName == origin.observedPackage &&
+                                                root.windowGeneration == origin.windowGeneration
+                                            } == true
+                                        }
+                                    } else {
+                                        OnDeviceOpponentPopupOcr.reset()
                                     }
                                     lastSignature = null
                                     lastEncode = 0L
@@ -184,6 +210,9 @@ class CaptureService : Service() {
                                     lastCardInspectionAt = 0L
                                     return@setOnImageAvailableListener
                                 }
+                                // Once the actual table returns, old popup OCR
+                                // values must never contaminate the next player.
+                                OnDeviceOpponentPopupOcr.reset()
                                 val sig = FrameDifference.signature(screen)
                                 val frameHealth = OnDeviceFrameHealthAnalyzer.assess(
                                     sig, now, now, OperatorStopStore.isStopped(applicationContext), true)
