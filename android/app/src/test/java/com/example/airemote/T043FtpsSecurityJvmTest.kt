@@ -61,12 +61,10 @@ class T043FtpsSecurityJvmTest {
         val secret=UUID.randomUUID().toString().replace("-","")
         try {
             generateKeystore(key,secret)
-            val server=start(port(),key,secret)
-            try {
-                // getListener's actual port (assigned by our explicit allocation)
-                val live=server.serverContext.listeners["default"]!!.port
-                requireRejected(live)
-            } finally { server.stop() }
+            val selectedPort=port()
+            val server=start(selectedPort,key,secret)
+            try { requireRejected(selectedPort) }
+            finally { server.stop() }
         } finally { dir.deleteRecursively() }
     }
     @Test fun t3_35b_plain_ftp_downgrade_fails_closed() {
