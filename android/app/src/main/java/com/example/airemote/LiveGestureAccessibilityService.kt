@@ -522,19 +522,21 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                     gesturePath.moveTo(pxX(correct.centerX()), pxY(correct.centerY()))
                     70L
                 }
-                OneWinCashLobbyNavAction.SWIPE_UP -> {
-                    // Avoid the left sort popup, right buy-in controls, fixed
-                    // toolbar and bottom app navigation; long enough to scroll.
-                    gesturePath.moveTo(pxX(545), pxY(820))
-                    gesturePath.lineTo(pxX(545), pxY(345))
+                OneWinCashLobbyNavAction.SWIPE_UP, OneWinCashLobbyNavAction.SWIPE_DOWN -> {
+                    // Both vertical gestures are supported. For a list,
+                    // finger UP exposes lower rows; finger DOWN returns to
+                    // earlier rows. Both avoid the blue BUY-IN controls.
+                    val upwards = ticket.action == OneWinCashLobbyNavAction.SWIPE_UP
+                    gesturePath.moveTo(pxX(545), pxY(if (upwards) 820 else 345))
+                    gesturePath.lineTo(pxX(545), pxY(if (upwards) 345 else 820))
                     430L
                 }
             }
             val x = if (ticket.action == OneWinCashLobbyNavAction.OPEN_SORT) pxX(67)
-                else if (ticket.action == OneWinCashLobbyNavAction.SWIPE_UP) pxX(545)
+                else if (ticket.action in setOf(OneWinCashLobbyNavAction.SWIPE_UP, OneWinCashLobbyNavAction.SWIPE_DOWN)) pxX(545)
                 else pxX(requireNotNull(ticket.optionBox).centerX())
             val y = if (ticket.action == OneWinCashLobbyNavAction.OPEN_SORT) pxY(125)
-                else if (ticket.action == OneWinCashLobbyNavAction.SWIPE_UP) pxY(820)
+                else if (ticket.action in setOf(OneWinCashLobbyNavAction.SWIPE_UP, OneWinCashLobbyNavAction.SWIPE_DOWN)) pxY(if (ticket.action == OneWinCashLobbyNavAction.SWIPE_UP) 820 else 345)
                 else pxY(requireNotNull(ticket.optionBox).centerY())
             val overlay = params
             if (overlay != null && stopOverlay != null &&
