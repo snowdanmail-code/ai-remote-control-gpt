@@ -521,4 +521,38 @@ class T043Stage3RobolectricTest {
         assertEquals("APPLIED",string("SELECT processing_state FROM t043_sync_inbox " +
             "WHERE message_id=?",receiptId))
     }
+    @Test fun t3_38_sender_message_hash_has_no_delimiter_aliases() {
+        val first=T043SyncProtocol.stableIdentityHash("a|b","c")
+        val second=T043SyncProtocol.stableIdentityHash("a","b|c")
+        assertNotEquals(first,second)
+        assertNotEquals(
+            T043SyncProtocol.stableIdentityHash("a\u0000b","c"),
+            T043SyncProtocol.stableIdentityHash("a","b\u0000c"))
+    }
+    @Test fun t3_39_wrong_local_packet_signer_does_not_commit_route() {
+        assertEquals(T043WriteResult.APPLIED,canonical.enqueue(outboundDraft(),obsBytes()))
+        val wrong=T043SigningKey { T043SyncCrypto.signEd25519(trainerSign.encoded,it) }
+        val coordinator=T043SyncCoordinator(gateway,routes,registry,transport)
+        try {
+            coordinator.prepare(source,"m1",
+                T043RouteApproval("player-device","trainer-device"),wrong)
+            fail("Wrong local signer accepted")
+        } catch (_:IllegalArgumentException) {}
+        assertNull(routes.recover(source,"m1",
+            requireNotNull(gateway.readOutbox(source,"m1")).envelopeSha256))
+    }
+    @Test fun t3_40_wrong_receipt_signer_rolls_back_trusted_import() {
+        val raw=handBytes()
+        val h=inboundHeader(raw)
+        assertEquals(T043WriteResult.APPLIED,ingress.receiveAuthenticatedPacket(
+            T043SyncCrypto.seal(h,raw,trainerEnc.generatePublicKey().encoded,sender)))
+        val bridge=T043VerifiedImportBridge(helper,ingress,registry,"trainer-device")
+        assertEquals(T043WriteResult.STORAGE_ERROR,
+            bridge.importVerifiedAndCreateReceipt(source,h.messageId,
+                modelAllow,bytesAllow,sender))
+        assertEquals(0,count("t043_verified_hands"))
+        assertEquals(0,count("t043_sync_outbox"))
+        assertEquals("RECEIVED",string("SELECT processing_state FROM t043_sync_inbox"))
+    }
+
 }
