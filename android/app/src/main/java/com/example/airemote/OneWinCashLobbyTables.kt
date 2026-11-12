@@ -84,10 +84,10 @@ object OneWinCashLobbyParser {
             .joinToString(" ") { it.text.lowercase().replace(ws, " ") }
         val isCashGames = (upper.contains("кэш") && upper.contains("игр")) ||
             upper.contains("cash games")
-        // A generic 'tables' heading is not evidence that the variant
-        // filter is actually Hold'em; do not enter an Omaha/mixed-game row.
-        val isHoldem = upper.contains("холдем") || upper.contains("holdem")
-        if (!isCashGames || !isHoldem)
+        // The screenshot shows 'Холдем NL' in EACH table row, not in the
+        // top bar. Require cash-games header here and independently verify
+        // the game variant for each actionable row below.
+        if (!isCashGames)
             return OneWinCashLobbyReading(false, emptyList(), "NOT_CASH_GAMES_LOBBY")
 
         val anchors = valid.filter {
@@ -97,6 +97,24 @@ object OneWinCashLobbyParser {
         }.sortedBy { it.box.centerY() }
         val results = mutableListOf<OneWinCashLobbyTable>()
         for ((idx, anchor) in anchors.withIndex()) {
+            // The NL Hold'em tag is left of / just above the BUY-IN button.
+            // Never let a Hold'em tag from one row validate a different row
+            // (or a neighbouring Omaha table). Reject missing or ambiguous
+            // OCR instead of guessing the game type from a global header.
+            val anchorY = anchor.box.centerY()
+            val variants = valid.filter { line ->
+                line.box.centerX() in 40..470 &&
+                    line.box.centerY() in (anchorY - 75)..(anchorY + 12) &&
+                    (line.text.contains("холдем", ignoreCase = true) ||
+                     line.text.contains("holdem", ignoreCase = true) ||
+                     line.text.contains("hold'em", ignoreCase = true) ||
+                     line.text.contains("омаха", ignoreCase = true) ||
+                     line.text.contains("omaha", ignoreCase = true))
+            }
+            if (variants.size != 1) continue
+            val gameTag = variants.single().text
+            if (gameTag.contains("омаха", ignoreCase = true) ||
+                gameTag.contains("omaha", ignoreCase = true)) continue
             val top = (anchor.box.centerY() - 18).coerceAtLeast(175)
             val bottom = minOf(anchor.box.centerY() + 85,
                 anchors.getOrNull(idx + 1)?.box?.centerY()?.minus(8) ?: 950)
