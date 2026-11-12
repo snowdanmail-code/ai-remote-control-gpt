@@ -65,7 +65,8 @@ object OnDeviceCashLobbyTextRecognition {
         try {
             check(created.init(ensureModels(context), "rus+eng",
                 TessBaseAPI.OEM_LSTM_ONLY)) { "Cyrillic OCR engine failed to initialize" }
-            created.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+            // UI text is scattered across independent narrow columns and rows.
+            created.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SPARSE_TEXT)
             engine = created
             return created
         } catch (e: Exception) {
