@@ -178,10 +178,27 @@ object T043SyncProtocol {
             Packet(header,enc,ct,sig)
         }
     }
+    /**
+     * Persisted names bind the exact (sender,message) tuple with length framing,
+     * never with separators that user-supplied IDs could contain.
+     */
+    fun stableIdentityHash(sender:String,message:String):String {
+        val left=sender.toByteArray(StandardCharsets.UTF_8)
+        val right=message.toByteArray(StandardCharsets.UTF_8)
+        require(left.isNotEmpty() && right.isNotEmpty() &&
+            left.size<=MAX_STRING && right.size<=MAX_STRING)
+        val bytes=ByteArrayOutputStream()
+        DataOutputStream(bytes).use { d ->
+            d.write("T043-STABLE-ID-v1".toByteArray(StandardCharsets.US_ASCII))
+            d.writeByte(0)
+            d.writeInt(left.size);d.write(left)
+            d.writeInt(right.size);d.write(right)
+        }
+        return T043MessageFingerprint.sha256(bytes.toByteArray())
+    }
     /** ASCII path segments: cannot contain path traversal, separators or whitespace. */
     fun fileName(header: Header): String {
-        val identity=(header.logicalSenderId+"|"+header.messageId).toByteArray(StandardCharsets.UTF_8)
-        return "m-" + T043MessageFingerprint.sha256(identity) + "-" +
+        return "m-" + stableIdentityHash(header.logicalSenderId,header.messageId) + "-" +
             header.sequenceNo.toString().padStart(20,'0') + ".t043"
     }
     fun mailboxPath(header: Header): String =
