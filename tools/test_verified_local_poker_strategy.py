@@ -32,10 +32,10 @@ class VerifiedLocalStrategySourceTests(unittest.TestCase):
         self.assertIn('minBet != null && maxBet != null', self.strategy)
         self.assertIn('amount in minBet..maxBet', self.strategy)
 
-    def test_local_strategy_installed_without_auto_arming(self):
-        self.assertIn('ensureLocalStrategy()', self.activity)
+    def test_gpt_only_strategy_installed_without_auto_arming(self):
+        self.assertIn('ensureGptOnlyStrategy()', self.activity)
         self.assertIn('strategy = ValidatedPlayerStrategy(', self.runtime)
-        self.assertIn('local = VerifiedLocalPokerStrategy()', self.runtime)
+        self.assertIn('local = AutonomousStrategy { null }', self.runtime)
         router = (SRC / 'ValidatedPlayerStrategy.kt').read_text()
         self.assertIn('return localDecision', router)
         self.assertIn('PlayerModelDecisionGuard.inspect', router)
