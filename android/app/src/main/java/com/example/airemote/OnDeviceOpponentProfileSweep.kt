@@ -139,7 +139,16 @@ object OnDeviceOpponentProfileSweep {
         if (sinceMs > 0 && nowMs - sinceMs > 8_000L &&
             phase !in setOf(OpponentProfileSweepPhase.WAITING_TABLE,
                 OpponentProfileSweepPhase.COMPLETE)) {
-            status(OpponentProfileSweepPhase.BLOCKED, "Истёк срок ожидания окна, без повторного нажатия")
+            if (phase == OpponentProfileSweepPhase.READING_POPUP &&
+                surface == RecordedSurfaceStatus.PANEL_VISIBLE) {
+                // The popup did open but its statistics were unreadable.
+                // Close it by the measured empty-table region; do NOT invent
+                // a profile or re-open the same avatar.
+                val dismiss = profile.zones.single { it.role == RealFieldRole.PROFILE_DISMISS }
+                send(context, OpponentProfileNavPurpose.DISMISS_ON_TABLE,
+                    dismiss.box, origin, profile, nowMs)
+            } else status(OpponentProfileSweepPhase.BLOCKED,
+                "Истёк срок ожидания окна, без повторного нажатия")
             return
         }
         when (phase) {
