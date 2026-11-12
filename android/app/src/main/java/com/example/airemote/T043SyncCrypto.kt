@@ -13,7 +13,7 @@ import java.security.MessageDigest
 /** No production key generated here. Device enrollment and key access are external.
  * Never put secrets in logs, exceptions, manifests or GitHub fixtures.
  * Library: bcprov-jdk18on 1.85, RFC 9180 base HPKE and independent Ed25519 signature. */
-interface T043SigningKey {
+fun interface T043SigningKey {
     /** Sign the EXACT bytes provided; must be backed by protected local key storage. */
     fun sign(input: ByteArray): ByteArray
 }
