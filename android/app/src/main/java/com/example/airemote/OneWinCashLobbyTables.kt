@@ -98,7 +98,7 @@ object OneWinCashLobbyParser {
             val row = valid.filter { it.box.centerY() in top..bottom }
             if (row.size < 4) continue
             val right = row.filter { it.box.centerX() >= 690 }
-            val rangeTokens = (listOf(anchor) + right)
+            val rangeTokens = right.distinct()
                 .mapNotNull { line -> amountPair(line.text, buyinRange)?.let { it to line } }
             val buyin = when {
                 rangeTokens.size == 1 -> rangeTokens.single().first
