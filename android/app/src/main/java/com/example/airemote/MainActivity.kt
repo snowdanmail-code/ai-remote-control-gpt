@@ -280,8 +280,9 @@ class MainActivity : Activity() {
             val started = OnDeviceCashLobbySelection.start(this@MainActivity)
             status.text = if (started)
                 "Автовыбор включён. Откройте «Кэш-Игры» в 1win: " +
-                    "ИИ прочитает видимые строки, выберет допустимый стол " +
-                    "и единожды нажмёт его вход. Оплата бай-ина не подтверждается."
+                    "ИИ распознает русское меню, установит «Ставки по возрастанию», " +
+                    "при необходимости пролистает таблицу (до 18 свайпов) и откроет " +
+                    "подходящий стол в заданных лимитах. Бай-ин не подтверждается."
             else "Не удалось запустить выбор стола: нужны сохранённые лимиты, " +
                 "активный захват, ARM, разрешение касаний и отсутствие другого игрового действия."
         }
@@ -290,6 +291,7 @@ class MainActivity : Activity() {
             val lobby = OnDeviceOneWinCashLobby.latest()
             status.text = "Автовыбор: ${state.phase}. ${state.message}. " +
                 "Распознано видимых столов: ${lobby?.tables?.size ?: 0}. " +
+                "Русский OCR: ${OnDeviceCashLobbyTextRecognition.lastStatus}. " +
                 (state.recommended?.let {
                     "Выбор: ${it.table.label}, блайнды ${moneyInDollars(it.table.bigBlindCents)} $, " +
                     "разрешённый потолок бай-ина ${moneyInDollars(it.permittedBuyInCapCents)} $."
