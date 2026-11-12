@@ -505,8 +505,7 @@ class T043Stage3RobolectricTest {
             source,message,snapshot.envelope.streamId,snapshot.envelope.sequenceNo,
             snapshot.envelopeSha256,T043SyncReceipt.VERIFIED_IMPORTED,hand().handRecordId)
         val raw=T043SyncReceipt.sign(body,receiverSigner)
-        val receiptId="receipt-"+T043MessageFingerprint.sha256(
-            (source+"\u0000"+message).toByteArray(Charsets.UTF_8))
+        val receiptId="receipt-"+T043SyncProtocol.stableIdentityHash(source,message)
         val e=T043MessageFingerprint.Envelope(
             "trainer-device",receiptId,"player-device","receipts-v1",1,
             "t043.receipt.v1",relatedRecordType="receipt",relatedRecordKey=message,
