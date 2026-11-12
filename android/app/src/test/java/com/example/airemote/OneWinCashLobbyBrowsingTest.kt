@@ -72,4 +72,25 @@ class OneWinCashLobbyBrowsingTest {
             buyInOcrBox = NormalizedTextBox(720, 700, 940, 731))
         assertEquals(tracker.pageSignature(listOf(a)), tracker.pageSignature(listOf(b)))
     }
+    @Test fun partiallyRecognizedRussianMenuStillBlocksTableEntry() {
+        // One option is not recognized by the offline OCR on the user's
+        // compressed 354x768 example. Three confirmed labels + the header
+        // suffice to identify an obscuring dropdown but never a table row.
+        val menu = listOf(
+            line("Отсортировано по", 20, 162),
+            line("Ставки по возрастанию", 20, 215),
+            line("Ставки по убыванию", 20, 267),
+            line("Игроки по возрастанию", 20, 319),
+            line("Кэш-Игры", 380, 70),
+            line("Холдем", 30, 140),
+            line("5/6", 540, 275),
+            line("Бай-ин: 8$/20$", 740, 231)
+        )
+        assertEquals(3, OneWinCashLobbySortParser.read(menu)?.options?.size)
+        val scan = OneWinCashLobbyParser.read(menu)
+        assertFalse(scan.headerVerified)
+        assertEquals("SORT_MENU_VISIBLE", scan.reason)
+        assertTrue(scan.tables.isEmpty())
+    }
+
 }
