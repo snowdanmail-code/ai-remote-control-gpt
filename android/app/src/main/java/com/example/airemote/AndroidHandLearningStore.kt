@@ -6,8 +6,13 @@ import android.database.sqlite.SQLiteOpenHelper
 
 /** On-phone, persistent post-hand learning. No network/Windows/Python dependency. */
 class AndroidHandLearningStore(context: Context) : SQLiteOpenHelper(
-    context.applicationContext, "hand_learning_v1.db", null, 1
+    context.applicationContext, "hand_learning_v1.db", null, 2
 ), HandLearningStore {
+
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        db.setForeignKeyConstraintsEnabled(true)
+    }
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE completed_hands (
@@ -39,11 +44,16 @@ class AndroidHandLearningStore(context: Context) : SQLiteOpenHelper(
             aggression INTEGER, calls INTEGER, faced_bet INTEGER,
             fold_vs_bet INTEGER, showdown INTEGER, showdown_won INTEGER,
             PRIMARY KEY(table_key, hand_key, opponent_key))""")
+        T043SqliteV2Schema.install(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Future schema migrations are additive; never silently erase learned profiles.
-        throw IllegalStateException("No migration from $oldVersion to $newVersion")
+        require(oldVersion == 1 && newVersion == 2) {
+            "Unsupported hand learning migration $oldVersion -> $newVersion"
+        }
+        // SQLiteOpenHelper already wraps onUpgrade and user_version in one transaction.
+        // Keep all four v1 tables (including column order and positional INSERTs) untouched.
+        T043SqliteV2Schema.install(db)
     }
 
     @Synchronized override fun commitHandAtomically(hand: VerifiedFinishedHand): HandLearningResult {

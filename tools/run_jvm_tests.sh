@@ -71,6 +71,7 @@ com.example.airemote.LiveGameActionGuardScenariosKt
 com.example.airemote.LiveTapSafetyScenariosKt
 com.example.airemote.PostHandLearningScenariosKt
 com.example.airemote.CanonicalPokerScenarios
+com.example.airemote.T043FingerprintScenarios
 TurnDisplayScenariosKt
 com.example.airemote.VerifiedTurnLifecycleScenariosKt
 com.example.airemote.VerifiedHandCompletionGateScenariosKt
