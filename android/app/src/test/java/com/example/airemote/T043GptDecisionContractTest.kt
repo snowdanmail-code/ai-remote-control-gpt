@@ -45,8 +45,8 @@ class T043GptDecisionContractTest {
     @Test fun realHoleCardsAreIncludedOnlyOnVerifiedCurrentTurn() {
         val prompt = T043GptDecisionContract.buildPrompt(observation(), cards(), 2_000L)
         assertNotNull(prompt)
-        assertTrue(prompt!!.contains("\\"hole_cards\\":[\\"Ah\\",\\"Kd\\"]"))
-        assertTrue(prompt.contains("\\"street\\":\\"PREFLOP\\""))
+        assertTrue(prompt!!.contains("\"hole_cards\":[\"Ah\",\"Kd\"]"))
+        assertTrue(prompt.contains("\"street\":\"PREFLOP\""))
         assertTrue(prompt.contains("RECOMMENDATION_ONLY"))
         assertTrue(prompt.length <= 1_600)
     }
@@ -72,7 +72,7 @@ class T043GptDecisionContractTest {
         val ok = T043GptDecisionContract.review(answer("RAISE", "150"), observation(), 2_000L)
         assertTrue(ok.reason, ok.accepted)
         assertEquals(150L, ok.proposal?.amountChips)
-        for (amount in listOf("149", "201", "null", "150.0", "\\"150\\"")) {
+        for (amount in listOf("149", "201", "null", "150.0", "\"150\"")) {
             val rejected = T043GptDecisionContract.review(answer("RAISE", amount),
                 observation(), 2_000L)
             assertFalse("Should reject $amount", rejected.accepted)
