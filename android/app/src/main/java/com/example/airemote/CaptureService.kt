@@ -181,7 +181,6 @@ class CaptureService : Service() {
                                     val invalidated = FrameStore.invalidateOccludedSurface(captureEpoch, origin)
                                     if (invalidated) {
                                         OnDeviceAutomaticOcr.reset()
-            OnDeviceOpponentPopupOcr.reset()
                                         OnDeviceStageBridge.reset("Panel or unknown recorded game surface")
                                     }
                                     if (surface.status == RecordedSurfaceStatus.PANEL_VISIBLE &&
