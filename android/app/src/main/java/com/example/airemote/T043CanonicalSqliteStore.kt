@@ -244,8 +244,12 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
             if (previous != null) {
                 db.execSQL("ROLLBACK TO SAVEPOINT t043_import")
                 db.execSQL("RELEASE SAVEPOINT t043_import")
-                if (previous == incoming) T043WriteResult.ALREADY_SEEN
-                else {
+                if (previous == incoming) {
+                    // Repair a missing job from an earlier implementation,
+                    // idempotently and in the same transaction as this check.
+                    ensureVerifiedHandQueued(db,frozen,snapshot,d,now())
+                    T043WriteResult.ALREADY_SEEN
+                } else {
                     conflict(db,"hand",handId,previous,incoming,"VERIFIED_HAND_CHANGED",now())
                     T043WriteResult.CONFLICT
                 }
@@ -292,10 +296,69 @@ class T043CanonicalSqliteStore(private val helper: AndroidHandLearningStore) {
                         }
                         insert(db,"t043_verified_events",a)
                     }
+                // Verified receipt and its pending local sync job are atomic.
+                // Failure in the outbox insert rolls back this whole hand.
+                ensureVerifiedHandQueued(db,frozen,snapshot,d,ms)
                 db.execSQL("RELEASE SAVEPOINT t043_import")
                 T043WriteResult.APPLIED
             }
         }
+    }
+
+    /**
+     * Durable local queue receipt for a verified hand. A reserved internal
+     * recipient is deliberately NOT a network endpoint. Future routing will
+     * need its own separately approved and authenticated transport.
+     */
+    private fun verifiedHandDraft(record: VerifiedPokerHandRecord): T043SyncDraft {
+        val source = record.terminalObservation.source.namespace
+        val id = "hand-" + T043MessageFingerprint.sha256(
+            record.handRecordId.toByteArray(StandardCharsets.UTF_8))
+        return T043SyncDraft(
+            senderId=source, messageId=id, recipientId="t043:pending-route",
+            streamId="verified-hands-v1", contentType="poker.verified-hand.v1",
+            sourceNamespace=source, relatedRecordType="hand",
+            relatedRecordKey=record.handRecordId, rulesetId=record.rulesetId,
+            payloadEncoding="JSON_UTF8",schemaMajor=1,schemaMinor=0)
+    }
+
+    /**
+     * Must run INSIDE the enclosing verified-hand SQLite transaction.
+     * An exception rolls back both the verified hand and its pending job.
+     * If the job already exists, check actual persisted bytes and complete
+     * envelope identity before treating it as a duplicate.
+     */
+    private fun ensureVerifiedHandQueued(db: SQLiteDatabase, record: VerifiedPokerHandRecord,
+                                         snapshot: ByteArray,
+                                         d: T043MessageFingerprint.Digest, ms: Long) {
+        val draft = verifiedHandDraft(record)
+        val previous = checkedMessage(db,"t043_sync_outbox",
+            "sender_id=? AND message_id=?",arrayOf(draft.senderId,draft.messageId))
+        if (previous != null) {
+            check(previous.second == T043MessageFingerprint.envelopeSha256(
+                draft.header(previous.first),d)) { "Pending verified-hand job conflict" }
+            return
+        }
+        val start = ContentValues().apply {
+            put("sender_id",draft.senderId);put("recipient_id",draft.recipientId)
+            put("stream_id",draft.streamId);put("direction","OUTBOUND")
+            put("updated_at_ms",ms)
+        }
+        db.insertWithOnConflict("t043_sync_cursors",null,start,SQLiteDatabase.CONFLICT_IGNORE)
+        val last = db.rawQuery(
+            "SELECT last_allocated_no FROM t043_sync_cursors WHERE sender_id=? AND recipient_id=? " +
+                "AND stream_id=? AND direction='OUTBOUND'",
+            arrayOf(draft.senderId,draft.recipientId,draft.streamId)
+        ).use { row -> check(row.moveToFirst()); row.getLong(0) }
+        check(last < Long.MAX_VALUE) { "Outgoing sequence overflow" }
+        val next = last + 1
+        db.execSQL("UPDATE t043_sync_cursors SET last_allocated_no=?,max_seen_no=?,updated_at_ms=? " +
+            "WHERE sender_id=? AND recipient_id=? AND stream_id=? AND direction='OUTBOUND'",
+            arrayOf(next,next,ms,draft.senderId,draft.recipientId,draft.streamId))
+        val header = draft.header(next)
+        val envelope = T043MessageFingerprint.envelopeSha256(header,d)
+        insert(db,"t043_sync_outbox",messageValues(header,d,snapshot,envelope,ms,
+            state="PENDING",outbox=true))
     }
 
     /** Allocate stream sequence + insert outbox message in ONE SQLite write transaction. */
