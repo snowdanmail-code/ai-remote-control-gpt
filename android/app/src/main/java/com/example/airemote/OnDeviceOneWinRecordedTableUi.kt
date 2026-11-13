@@ -66,8 +66,9 @@ object OnDeviceOneWinRecordedTableUi {
         // includes the vertical sizing slider and all bottom buttons, but
         // avoids decoding avatar names, board/card art and top status bar.
         // Convert OCR rectangles back to full-screen [0,1000] coordinates.
-        val cropTop = (bitmap.height * 44 / 100).coerceAtLeast(0)
-        val cropHeight = bitmap.height - cropTop
+        val fullHeight = bitmap.height
+        val cropTop = (fullHeight * 44 / 100).coerceAtLeast(0)
+        val cropHeight = fullHeight - cropTop
         val jpeg = try {
             val crop = Bitmap.createBitmap(bitmap, 0, cropTop,
                 bitmap.width, cropHeight)
@@ -108,7 +109,7 @@ object OnDeviceOneWinRecordedTableUi {
                 val normalized = lines.map { line ->
                     fun absoluteY(cropY: Int): Int =
                         ((cropTop.toLong() * 1000L +
-                            cropY.toLong() * cropHeight) / bitmap.height).toInt()
+                            cropY.toLong() * cropHeight) / fullHeight).toInt()
                     line.copy(box = NormalizedTextBox(line.box.left,
                         absoluteY(line.box.top), line.box.right,
                         absoluteY(line.box.bottom)))
