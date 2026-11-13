@@ -113,7 +113,7 @@ class T043GptDecisionContractTest {
         assertNotNull(prompt)
         assertTrue(prompt!!.contains("verified_opponent_statistics"))
         assertTrue(prompt.contains("vpip_opportunities"))
-        assertTrue(prompt.contains("\\"ref\\":\\"seat_2\\""))
+        assertTrue(prompt.contains("\"ref\":\"seat_2\""))
         assertFalse(prompt.contains(privateKey))
         assertFalse(prompt.contains("opponent_1"))
         assertTrue(prompt.length <= 1_600)
