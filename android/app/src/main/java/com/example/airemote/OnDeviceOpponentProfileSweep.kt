@@ -111,8 +111,14 @@ object OnDeviceOpponentProfileSweep {
             OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT)
             return false
         val calibration = OnDeviceRealFrameRegions.activeProfile() ?: return false
-        val avatars = calibration.zones.filter { it.role == RealFieldRole.SEAT_AVATAR }
-            .sortedBy { it.seatIndex }
+        // Six-seat 1win rotates the view: HERO is the bottom screen slot,
+        // NOT a fixed physical chair index. Never open our own avatar.
+        val heroBottomSeat = OneWinPortraitHeroSeat.inferBottomSeat(calibration)
+            ?: return false
+        val avatars = calibration.zones.filter {
+            it.role == RealFieldRole.SEAT_AVATAR &&
+                it.seatIndex != null && it.seatIndex != heroBottomSeat
+        }.sortedBy { it.seatIndex }
         if (!calibration.valid() || avatars.isEmpty() ||
             calibration.zones.count { it.role == RealFieldRole.PROFILE_DISMISS } != 1 ||
             LiveGamePermissionGate.packageName() != calibration.expectedPackage) return false
