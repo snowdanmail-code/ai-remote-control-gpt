@@ -422,14 +422,26 @@ class MainActivity : Activity() {
                         it.metric.label + "=" + it.amount
                     }
             }
+            val verifiedEvents = memory.count {
+                it.participation in setOf(
+                    T046HandParticipation.ACTIVE_CONFIRMED,
+                    T046HandParticipation.FOLDED_CONFIRMED,
+                    T046HandParticipation.LEFT_TABLE_CONFIRMED)
+            }
+            val ocrCues = FrameStore.lastSeatVisual?.stableCues
+                ?.joinToString { "seat_" + it.seatIndex + ":" + it.action.name }
+                ?.ifBlank { "нет" } ?: "ещё нет"
             status.text = "Изучение после посадки: " + study.phase +
                 ". " + study.description +
                 "\nПрофили текущего стола: " + study.observedProfiles +
                 ", HERO: " + (study.identifiedHeroSeat ?: "не определён") +
                 "; обход: " + sweep.phase +
                 "\n" + stats.ifBlank { "Память текущего стола пока пуста." } +
-                "\nChatGPT использует только подтверждённый игровой ход. " +
-                "Показатели OCR не являются доказанной постоянной личностью."
+                "\nПодтверждённых статусов участия: " + verifiedEvents +
+                "; OCR-подсказки у мест: " + ocrCues +
+                " (не доказательство фолда/выхода)" +
+                "\nДля T047 требуется отдельно проверенное место игрока " +
+                "и подтверждённое действие. Без них ChatGPT видит НЕИЗВЕСТНО."
         }
         button("1WIN — ПРОВЕРИТЬ ПЕРЕДАЧУ СТАТИСТИКИ ЧЕРЕЗ CHATGPT") {
             val study = OnDeviceOneWinPostSeatStudy.status()
