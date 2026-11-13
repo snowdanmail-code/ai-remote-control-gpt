@@ -674,6 +674,106 @@ class LiveGestureAccessibilityService : AccessibilityService() {
      * frames and matched the geometric seat map. This tap can ONLY open
      * the buy-in dialog. It never enters a price, presses OK or places bets.
      */
+    /**
+     * The only two buy-in UI actions: choose table minimum, then
+     * confirm the same minimum after two fresh matching OCR frames.
+     * Never touches Max, balance, auto-rebuy/auto-buy-in or gameplay.
+     */
+    internal fun offerOneWinBuyInNavigation(
+        ticket: OneWinBuyInTapTicket, finished: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { finished(false) }
+            val now = SystemClock.elapsedRealtime()
+            if (!OnDeviceOneWinPreSeatScanner.buyInTicketMatches(ticket, now) ||
+                !FrameStore.isCapturing ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                CaptureObservationMode.isSpectator() ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state ==
+                    AutoLoopState.WAITING_FOR_RESULT) {
+                reject(); return@post
+            }
+            val rootPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(rootPackage, now)
+            val root = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (rootPackage != ticket.sourcePackage ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.windowGeneration ||
+                now - root.atMs !in 0L..700L ||
+                origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.captureEpoch != ticket.captureEpoch ||
+                origin.windowGeneration != ticket.windowGeneration) {
+                reject(); return@post
+            }
+            val box = ticket.target
+            if (!box.valid() || ticket.minimumCents <= 0L ||
+                (ticket.purpose == OneWinBuyInTapPurpose.CHOOSE_MIN &&
+                    (box.centerX() !in 30..340 || box.centerY() !in 277..389 ||
+                        box != ticket.expected.minButtonBox)) ||
+                (ticket.purpose == OneWinBuyInTapPurpose.CONFIRM_OK &&
+                    (box.centerX() !in 350..680 || box.centerY() !in 916..991 ||
+                        box != ticket.expected.okBox ||
+                        ticket.expected.minimumCents != ticket.minimumCents ||
+                        ticket.expected.debitCents != ticket.minimumCents ||
+                        ticket.expected.inputCents != ticket.minimumCents))) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (ticket.frameWidth !in 320..5000 ||
+                ticket.frameHeight !in 640..9000 ||
+                m.widthPixels !in 320..5000 || m.heightPixels !in 640..9000 ||
+                kotlin.math.abs(m.widthPixels - ticket.frameWidth) >
+                    ticket.frameWidth / 50 ||
+                kotlin.math.abs(m.heightPixels - ticket.frameHeight) >
+                    ticket.frameHeight / 50 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            val x = (box.centerX().toLong() * ticket.frameWidth / 1000L).toInt()
+            val y = (box.centerY().toLong() * ticket.frameHeight / 1000L).toInt()
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x < overlay.x + overlay.width &&
+                y >= overlay.y && y < overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                !OnDeviceOneWinPreSeatScanner.buyInTicketMatches(
+                    ticket, SystemClock.elapsedRealtime()) ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch) {
+                reject(); return@post
+            }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(
+                    Path().apply { moveTo(x.toFloat(), y.toFloat()) },
+                    0L, 75L)).build()
+            var completed = false
+            fun finishOnce(ok: Boolean) {
+                if (!completed) {
+                    completed = true
+                    finished(ok)
+                }
+            }
+            val submitted = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    finishOnce(!OperatorStopStore.isStopped(applicationContext))
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    finishOnce(false)
+                }
+            }, main)
+            if (!submitted) finishOnce(false)
+        }
+    }
+
     internal fun offerOneWinVacantSeatEntry(
         ticket: OneWinVacantSeatTapTicket, finished: (Boolean) -> Unit
     ) {
