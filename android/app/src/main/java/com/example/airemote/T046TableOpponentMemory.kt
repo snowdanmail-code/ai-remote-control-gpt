@@ -22,6 +22,12 @@ enum class T046Evidence {
     VERIFIED_HAND_EVENT, VERIFIED_TABLE_EXIT, OCR_ONLY
 }
 
+data class T046PopupObservation(
+    val seatIndex: Int,
+    val displayedNickname: String?,
+    val metrics: List<OpponentPopupMetricValue>
+)
+
 data class T046OpponentSeatMemory(
     val seat: Int,
     val sessionAlias: String,
@@ -70,7 +76,7 @@ class T046TableOpponentMemory {
 
     /** From an avatar popup observed TWICE for the selected screen seat. */
     @Synchronized fun observePopup(key: T046TableSession,
-                                    profile: ObservedOpponentProfile): Boolean {
+                                    profile: T046PopupObservation): Boolean {
         if (session != key || profile.seatIndex !in 0..9 ||
             profile.seatIndex == heroSeat ||
             profile.metrics.any { !it.amount.isFinite() || it.amount < 0.0 })
