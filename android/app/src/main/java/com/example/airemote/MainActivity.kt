@@ -535,6 +535,12 @@ class MainActivity : Activity() {
                     contributions.ifBlank { "не прочитаны" } +
                     "; банк по центральной надписи: " +
                     (report.potMinor?.div(100.0) ?: "не прочитан") +
+                    "; сумма видимых вкладов у мест: " +
+                    (report.visibleSeatWagersTotalMinor?.div(100.0)
+                        ?: "неполная/неизвестная") +
+                    "; совпадение: " +
+                    (report.centralPotEqualsVisibleWagers
+                        ?: "недостаточно данных") +
                     "; синие карты: " + cards.ifBlank { "нет калибровки/наблюдений" } +
                     "; надписи: " + labels.ifBlank { "временно отсутствуют" } +
                     "\nСовпадения признаков: " +
