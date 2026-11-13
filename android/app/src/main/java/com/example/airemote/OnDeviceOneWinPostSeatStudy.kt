@@ -51,7 +51,7 @@ object OnDeviceOneWinPostSeatStudy {
             origin.captureEpoch != captureEpoch ||
             origin.windowGeneration != windowGeneration ||
             !OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin)) return false
-        val stats = T045SessionStatsFormatter.format(sessionProfiles)
+        val stats = T045SessionStatsFormatter.formatForHandoff(sessionProfiles)
         if (ChatGptPlanHandoffProtocol.prepare(
                 stats, ChatGptAuthProtocol.randomUrlSafe(16)) == null) {
             cloudStatus = "ChatGPT: нет достоверно прочитанных числовых метрик"
@@ -225,27 +225,50 @@ object OnDeviceOneWinPostSeatStudy {
     }
 }
 
-/** Deterministic model-only formatter; never attributes OCR to a stable identity. */
+/** Deterministic, nickname-free context formatted without truncating metric tokens. */
 object T045SessionStatsFormatter {
-    fun format(profiles: List<ObservedOpponentProfile>): String {
-            return profiles.sortedBy { it.seatIndex }.take(5).joinToString(";") { profile ->
-                val stat = profile.metrics
-                    .filter {
-                        it.evidence == "POPUP_OCR_ONLY" &&
-                            it.amount.isFinite() && it.amount >= 0.0 &&
-                            it.amount <= (if (it.metric.percent) 100.0 else 100_000.0)
-                    }
-                    .distinctBy { it.metric }
-                    .take(4)
-                    .joinToString(",") { metric ->
-                        metric.metric.name + "=" +
-                            if (metric.amount % 1.0 == 0.0)
-                                metric.amount.toLong().toString()
-                            else (metric.amount * 10.0).toLong().let {
-                                (it / 10).toString() + "." + (it % 10).toString()
-                            }
-                    }
-                "seat_" + profile.seatIndex + ":" + stat
-            }.take(280)
+    /** A compact subset sent on EVERY authenticated verified turn. */
+    fun format(profiles: List<ObservedOpponentProfile>): String =
+        limited(profiles, 280, 4)
+
+    /** Full available numeric popup observations for the one-time OAuth ACK. */
+    fun formatForHandoff(profiles: List<ObservedOpponentProfile>): String =
+        limited(profiles, 900, 11)
+
+    private fun limited(profiles: List<ObservedOpponentProfile>,
+                        maxChars: Int, maxMetricsPerSeat: Int): String {
+        val rows = mutableListOf<String>()
+        var used = 0
+        for (profile in profiles.sortedBy { it.seatIndex }.take(5)) {
+            if (profile.seatIndex !in 0..9) continue
+            val stats = profile.metrics
+                .filter { item ->
+                    item.evidence == "POPUP_OCR_ONLY" &&
+                        item.amount.isFinite() && item.amount >= 0.0 &&
+                        item.amount <=
+                            (if (item.metric.percent) 100.0 else 100_000.0)
+                }.distinctBy { it.metric }.take(maxMetricsPerSeat)
+            var row = "seat_" + profile.seatIndex + ":"
+            var count = 0
+            for (item in stats) {
+                val text = if (item.amount % 1.0 == 0.0)
+                    item.amount.toLong().toString()
+                else {
+                    val tenths = (item.amount * 10.0).toLong()
+                    (tenths / 10L).toString() + "." + (tenths % 10L).toString()
+                }
+                val part = item.metric.name + "=" + text
+                val candidate = row + (if (count == 0) "" else ",") + part
+                val separator = if (rows.isEmpty()) 0 else 1
+                if (used + separator + candidate.length > maxChars) break
+                row = candidate
+                count++
+            }
+            if (count > 0) {
+                used += (if (rows.isEmpty()) 0 else 1) + row.length
+                rows.add(row)
+            }
         }
+        return rows.joinToString(";")
+    }
 }
