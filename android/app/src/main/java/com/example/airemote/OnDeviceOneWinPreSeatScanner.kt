@@ -467,6 +467,14 @@ object OnDeviceOneWinPreSeatScanner {
                         "OCR не распознал окно, повторно проверяем экран без нажатий")
                     return@inspectStructured
                 }
+                // Do not let OCR of a transition frame overwrite the
+                // action-specific PENDING phase while Android is still
+                // deciding whether the gesture was delivered.
+                if (pendingBuyInTap != null) {
+                    status = status.copy(description =
+                        "Ожидаем подтверждение касания Android; новые жесты запрещены")
+                    return@inspectStructured
+                }
                 val reading = OneWinBuyInDialogParser.read(lines)
                 if (reading.status == OneWinBuyInReadingStatus.NOT_DIALOG) {
                     buyInAgreement.reset()
