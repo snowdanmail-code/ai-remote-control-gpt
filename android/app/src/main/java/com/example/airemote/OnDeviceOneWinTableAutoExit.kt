@@ -97,7 +97,11 @@ object OnDeviceOneWinTableAutoExit {
             .mapNotNull { it.seatIndex }.toSet()
         val stacks = layout.zones.filter { it.role == RealFieldRole.SEAT_STACK }
             .mapNotNull { it.seatIndex }.toSet()
+        val measuredBottomSeat = OneWinPortraitHeroSeat.inferBottomSeat(layout)
         if (!layout.valid() || positions != stacks || selectedHeroSeat !in positions ||
+            // The real six-seat interface rotates chairs to show HERO at
+            // screen bottom. Never trust a manually entered mismatched seat.
+            selectedHeroSeat != measuredBottomSeat ||
             positions.size !in 2..10 ||
             LiveGamePermissionGate.packageName() != layout.expectedPackage) return false
         stop("Новая сессия")
