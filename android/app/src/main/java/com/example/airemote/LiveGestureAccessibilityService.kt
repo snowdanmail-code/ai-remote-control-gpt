@@ -665,6 +665,96 @@ class LiveGestureAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * One non-financial navigation gesture to a verified empty-seat arrow.
+     * The icon was first observed on a table-like screen in TWO capture
+     * frames and matched the geometric seat map. This tap can ONLY open
+     * the buy-in dialog. It never enters a price, presses OK or places bets.
+     */
+    internal fun offerOneWinVacantSeatEntry(
+        ticket: OneWinVacantSeatTapTicket, finished: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { finished(false) }
+            val now = SystemClock.elapsedRealtime()
+            if (!OnDeviceOneWinPreSeatScanner.seatTicketMatches(ticket, now) ||
+                !FrameStore.isCapturing ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                CaptureObservationMode.isSpectator() ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT)
+            { reject(); return@post }
+
+            val actualPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(actualPackage, now)
+            val root = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (actualPackage != ticket.sourcePackage ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.windowGeneration ||
+                now - root.atMs !in 0L..700L ||
+                origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.captureEpoch != ticket.captureEpoch ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.windowGeneration != ticket.windowGeneration) {
+                reject(); return@post
+            }
+
+            val marker = ticket.selected.marker
+            if (OneWinVacantSeatGeometry.slotFor(marker) != ticket.selected.slot ||
+                !marker.bounds.valid() ||
+                marker.bounds.right - marker.bounds.left !in 18..145 ||
+                marker.bounds.bottom - marker.bounds.top !in 18..150) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (m.widthPixels !in 320..5000 || m.heightPixels !in 640..9000 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            val x = (marker.bounds.centerX().toLong() * m.widthPixels / 1000L).toInt()
+            val y = (marker.bounds.centerY().toLong() * m.heightPixels / 1000L).toInt()
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x < overlay.x + overlay.width &&
+                y >= overlay.y && y < overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            // A fresh foreground snapshot and the *same* single pending
+            // ticket are mandatory at the exact moment before dispatch.
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                !OnDeviceOneWinPreSeatScanner.seatTicketMatches(
+                    ticket, SystemClock.elapsedRealtime()) ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch) {
+                reject(); return@post
+            }
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 75L)).build()
+            var completed = false
+            fun finishOnce(result: Boolean) {
+                if (!completed) {
+                    completed = true
+                    finished(result)
+                }
+            }
+            val sent = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    finishOnce(!OperatorStopStore.isStopped(applicationContext))
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    finishOnce(false)
+                }
+            }, main)
+            if (!sent) finishOnce(false)
+        }
+    }
+
     internal fun offerOneWinCashLobbyEntry(
         ticket: OneWinCashLobbyEntryTicket, onSubmitted: (Boolean) -> Unit
     ) {
