@@ -30,7 +30,7 @@ object OnDeviceVerifiedGptTurnRequests {
         cards: StableCardReading?
     ): Boolean {
         if (cards == null || CaptureObservationMode.isSpectator() ||
-            OperatorStopStore.isStopped(context) || !ChatGptCloudBridge.connected(context) ||
+            OperatorStopStore.isStopped(context) || !ChatGptCloudBridge.planUsageAuthorized(context) ||
             !observation.tableHandIndependentlyVerified ||
             !observation.windowIndependentlyVerified) return false
         val key = TurnKey(observation.tableId, observation.handId,
