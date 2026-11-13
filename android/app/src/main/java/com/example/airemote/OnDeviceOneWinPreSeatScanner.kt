@@ -261,7 +261,8 @@ object OnDeviceOneWinPreSeatScanner {
                         val click = OneWinVacantSeatTapTicket(
                             requestCounter, observedPackage, epoch,
                             requireNotNull(origin.windowGeneration),
-                            ticket.frameSequence, ticket.capturedAtMs, choice)
+                            ticket.frameSequence, ticket.capturedAtMs,
+                            frame.width, frame.height, choice)
                         seatTapAttempted = true
                         pendingSeatTap = click
                         lastSeatTapObservationAtMs = capturedAt
