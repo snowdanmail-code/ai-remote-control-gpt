@@ -21,7 +21,9 @@ data class OneWinHeroAfterBuyInFrame(
         sourcePackage.isNotBlank() && captureEpoch >= 0L &&
         windowGeneration >= 0L && frameSequence > 0L &&
         capturedAtMs >= 0L && nowMs >= capturedAtMs &&
-        nowMs - capturedAtMs <= 2_000L &&
+        // The separate rus+eng OCR worker can lag behind the capture frame.
+        // Root/window/epoch and capture-time card provenance are required.
+        nowMs - capturedAtMs <= 6_000L &&
         cardCaptureEpoch == captureEpoch &&
         cardCapturedAtMs in (capturedAtMs-1_500L)..(capturedAtMs+300L) &&
         holeCards.size == 2 &&
