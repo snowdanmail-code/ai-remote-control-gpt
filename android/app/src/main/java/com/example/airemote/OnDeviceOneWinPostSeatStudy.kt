@@ -39,15 +39,43 @@ object OnDeviceOneWinPostSeatStudy {
         tableMemory.snapshot(currentSession())
 
     /**
-     * Authoritative action sources may update the current hand. This is
-     * deliberately NOT invoked by unverified seat-label OCR.
+     * Verified integration, not a synthetic OCR-to-action shortcut.
+     * Both current hand/turn provenance and an independent actor-seat
+     * binding must be present; the existing hand collector must accept
+     * the action BEFORE this session's opponent memory may change.
+     *
+     * No live caller currently supplies a trusted actor-seat binding.
      */
-    @Synchronized fun acceptVerifiedParticipation(
-        handId: String, eventId: String, seat: Int,
-        participation: T046HandParticipation, evidence: T046Evidence
-    ): Boolean =
-        tableMemory.applyVerifiedEvent(currentSession(),
-            handId, eventId, seat, participation, evidence)
+    @Synchronized fun ingestIndependentlyVerifiedSeatAction(
+        context: Context,
+        observation: AutonomousObservation,
+        action: ConfirmedOpponentAction,
+        binding: T047SeatActorProof
+    ): T047OpponentActionStatus {
+        val origin = FrameStore.windowOrigin
+            ?: return T047OpponentActionStatus.WRONG_SESSION_OR_ACTION
+        if (!OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin) ||
+            current.phase != OneWinPostSeatStudyPhase.COMPLETE ||
+            OperatorStopStore.isStopped(context) ||
+            !FrameStore.isCapturing ||
+            !observation.tableHandIndependentlyVerified ||
+            !observation.windowIndependentlyVerified ||
+            observation.tableId != action.tableKey ||
+            observation.handId != action.handKey ||
+            observation.view.captureEpoch != captureEpoch ||
+            observation.windowGeneration != windowGeneration ||
+            origin.observedPackage != packageName ||
+            origin.captureEpoch != captureEpoch ||
+            origin.windowGeneration != windowGeneration)
+            return T047OpponentActionStatus.WRONG_SESSION_OR_ACTION
+
+        return T047VerifiedOpponentActionBridge.ingest(
+            tableMemory, currentSession(), observation.tableId, action, binding
+        ) { acceptedAction ->
+            OnDeviceOpponentAwareness.ingestConfirmedAction(
+                context.applicationContext, acceptedAction)
+        }
+    }
 
     @Synchronized fun verifiedHandSeatSummary(
         observation: AutonomousObservation
