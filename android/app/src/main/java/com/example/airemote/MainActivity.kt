@@ -409,10 +409,16 @@ class MainActivity : Activity() {
         button("1WIN — ПРОВЕРИТЬ ИЗУЧЕНИЕ СОПЕРНИКОВ И ПАМЯТЬ") {
             val study = OnDeviceOneWinPostSeatStudy.status()
             val sweep = OnDeviceOpponentProfileSweep.status()
-            val memory = OnDeviceOneWinPostSeatStudy.observedThisSession()
+            val memory = OnDeviceOneWinPostSeatStudy.localSeatMemory()
+            // Nicknames are displayed only on this phone, never sent
+            // to the ChatGPT plan context or treated as stable identities.
             val stats = memory.joinToString("\n") { opponent ->
-                "Экранное место " + opponent.seatIndex + ": " +
-                    opponent.metrics.joinToString {
+                "Место " + opponent.seat + " / " +
+                    opponent.sessionAlias + " / " +
+                    (opponent.nickname ?: "личность неизвестна") +
+                    " / " + opponent.participation +
+                    (if (opponent.ambiguousIdentity) " (имя неоднозначно)" else "") +
+                    ": " + opponent.popupStatistics.joinToString {
                         it.metric.label + "=" + it.amount
                     }
             }
