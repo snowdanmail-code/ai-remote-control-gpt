@@ -235,7 +235,9 @@ object OnDeviceOneWinPostSeatStudy {
                     .filter { it.seatIndex != hero }
                     .distinctBy { it.seatIndex }
                 sessionProfiles.forEach {
-                    tableMemory.observePopup(currentSession(), it)
+                    tableMemory.observePopup(currentSession(),
+                        T046PopupObservation(
+                            it.seatIndex, it.displayedNickname, it.metrics))
                 }
                 current = OneWinPostSeatStudyStatus(
                     OneWinPostSeatStudyPhase.COMPLETE,
