@@ -76,7 +76,8 @@ object OnDeviceOneWinTableAutoExit {
             CaptureObservationMode.isSpectator() ||
             !LiveGamePermissionGate.permitted() ||
             LocalPlayerCheckPilot.isActive() ||
-            OnDeviceLiveActionControl.guard.hasUnconfirmedAction()) return false
+            OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+            OnDeviceCashLobbySelection.scanning()) return false
         val layout = OnDeviceRealFrameRegions.activeProfile() ?: return false
         val positions = layout.zones.filter { it.role == RealFieldRole.SEAT_ACTION }
             .mapNotNull { it.seatIndex }.toSet()
@@ -136,7 +137,7 @@ object OnDeviceOneWinTableAutoExit {
         val observation = seats(report, layout)?.let {
             OneWinExitSeatObservation(ticket.sourcePackage, ticket.captureEpoch,
                 ticket.windowGeneration, ticket.frameSequence, ticket.capturedAtMs,
-                heroSeat, it)
+                heroSeat, it, layout.zones.count { zone -> zone.role == RealFieldRole.SEAT_ACTION })
         }
         lastOccupied = observation?.occupied
         val ready = gate.inspect(observation, OnDeviceHandState.snapshot(nowMs), nowMs,
