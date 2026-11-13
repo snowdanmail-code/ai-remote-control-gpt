@@ -43,9 +43,9 @@ object OnDeviceOneWinPostSeatStudy {
      * wrong, so ALL these metrics remain explicitly unverified.
      */
     @Synchronized fun advisoryFor(observation: AutonomousObservation): String {
-        val origin = FrameStore.windowOrigin
+        val origin = FrameStore.windowOrigin ?: return ""
         if (current.phase != OneWinPostSeatStudyPhase.COMPLETE ||
-            origin?.observedPackage != packageName ||
+            origin.observedPackage != packageName ||
             origin.captureEpoch != captureEpoch ||
             origin.windowGeneration != windowGeneration ||
             observation.view.captureEpoch != captureEpoch ||
@@ -54,9 +54,11 @@ object OnDeviceOneWinPostSeatStudy {
             !observation.windowIndependentlyVerified) return ""
         return sessionProfiles.sortedBy { it.seatIndex }.take(5).joinToString(";") { profile ->
             val stat = profile.metrics
-                .filter { it.amount.isFinite() && it.amount >= 0.0 &&
-                    it.amount <= if (it.metric.percent) 100.0 else 100_000.0 &&
-                    it.evidence == "POPUP_OCR_ONLY" }
+                .filter {
+                    it.evidence == "POPUP_OCR_ONLY" &&
+                        it.amount.isFinite() && it.amount >= 0.0 &&
+                        it.amount <= (if (it.metric.percent) 100.0 else 100_000.0)
+                }
                 .distinctBy { it.metric }
                 .take(4)
                 .joinToString(",") { metric ->
