@@ -127,7 +127,8 @@ data class OneWinBuyInDialogReading(
     val inputCents: Long? = null,
     val okBox: NormalizedTextBox? = null,
     val autoRebuyControlVisible: Boolean = false,
-    val reason: String = ""
+    val reason: String = "",
+    val minButtonBox: NormalizedTextBox? = null
 ) {
     /** Pure validation; this property NEVER approves transfer of funds. */
     fun withinLimits(limits: OneWinCashTableLimits?): Boolean =
@@ -196,7 +197,12 @@ object OneWinBuyInDialogParser {
             if (grouped.none { re.containsMatchIn(norm(it.text)) }) return null
             return grouped.flatMap { values(it.text) }.distinct().singleOrNull()
         }
+        val minLabels = buttons.filter {
+            it.box.centerX() in 30..340 &&
+                Regex("""^мин\b|^min\b""").containsMatchIn(norm(it.text))
+        }
         val minimum = labeledValue(Regex("""^мин\b|^min\b"""), 30..340)
+        val minBox = minLabels.singleOrNull()?.box
         val maximum = labeledValue(Regex("""^макс\b|^max\b"""), 680..980)
         val input = buttons.filter { it.box.centerX() in 350..675 &&
             !norm(it.text).contains("мин") && !norm(it.text).contains("макс") }
@@ -218,8 +224,9 @@ object OneWinBuyInDialogParser {
             if (good) OneWinBuyInReadingStatus.VERIFIED
                 else OneWinBuyInReadingStatus.INCOMPLETE,
             small, big, balance, debit, minimum, maximum, input, ok, rebuy,
-            if (good) "Суммы и элементы окна согласованы; средства НЕ переводились"
-                else "Требуется повторная проверка текста и сумм бай-ина")
+            if (good) "Суммы и элементы окна согласованы; бай-ин ещё не подтверждён"
+                else "Требуется повторная проверка текста и сумм бай-ина",
+            minBox)
     }
 }
 
