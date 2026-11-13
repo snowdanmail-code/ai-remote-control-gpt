@@ -37,10 +37,13 @@ object OnDeviceVerifiedGptTurnRequests {
             observation.turnId, observation.view.captureEpoch, observation.windowGeneration)
         if (key == requested) return false
         val profiles = OnDeviceOpponentAwareness.verifiedProfilesForTurn()
+        // Session popup metrics are read-only and never a verified identity
+        // or proof of a permitted wager.
+        val sessionStats = OnDeviceOneWinPostSeatStudy.advisoryFor(observation)
         requested = key
-        lastReason = "GPT: анализ подтверждённого хода"
+        lastReason = "GPT: анализ подтверждённого хода и соперников"
         ChatGptCloudBridge.askVerifiedTurnDecision(
-            context.applicationContext, observation, cards, profiles
+            context.applicationContext, observation, cards, profiles, sessionStats
         ) { result ->
             synchronized(this) {
                 if (requested == key)
