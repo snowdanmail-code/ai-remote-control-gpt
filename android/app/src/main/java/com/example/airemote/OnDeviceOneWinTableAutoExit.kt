@@ -7,8 +7,9 @@ import java.io.ByteArrayOutputStream
 import kotlin.math.abs
 
 enum class OneWinTableExitPhase { OFF, WATCHING, OPEN_PENDING, WAITING_MENU,
-    LEAVE_PENDING, WAITING_LOBBY, RETURNED, BLOCKED }
-enum class OneWinTableExitTap { OPEN_MENU, LEAVE_GAME }
+    LEAVE_PENDING, WAITING_CONFIRMATION, CONFIRM_PENDING, WAITING_LOBBY,
+    RETURNED, BLOCKED }
+enum class OneWinTableExitTap { OPEN_MENU, LEAVE_GAME, CONFIRM_YES }
 data class OneWinTableExitTicket(val action: OneWinTableExitTap, val sourcePackage: String,
     val epoch: Long, val window: Long, val observedAtMs: Long,
     val target: NormalizedTextBox?, val id: Long)
@@ -30,8 +31,10 @@ object OnDeviceOneWinTableAutoExit {
     private var lastProbe = -1_300L
     private var probing = false
     private var menuCandidate: Pair<Long, NormalizedTextBox>? = null
+    private var confirmCandidate: Pair<Long, OneWinExitConfirmationDialog>? = null
     private var lobbyCandidateAtMs = -1L
     private var confirmedLeaveBox: NormalizedTextBox? = null
+    private var confirmedYesBox: NormalizedTextBox? = null
     private var source = ""
     private var epoch = -1L
     private var window = -1L
@@ -45,6 +48,7 @@ object OnDeviceOneWinTableAutoExit {
         OneWinTableExitPhase.RETURNED)
     @Synchronized fun needsScreenProbe(): Boolean =
         phase == OneWinTableExitPhase.WAITING_MENU ||
+        phase == OneWinTableExitPhase.WAITING_CONFIRMATION ||
         phase == OneWinTableExitPhase.WAITING_LOBBY
 
     private fun update(next: OneWinTableExitPhase, reason: String) {
@@ -60,8 +64,10 @@ object OnDeviceOneWinTableAutoExit {
         lastProbe = -1_300L
         probing = false
         menuCandidate = null
+        confirmCandidate = null
         lobbyCandidateAtMs = -1L
         confirmedLeaveBox = null
+        confirmedYesBox = null
         gate.reset()
         lastOccupied = null
         source = ""
@@ -170,23 +176,33 @@ object OnDeviceOneWinTableAutoExit {
             observedAt, area, token)
         pending = t
         sinceMs = SystemClock.elapsedRealtime()
-        update(if (action == OneWinTableExitTap.OPEN_MENU)
-            OneWinTableExitPhase.OPEN_PENDING else OneWinTableExitPhase.LEAVE_PENDING,
-            "Ожидаем касание: " + action.name)
+        update(when (action) {
+            OneWinTableExitTap.OPEN_MENU -> OneWinTableExitPhase.OPEN_PENDING
+            OneWinTableExitTap.LEAVE_GAME -> OneWinTableExitPhase.LEAVE_PENDING
+            OneWinTableExitTap.CONFIRM_YES -> OneWinTableExitPhase.CONFIRM_PENDING
+        }, "Ожидаем касание: " + action.name)
         svc.offerOneWinTableExitNavigation(t) { complete ->
             synchronized(this) {
                 if (pending != t) return@synchronized
                 pending = null
                 menuCandidate = null
+                confirmCandidate = null
                 lobbyCandidateAtMs = -1L
                 sinceMs = SystemClock.elapsedRealtime()
                 if (!complete) update(OneWinTableExitPhase.BLOCKED,
                     "Касание отклонено; автоматический повтор запрещён")
-                else update(if (action == OneWinTableExitTap.OPEN_MENU)
-                    OneWinTableExitPhase.WAITING_MENU else OneWinTableExitPhase.WAITING_LOBBY,
-                    if (action == OneWinTableExitTap.OPEN_MENU)
+                else update(when (action) {
+                    OneWinTableExitTap.OPEN_MENU -> OneWinTableExitPhase.WAITING_MENU
+                    OneWinTableExitTap.LEAVE_GAME -> OneWinTableExitPhase.WAITING_CONFIRMATION
+                    OneWinTableExitTap.CONFIRM_YES -> OneWinTableExitPhase.WAITING_LOBBY
+                }, when (action) {
+                    OneWinTableExitTap.OPEN_MENU ->
                         "Проверяем «Покинуть игру» на двух кадрах"
-                    else "Ожидаем подтверждения лобби на двух кадрах")
+                    OneWinTableExitTap.LEAVE_GAME ->
+                        "Ожидаем окно «Вы уверены, что хотите закрыть стол?» и кнопку «Да»"
+                    OneWinTableExitTap.CONFIRM_YES ->
+                        "Подтверждение отправлено; проверяем лобби на двух кадрах"
+                })
             }
         }
     }
@@ -206,6 +222,9 @@ object OnDeviceOneWinTableAutoExit {
             OneWinTableExitTap.LEAVE_GAME ->
                 phase == OneWinTableExitPhase.LEAVE_PENDING &&
                     t.target != null && t.target == confirmedLeaveBox
+            OneWinTableExitTap.CONFIRM_YES ->
+                phase == OneWinTableExitPhase.CONFIRM_PENDING &&
+                    t.target != null && t.target == confirmedYesBox
         }
     }
 
@@ -231,7 +250,7 @@ object OnDeviceOneWinTableAutoExit {
         synchronized(this) {
             if (!needsScreenProbe() || probing || atMs - lastProbe < 1_300L ||
                 !origin.safeForLocalDiagnostics || origin.observedPackage != source ||
-                origin.captureEpoch != epoch || origin.windowGeneration != window) return
+                origin.captureEpoch != epoch || origin.windowGeneration == null) return
             session = token
             probing = true
             lastProbe = atMs
@@ -255,6 +274,7 @@ object OnDeviceOneWinTableAutoExit {
                     OperatorStopStore.isStopped(context) ||
                     now - atMs !in 0..6_000L) {
                     menuCandidate = null
+                    confirmCandidate = null
                     lobbyCandidateAtMs = -1L
                     return@inspectStructured
                 }
@@ -268,8 +288,28 @@ object OnDeviceOneWinTableAutoExit {
                         abs(old.second.centerY() - box.centerY()) <= 15) {
                         confirmedLeaveBox = box
                         menuCandidate = null
+                        // A drawer may create a new Android window generation.
+                        // Bind the touch to the freshly verified current window.
+                        window = requireNotNull(origin.windowGeneration)
                         submit(context, OneWinTableExitTap.LEAVE_GAME, now, box)
                     } else menuCandidate = atMs to box
+                } else if (phase == OneWinTableExitPhase.WAITING_CONFIRMATION) {
+                    val dialog = OneWinTableExitMenuParser.confirmationDialog(lines)
+                    if (dialog == null) {
+                        confirmCandidate = null
+                        return@inspectStructured
+                    }
+                    val old = confirmCandidate
+                    if (old != null && atMs - old.first in 300L..6_000L &&
+                        abs(old.second.yesBox.centerX() - dialog.yesBox.centerX()) <= 15 &&
+                        abs(old.second.yesBox.centerY() - dialog.yesBox.centerY()) <= 15 &&
+                        abs(old.second.noBox.centerX() - dialog.noBox.centerX()) <= 15 &&
+                        abs(old.second.noBox.centerY() - dialog.noBox.centerY()) <= 15) {
+                        confirmedYesBox = dialog.yesBox
+                        confirmCandidate = null
+                        window = requireNotNull(origin.windowGeneration)
+                        submit(context, OneWinTableExitTap.CONFIRM_YES, now, dialog.yesBox)
+                    } else confirmCandidate = atMs to dialog
                 } else if (phase == OneWinTableExitPhase.WAITING_LOBBY) {
                     if (OneWinTableExitMenuParser.lobbyVisible(lines)) {
                         if (lobbyCandidateAtMs >= 0L &&
