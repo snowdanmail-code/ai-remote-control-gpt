@@ -401,6 +401,30 @@ class MainActivity : Activity() {
                 "; раздача: " + hand.stage +
                 "; проверена: " + hand.trustworthyNow
         }
+        label("ТЗ №045 — ПОСЛЕ ПОСАДКИ. После подтверждённого HERO внизу " +
+            "приложение само начинает безопасный обход остальных аватаров. " +
+            "Статистика окна запоминается для текущего стола и передаётся " +
+            "ChatGPT как непроверенный OCR-контекст, без никнеймов. " +
+            "Долговременные VPIP/PFR обновляются только из проверенных раздач.")
+        button("1WIN — ПРОВЕРИТЬ ИЗУЧЕНИЕ СОПЕРНИКОВ И ПАМЯТЬ") {
+            val study = OnDeviceOneWinPostSeatStudy.status()
+            val sweep = OnDeviceOpponentProfileSweep.status()
+            val memory = OnDeviceOneWinPostSeatStudy.observedThisSession()
+            val stats = memory.joinToString("\n") { opponent ->
+                "Экранное место " + opponent.seatIndex + ": " +
+                    opponent.metrics.joinToString {
+                        it.metric.label + "=" + it.amount
+                    }
+            }
+            status.text = "Изучение после посадки: " + study.phase +
+                ". " + study.description +
+                "\nПрофили текущего стола: " + study.observedProfiles +
+                ", HERO: " + (study.identifiedHeroSeat ?: "не определён") +
+                "; обход: " + sweep.phase +
+                "\n" + stats.ifBlank { "Память текущего стола пока пуста." } +
+                "\nChatGPT использует только подтверждённый игровой ход. " +
+                "Показатели OCR не являются доказанной постоянной личностью."
+        }
         button("1WIN — АВТОМАТИЧЕСКИ ПРОЧИТАТЬ ПРОФИЛИ СОПЕРНИКОВ") {
             val started = OnDeviceOpponentProfileSweep.start(this@MainActivity)
             val current = OnDeviceOpponentProfileSweep.status()
