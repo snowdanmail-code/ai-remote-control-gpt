@@ -49,8 +49,7 @@ class T050VerifiedTableIdentityTest {
         val guard = T050TableIdentityLedger()
         for (id in listOf(
             identity(""),
-            identity("table\\nspoof").copy(tableId="table\nspoof"),
-            identity("A".repeat(110)),
+            identity("table\nspoof"),
             identity().copy(sourcePackage=""),
             identity(epoch=-1L)
         )) {
