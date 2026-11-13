@@ -52,6 +52,8 @@ object OnDeviceVerifiedGptTurnRequests {
         // or proof of a permitted wager.
         val sessionStats = OnDeviceOneWinPostSeatStudy.advisoryFor(observation)
         val handSeats = OnDeviceOneWinPostSeatStudy.verifiedHandSeatSummary(observation)
+        val verifiedActorSeatRefs =
+            OnDeviceOneWinPostSeatStudy.verifiedOpponentSeatBindings(observation)
         requested = key
         lastReason = "GPT: анализ подтверждённого хода и соперников"
         ChatGptCloudBridge.askVerifiedTurnDecision(
