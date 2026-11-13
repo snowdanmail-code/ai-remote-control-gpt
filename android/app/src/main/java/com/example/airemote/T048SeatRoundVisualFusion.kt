@@ -106,7 +106,10 @@ class T048SeatSignalFusion {
             old.contributionsMinor.keys + current.contributionsMinor.keys +
             old.blueCardBacks.keys + current.blueCardBacks.keys).distinct()
         for (seat in observedSeats) {
-            val label = current.actions[seat] ?: old.actions[seat]
+            // A temporary badge belongs to the frame where it is visible.
+            // Reusing an older FOLD/RAISE with a later chip/card transition
+            // can fabricate a different action after the badge disappears.
+            val label = current.actions[seat]
             val oldBet = old.contributionsMinor[seat]
             val newBet = current.contributionsMinor[seat]
             val oldBacks = old.blueCardBacks[seat]
