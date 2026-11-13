@@ -79,6 +79,10 @@ object OnDeviceOneWinPreSeatScanner {
         if (OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
             CaptureObservationMode.isSpectator() ||
             !LiveGamePermissionGate.permitted() ||
+            OnDeviceOneWinTableAutoExit.active() ||
+            LocalPlayerCheckPilot.isActive() ||
+            OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+            OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT ||
             LiveGamePermissionGate.packageName().isNullOrBlank()) return false
         stop("Новый просмотр посадки")
         observedPackage = requireNotNull(LiveGamePermissionGate.packageName())
@@ -94,6 +98,7 @@ object OnDeviceOneWinPreSeatScanner {
      * armed when the user starts the existing automatic lobby-table search.
      */
     @Synchronized fun armSeatNavigation(context: Context): Boolean {
+        if (status.phase == OneWinPreSeatPhase.SEATED) return false
         if (!active()) return start(context, chooseSeat = true)
         if (seatTapAttempted || pendingSeatTap != null ||
             status.phase !in setOf(OneWinPreSeatPhase.SEARCHING,
