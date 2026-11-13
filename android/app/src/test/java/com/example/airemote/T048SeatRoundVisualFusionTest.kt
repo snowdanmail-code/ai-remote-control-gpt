@@ -35,6 +35,21 @@ class T048SeatRoundVisualFusionTest {
         assertFalse(result.canUpdateOpponentMemory)
     }
 
+    @Test fun videoBankAlreadyIncludesUncollectedSeatChips() {
+        val fusion = T048SeatSignalFusion()
+        val first = fusion.observe(sample(1,1000L,
+            seatBets=mapOf(0 to 1L,1 to 8L,2 to 2L,3 to 2L,5 to 2L),
+            pot=15L,board=0),1100L)
+        assertEquals(15L,first.visibleSeatWagersTotalMinor)
+        assertEquals(true,first.centralPotEqualsVisibleWagers)
+        val other = fusion.observe(sample(2,2500L,
+            seatBets=mapOf(1 to 2L,2 to 1L,3 to 6L),
+            pot=9L,board=0),2600L)
+        assertEquals(9L,other.visibleSeatWagersTotalMinor)
+        assertEquals(true,other.centralPotEqualsVisibleWagers)
+        assertFalse(other.authorizesGameplay)
+    }
+
     @Test fun clipOneFoldRequiresLabelAndCardsDisappearingTogether() {
         val fusion=T048SeatSignalFusion()
         fusion.observe(sample(1, 10_000, seatBets=mapOf(3 to 2L),
