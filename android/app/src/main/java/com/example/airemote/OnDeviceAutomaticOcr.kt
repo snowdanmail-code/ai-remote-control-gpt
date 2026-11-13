@@ -146,6 +146,17 @@ object OnDeviceAutomaticOcr {
                                 LiveForegroundProbe.activeService()?.offerScopedVisualCheck(visualTicket)
                         }
                     }
+                    // Table exit is separate from wagering: the candidate occupancy
+                    // reading is useful only with full measured seat evidence
+                    // and an independently VERIFIED between-hands stage.
+                    if (published && response.isSuccess && !CaptureObservationMode.isSpectator() &&
+                        !OperatorStopStore.isStopped(app)) {
+                        FrameStore.lastRealFrameRegions?.takeIf {
+                            it.frameSequence == ticket.frameSequence
+                        }?.let {
+                            OnDeviceOneWinTableAutoExit.observeSeats(app, ticket, it, finishedAt)
+                        }
+                    }
                     // Bind a real capture frame to its asynchronous OCR result.
                     // Advisor input is read-only, not a game move or remote call.
                     if (published && response.isSuccess && !CaptureObservationMode.isSpectator()) {
