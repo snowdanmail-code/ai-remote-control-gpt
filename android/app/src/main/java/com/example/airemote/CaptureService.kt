@@ -226,7 +226,8 @@ class CaptureService : Service() {
                                     !OperatorStopStore.isStopped(applicationContext) &&
                                     AppVisibilityGate.canPublish(visibilityTicket)) {
                                     OnDeviceOneWinPreSeatScanner.offer(
-                                        applicationContext, screen, origin, now
+                                        applicationContext, screen, origin, now,
+                                        surface.status == RecordedSurfaceStatus.TABLE_LIKE
                                     ) {
                                         !closing && FrameStore.isCapturing &&
                                         FrameStore.captureEpoch == captureEpoch &&
