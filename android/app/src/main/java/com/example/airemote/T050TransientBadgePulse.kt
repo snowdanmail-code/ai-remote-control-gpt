@@ -6,7 +6,12 @@ package com.example.airemote
  * or a gesture. Use it to prioritize subsequent frame/ROI OCR.
  */
 enum class T050BadgeTone { NONE, GREEN, LIGHT, RED }
-data class T050SeatTone(val seat: Int, val tone: T050BadgeTone)
+data class T050SeatTone(
+    val seat: Int,
+    val tone: T050BadgeTone,
+    /** Fraction of sampled pixels matching the selected tone, 0..1. */
+    val strength: Double = 0.0
+)
 data class T050BadgeFrame(
     val sourcePackage: String,
     val captureEpoch: Long,
@@ -61,12 +66,16 @@ object T050BadgePixelTone {
 class T050TransientBadgePulseTracker {
     private var last: T050BadgeFrame? = null
     private val prior = mutableMapOf<Int,T050BadgeTone>()
+    private val priorStrength = mutableMapOf<Int,Double>()
+    private val pending = mutableMapOf<Int,Pair<T050BadgeTone,Double>>()
     private val emitted = mutableSetOf<Int>()
     private val absentCounts = mutableMapOf<Int,Int>()
 
     @Synchronized fun reset() {
         last = null
         prior.clear()
+        priorStrength.clear()
+        pending.clear()
         emitted.clear()
         absentCounts.clear()
     }
@@ -77,7 +86,10 @@ class T050TransientBadgePulseTracker {
             frame.captureEpoch < 0L || frame.windowGeneration < 0L ||
             frame.sequence <= 0 || nowMs - frame.capturedAtMs !in 0L..600L ||
             frame.tones.size > 10 || frame.tones.map { it.seat }.distinct().size != frame.tones.size ||
-            frame.tones.any { it.seat !in 0..9 }) {
+            frame.tones.any {
+                it.seat !in 0..9 || !it.strength.isFinite() ||
+                    it.strength !in 0.0..1.0
+            }) {
             reset()
             return emptyList()
         }
@@ -85,6 +97,13 @@ class T050TransientBadgePulseTracker {
         if (previous == null) {
             last = frame
             prior.putAll(frame.tones.associate { it.seat to it.tone })
+            priorStrength.putAll(frame.tones.associate { it.seat to it.strength })
+            // If the capture began DURING a prominent temporary label,
+            // confirm it on one additional independent raw frame. A static
+            // white avatar fraction below 0.2 is never an initial pulse.
+            frame.tones.filter {
+                it.tone != T050BadgeTone.NONE && it.strength >= 0.20
+            }.forEach { pending[it.seat] = it.tone to it.strength }
             return emptyList()
         }
         if (frame.sourcePackage != previous.sourcePackage ||
@@ -95,35 +114,57 @@ class T050TransientBadgePulseTracker {
             reset()
             last = frame
             prior.putAll(frame.tones.associate { it.seat to it.tone })
+            priorStrength.putAll(frame.tones.associate { it.seat to it.strength })
+            // If the capture began DURING a prominent temporary label,
+            // confirm it on one additional independent raw frame. A static
+            // white avatar fraction below 0.2 is never an initial pulse.
+            frame.tones.filter {
+                it.tone != T050BadgeTone.NONE && it.strength >= 0.20
+            }.forEach { pending[it.seat] = it.tone to it.strength }
             return emptyList()
         }
         val current = frame.tones.associate { it.seat to it.tone }
+        val strength = frame.tones.associate { it.seat to it.strength }
         val output = mutableListOf<T050TransientBadgePulse>()
         val seats = (prior.keys + current.keys).toSet()
         for (seat in seats) {
             val old = prior[seat] ?: T050BadgeTone.NONE
             val new = current[seat] ?: T050BadgeTone.NONE
+            val previousFraction = priorStrength[seat] ?: 0.0
+            val fraction = strength[seat] ?: 0.0
             if (new == T050BadgeTone.NONE) {
                 val gaps = (absentCounts[seat] ?: 0) + 1
                 absentCounts[seat] = gaps
+                pending.remove(seat)
                 if (gaps >= 2) emitted.remove(seat)
             } else {
                 absentCounts.remove(seat)
-                if (new == old && seat !in emitted) {
+                val jump = fraction - previousFraction >= 0.18
+                if (jump && fraction >= 0.24) {
+                    // Example: a static white BOTS avatar occupies 17% of
+                    // a region; when a white FOLD label appears this may
+                    // jump above 50%. Treat the edge, not the static color.
+                    emitted.remove(seat)
+                    pending[seat] = new to fraction
+                } else if (pending[seat]?.first == new &&
+                    fraction >= (pending[seat]!!.second * 0.65) &&
+                    seat !in emitted) {
                     output.add(T050TransientBadgePulse(seat,new,
                         frame.captureEpoch,frame.windowGeneration,
                         frame.sequence,frame.capturedAtMs))
                     emitted.add(seat)
-                }
-                if (new != old && seat in emitted) {
-                    // One continuous pulse changes color; do not emit
-                    // another action until two truly absent snapshots.
+                    pending.remove(seat)
+                } else if ((old == T050BadgeTone.NONE || new != old) &&
+                    fraction >= 0.20 && seat !in emitted) {
+                    pending[seat] = new to fraction
                 }
             }
         }
         last = frame
         prior.clear()
         prior.putAll(current)
+        priorStrength.clear()
+        priorStrength.putAll(strength)
         return output
     }
 }
