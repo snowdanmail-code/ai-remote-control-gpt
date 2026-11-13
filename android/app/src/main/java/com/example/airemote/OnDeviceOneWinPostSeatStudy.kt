@@ -52,6 +52,11 @@ object OnDeviceOneWinPostSeatStudy {
     @Synchronized fun verifiedHandSeatSummary(
         observation: AutonomousObservation
     ): String {
+        val origin = FrameStore.windowOrigin ?: return ""
+        if (!OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin) ||
+            origin.observedPackage != packageName ||
+            origin.captureEpoch != captureEpoch ||
+            origin.windowGeneration != windowGeneration) return ""
         if (!observation.tableHandIndependentlyVerified ||
             !observation.windowIndependentlyVerified ||
             observation.view.captureEpoch != captureEpoch ||
