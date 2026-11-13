@@ -156,6 +156,7 @@ class CaptureService : Service() {
                             lastEncode = 0L
                             lastProfile = -1
                             lastCardInspectionAt = 0L
+                            OnDeviceSeatRoundVisualDiagnostics.reset()
                             OnDeviceStageBridge.reset("Смена / неопределённость корневого окна")
                         }
                         val plane = image.planes[0]
