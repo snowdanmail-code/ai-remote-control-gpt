@@ -18,10 +18,11 @@ data class OneWinRecordedUiSnapshot(
  * Local rus+eng OCR diagnostic for the actual 1win table, independent of
  * the Latin-only card/action OCR pipeline. It NEVER produces gestures.
  * The same native Tesseract worker is shared with lobby/exit diagnostics,
- * so the work is bounded to one frame about every 2.5 seconds.
+ * so the work is bounded to a narrow lower-screen crop and one
+ * scan approximately every 1.2 seconds when the OCR worker is free.
  */
 object OnDeviceOneWinRecordedTableUi {
-    private const val INTERVAL_MS = 2_500L
+    private const val INTERVAL_MS = 1_200L
     private const val MAX_AGE_MS = 6_000L
     private var generation = 0L
     private var lastStarted = -INTERVAL_MS
@@ -61,10 +62,22 @@ object OnDeviceOneWinRecordedTableUi {
             busy = true
             lastStarted = atMs
         }
+        // Bet sizing is transient. OCR only the lower 56% of the screen:
+        // includes the vertical sizing slider and all bottom buttons, but
+        // avoids decoding avatar names, board/card art and top status bar.
+        // Convert OCR rectangles back to full-screen [0,1000] coordinates.
+        val cropTop = (bitmap.height * 44 / 100).coerceAtLeast(0)
+        val cropHeight = bitmap.height - cropTop
         val jpeg = try {
-            ByteArrayOutputStream().use { out ->
-                check(bitmap.compress(Bitmap.CompressFormat.JPEG, 83, out))
-                out.toByteArray()
+            val crop = Bitmap.createBitmap(bitmap, 0, cropTop,
+                bitmap.width, cropHeight)
+            try {
+                ByteArrayOutputStream().use { out ->
+                    check(crop.compress(Bitmap.CompressFormat.JPEG, 86, out))
+                    out.toByteArray()
+                }
+            } finally {
+                if (crop !== bitmap) crop.recycle()
             }
         } catch (_: Exception) {
             synchronized(this) {
@@ -92,12 +105,20 @@ object OnDeviceOneWinRecordedTableUi {
                     lastStatus = "Русский OCR не прочитал таблицу; повтор по следующему кадру"
                     return@inspectStructured
                 }
+                val normalized = lines.map { line ->
+                    fun absoluteY(cropY: Int): Int =
+                        ((cropTop.toLong() * 1000L +
+                            cropY.toLong() * cropHeight) / bitmap.height).toInt()
+                    line.copy(box = NormalizedTextBox(line.box.left,
+                        absoluteY(line.box.top), line.box.right,
+                        absoluteY(line.box.bottom)))
+                }
                 val proof = OcrFrameTicket(origin.captureEpoch,
                     origin.localFrameSequence, atMs,
                     requireNotNull(origin.observedPackage),
                     requireNotNull(origin.windowGeneration))
                 val reading = detector.observe(
-                    proof, OneWinRecordedCashTableUi.read(lines))
+                    proof, OneWinRecordedCashTableUi.read(normalized))
                 latestResult = if (reading.panel != OneWinRecordedTablePanel.UNKNOWN)
                     OneWinRecordedUiSnapshot(proof.sourcePackage, proof.captureEpoch,
                         proof.windowGeneration, proof.frameSequence, now, reading)
