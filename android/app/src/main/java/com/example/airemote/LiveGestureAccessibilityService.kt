@@ -292,6 +292,9 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 area.centerX >= overlay.x && area.centerX < overlay.x + overlay.width &&
                 area.centerY >= overlay.y && area.centerY < overlay.y + overlay.height
             if (dispatchCheck != LiveDispatchCheck.VALID ||
+                // A table with an unseated player must never be promoted to
+                // gameplay merely because lower controls are visible.
+                OnDeviceOneWinPreSeatScanner.active() ||
                 area.windowGeneration != command.expectedWindowGeneration ||
                 area.windowGeneration < 0L || stopOccludesTarget) {
                 OnDeviceLiveActionControl.stop()
@@ -969,7 +972,9 @@ object LiveInputCoordinator {
         acknowledgement: (Boolean) -> Unit
     ): LiveCommandStatus {
         val service = LiveForegroundProbe.activeService() ?: return LiveCommandStatus.REFUSED
-        if (!LiveGamePermissionGate.permitted() || OperatorStopStore.isStopped(context))
+        if (!LiveGamePermissionGate.permitted() ||
+            OperatorStopStore.isStopped(context) ||
+            OnDeviceOneWinPreSeatScanner.active())
             return LiveCommandStatus.REFUSED
         val evidence = LiveForegroundProbe.snapshot() ?: return LiveCommandStatus.REFUSED
         if (evidence.packageName != LiveGamePermissionGate.packageName() ||
