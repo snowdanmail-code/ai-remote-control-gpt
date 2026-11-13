@@ -30,6 +30,37 @@ object OnDeviceOneWinPostSeatStudy {
     private var current = OneWinPostSeatStudyStatus(
         OneWinPostSeatStudyPhase.OFF, "Изучение соперников не запускалось")
     private var sessionProfiles: List<ObservedOpponentProfile> = emptyList()
+    private val tableMemory = T046TableOpponentMemory()
+
+    private fun currentSession(): T046TableSession =
+        T046TableSession(packageName, captureEpoch, windowGeneration)
+
+    @Synchronized fun localSeatMemory(): List<T046OpponentSeatMemory> =
+        tableMemory.snapshot(currentSession())
+
+    /**
+     * Authoritative action sources may update the current hand. This is
+     * deliberately NOT invoked by unverified seat-label OCR.
+     */
+    @Synchronized fun acceptVerifiedParticipation(
+        handId: String, eventId: String, seat: Int,
+        participation: T046HandParticipation, evidence: T046Evidence
+    ): Boolean =
+        tableMemory.applyVerifiedEvent(currentSession(),
+            handId, eventId, seat, participation, evidence)
+
+    @Synchronized fun verifiedHandSeatSummary(
+        observation: AutonomousObservation
+    ): String {
+        if (!observation.tableHandIndependentlyVerified ||
+            !observation.windowIndependentlyVerified ||
+            observation.view.captureEpoch != captureEpoch ||
+            observation.windowGeneration != windowGeneration ||
+            current.phase != OneWinPostSeatStudyPhase.COMPLETE) return ""
+        val key = currentSession()
+        tableMemory.beginVerifiedHand(key, observation.handId, true)
+        return tableMemory.summaryForChatGpt(key, observation.handId)
+    }
     private var autoTransferAttempted = false
     private var cloudSending = false
     private var cloudStatus = "ChatGPT: данные текущего стола ещё не отправлялись"
@@ -97,7 +128,14 @@ object OnDeviceOneWinPostSeatStudy {
             observation.windowGeneration != windowGeneration ||
             !observation.tableHandIndependentlyVerified ||
             !observation.windowIndependentlyVerified) return ""
-        return T045SessionStatsFormatter.format(sessionProfiles)
+        val key = currentSession()
+        tableMemory.beginVerifiedHand(key, observation.handId, true)
+        val safeSeats = tableMemory.snapshot(key)
+            .filter { !it.ambiguousIdentity &&
+                it.participation != T046HandParticipation.LEFT_TABLE_CONFIRMED }
+            .map { it.seat }.toSet()
+        return T045SessionStatsFormatter.format(
+            sessionProfiles.filter { it.seatIndex in safeSeats })
     }
 
     @Synchronized fun reset(reason: String = "Сеанс завершён") {
@@ -107,6 +145,7 @@ object OnDeviceOneWinPostSeatStudy {
         lastTryAtMs = -3_000L
         started = false
         sessionProfiles = emptyList()
+        tableMemory.reset()
         autoTransferAttempted = false
         cloudSending = false
         cloudStatus = "ChatGPT: данные сеанса не отправлялись"
@@ -165,6 +204,9 @@ object OnDeviceOneWinPostSeatStudy {
                     "не угадываем координаты и не открываем окна")
             return
         }
+        // Seat aliases belong to this table/window only. No nickname-based
+        // identity is carried across capture sessions or new tables.
+        tableMemory.beginSession(currentSession(), hero)
         if (!started) {
             if (surface != RecordedSurfaceStatus.TABLE_LIKE ||
                 nowMs - lastTryAtMs < 3_000L) {
@@ -192,6 +234,9 @@ object OnDeviceOneWinPostSeatStudy {
                 sessionProfiles = sweep.results
                     .filter { it.seatIndex != hero }
                     .distinctBy { it.seatIndex }
+                sessionProfiles.forEach {
+                    tableMemory.observePopup(currentSession(), it)
+                }
                 current = OneWinPostSeatStudyStatus(
                     OneWinPostSeatStudyPhase.COMPLETE,
                     "Обход завершён: " + sessionProfiles.size +
