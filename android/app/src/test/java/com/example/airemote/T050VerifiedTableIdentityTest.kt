@@ -50,6 +50,7 @@ class T050VerifiedTableIdentityTest {
         for (id in listOf(
             identity(""),
             identity("table\nspoof"),
+            identity("A".repeat(110)),
             identity().copy(sourcePackage=""),
             identity(epoch=-1L)
         )) {
