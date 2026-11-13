@@ -73,6 +73,24 @@ class T047VerifiedOpponentActionBridgeTest {
             m.snapshot(session).single().participation)
     }
 
+    @Test fun actualLiveOpponentCollectorMustAcceptEventBeforeSeatChanges() {
+        val m = memory()
+        val collector = LiveOpponentAwareness()
+        val start = VerifiedOpponentHandStart(
+            "table7", "hand9", 7L, 9L,
+            10L, 11L, 9_100L, 9_300L, 9_400L,
+            sourceVerified = true, stableTableAndHandVerified = true)
+        assertEquals(OpponentEvidenceResult.ACCEPTED, collector.begin(start))
+        assertEquals(T047OpponentActionStatus.ACCEPTED,
+            T047VerifiedOpponentActionBridge.ingest(
+                m, session, "table7", action(), proof(), collector::observe))
+        assertEquals(T046HandParticipation.FOLDED_CONFIRMED,
+            m.snapshot(session).single().participation)
+        assertEquals(T047OpponentActionStatus.NOT_CONFIRMED_BY_HAND_COLLECTOR,
+            T047VerifiedOpponentActionBridge.ingest(
+                m, session, "table7", action(), proof(), collector::observe))
+    }
+
     @Test fun aRejectedHandEventMustNotCauseFalseFold() {
         val m=memory()
         val result=T047VerifiedOpponentActionBridge.ingest(m,session,
