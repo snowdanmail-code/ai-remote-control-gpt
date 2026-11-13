@@ -165,17 +165,22 @@ object OnDeviceOpponentProfileSweep {
         if (sinceMs > 0 && nowMs - sinceMs > 8_000L &&
             phase !in setOf(OpponentProfileSweepPhase.WAITING_TABLE,
                 OpponentProfileSweepPhase.COMPLETE)) {
-            if (phase == OpponentProfileSweepPhase.READING_POPUP &&
-                surface == RecordedSurfaceStatus.PANEL_VISIBLE) {
-                // The popup did open but its statistics were unreadable.
-                // Close it by the measured empty-table region; do NOT invent
-                // a profile or re-open the same avatar.
-                val dismiss = profile.zones.single { it.role == RealFieldRole.PROFILE_DISMISS }
-                send(context, OpponentProfileNavPurpose.DISMISS_ON_TABLE,
-                    dismiss.box, origin, profile, nowMs)
-            } else status(OpponentProfileSweepPhase.BLOCKED,
-                "Истёк срок ожидания окна, без повторного нажатия")
-            return
+            if (phase in setOf(OpponentProfileSweepPhase.WAITING_POPUP,
+                    OpponentProfileSweepPhase.READING_POPUP,
+                    OpponentProfileSweepPhase.WAITING_TABLE_RETURN)) {
+                // An unreadable popup is not evidence that it failed to open.
+                // Continue to observe fresh OCR/surface frames. Never dismiss
+                // unseen statistics, re-tap the avatar or promote unknown data.
+                sinceMs = nowMs
+                status(phase, "Распознавание окна пока не подтвердилось; " +
+                    "повторно проверяем свежие кадры без новых касаний")
+            } else {
+                // Dispatch callback itself never returned; repeating a gesture
+                // would be unsafe. This is NOT an OCR recognition timeout.
+                status(OpponentProfileSweepPhase.BLOCKED,
+                    "Нет подтверждения навигационного жеста Android")
+                return
+            }
         }
         when (phase) {
             OpponentProfileSweepPhase.WAITING_TABLE -> {
@@ -196,7 +201,9 @@ object OnDeviceOpponentProfileSweep {
             }
             OpponentProfileSweepPhase.READING_POPUP -> {
                 if (surface != RecordedSurfaceStatus.PANEL_VISIBLE) {
-                    status(OpponentProfileSweepPhase.BLOCKED, "Панель исчезла без подтверждения чтения")
+                    // Transient animation/occlusion can hide a known panel for
+                    // one frame. Do not abort the OCR stage on a single miss.
+                    status(phase, "Панель временно не видна; повторно проверяем экран")
                     return
                 }
                 val snapshot = OnDeviceOpponentPopupOcr.latest()
