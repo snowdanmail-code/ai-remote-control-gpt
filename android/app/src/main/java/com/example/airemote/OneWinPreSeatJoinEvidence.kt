@@ -146,7 +146,20 @@ object OneWinBuyInDialogParser {
         """(?iu)(\d{1,5}(?:[.,]\d{1,2})?)\s*\$?\s*/\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*\$""")
     private fun norm(raw: String): String = raw.lowercase()
         .replace('ё','е').replace(Regex("""\s+"""), " ").trim()
-    private fun cents(raw: String) = OneWinCashLobbyLimitsStore.parseDollars(raw)
+    /** Pure Kotlin amount parsing; JVM scenario builds do not link Android preferences. */
+    private fun cents(raw: String): Long? {
+        val txt = raw.trim().replace(',', '.')
+        if (!Regex("""[0-9]{1,6}(?:\.[0-9]{1,2})?""").matches(txt)) return null
+        val parts = txt.split('.')
+        val major = parts[0].toLongOrNull() ?: return null
+        val minor = when (parts.getOrNull(1)?.length) {
+            null -> 0L
+            1 -> parts[1].toLongOrNull()?.times(10L)
+            2 -> parts[1].toLongOrNull()
+            else -> null
+        } ?: return null
+        return (major * 100L + minor).takeIf { it in 0L..100_000_000L }
+    }
     private fun values(text: String) = moneyToken.findAll(text)
         .mapNotNull { cents(it.groupValues[1]) }.toList()
     private fun parseMoneyBand(lines: List<PositionedOcrLine>, lower: Int, upper: Int,
