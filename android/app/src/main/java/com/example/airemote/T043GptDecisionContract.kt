@@ -139,12 +139,13 @@ object T043GptDecisionContract {
         // JSON-escape every external field. No free-text player names or OCR
         // instructions are interpolated into the system directive.
         val directive = "Analyze this Texas Hold'em turn with virtual chips. " +
-            "Unknown values are unknown; do not invent cards or opponent stats. " +
-            "Verified poker_math contains deterministic made-hand and pot-odds values. " +
-            "Null equity means unknown, not zero. Session popup stats are OCR-only, " +
-            "not verified identities or evidence of hidden cards. " +
-            "Player statistics have limited samples. Hand participation " +
-            "with unknown>0 is incomplete; never assume unknown seats folded. " +
+            "Model plausible opponent responses and ranges from observed play, " +
+            "but weight small samples weakly. Combine verified pot odds, " +
+            "current legal options, risk and uncertain opponent tendencies; " +
+            "avoid mechanical repetition and invented hidden cards. " +
+            "Unknown fields stay unknown: never assume unknown seats folded. " +
+            "Verified poker_math is exact for known cards only; null equity " +
+            "is unknown. Popup statistics are provisional OCR, not identities. " +
             "Return ONLY a JSON object with keys schema, action, amount_chips. " +
             "schema must be $SCHEMA; action must be one of legal_actions. " +
             "For BET/RAISE use the already selected and verified amount, " +
