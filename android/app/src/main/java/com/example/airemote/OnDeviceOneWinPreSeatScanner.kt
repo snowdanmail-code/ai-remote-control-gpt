@@ -93,6 +93,28 @@ object OnDeviceOneWinPreSeatScanner {
         return true
     }
 
+    /** OCR failures keep observing; a missing Android gesture callback does NOT. */
+    @Synchronized fun onCaptureTick(context: Context, nowMs: Long) {
+        if (!active()) return
+        if (!FrameStore.isCapturing || OperatorStopStore.isStopped(context) ||
+            !LiveGamePermissionGate.permitted() ||
+            FrameStore.captureEpoch != epoch ||
+            LiveGamePermissionGate.packageName() != observedPackage) {
+            stop("Захват/разрешение изменены; посадка сброшена")
+            return
+        }
+        if (status.phase == OneWinPreSeatPhase.SEAT_TAP_PENDING &&
+            pendingSeatTap != null &&
+            nowMs >= lastSeatTapObservationAtMs &&
+            nowMs - lastSeatTapObservationAtMs > 12_000L) {
+            pendingSeatTap = null
+            status = status.copy(phase = OneWinPreSeatPhase.BLOCKED,
+                description = "Android не подтвердил касание за 12 секунд; " +
+                    "повторного нажатия не выполняем",
+                gesture = OneWinSeatEntryGestureOutcome.REJECTED_BY_ANDROID)
+        }
+    }
+
     /**
      * Operator explicitly arms ONE non-money seat-arrow tap. It can also be
      * armed when the user starts the existing automatic lobby-table search.
