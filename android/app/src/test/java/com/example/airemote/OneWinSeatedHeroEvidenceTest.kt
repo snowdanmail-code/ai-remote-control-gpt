@@ -49,7 +49,7 @@ class OneWinSeatedHeroEvidenceTest {
         assertFalse(gate.observe(sameCard,2_100L,true,false))
         val wrongEpoch = observation(3,3_000L,cardEpoch=1L)
         assertFalse(gate.observe(wrongEpoch,3_100L,true,false))
-        assertFalse(gate.observe(observation(4,4_000L), 8_000L,true,false))
+        assertFalse(gate.observe(observation(4,4_000L), 11_000L,true,false))
     }
 
     @Test fun badScreenOrExpiredFrameCannotBeReusedToTriggerSeated() {
