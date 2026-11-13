@@ -189,10 +189,62 @@ object OneWinBuyInDialogParser {
         val debit = parseMoneyBand(valid, 216, 279,
             Regex("""будет\s+списано|will\s+be\s+debited"""))
         val buttons = valid.filter { it.box.centerY() in 277..389 }
-        fun labeledValue(re: Regex, xRange: IntRange): Long? =
-            buttons.filter { it.box.centerX() in xRange &&
-                re.containsMatchIn(norm(it.text)) }
-                .flatMap { values(it.text) }.singleOrNull()
+        fun labeledValue(re: Regex, xRange: IntRange): Long? {
+            val grouped = buttons.filter { it.box.centerX() in xRange }
+            // OCR may separate a button label ('Мин') from '1.60 
+        val minimum = labeledValue(Regex("""^мин\b|^min\b"""), 30..340)
+        val maximum = labeledValue(Regex("""^макс\b|^max\b"""), 680..980)
+        val input = buttons.filter { it.box.centerX() in 350..675 &&
+            !norm(it.text).contains("мин") && !norm(it.text).contains("макс") }
+            .flatMap { values(it.text) }.singleOrNull()
+        val ok = valid.filter { it.box.centerY() in 916..991 &&
+            it.box.centerX() in 350..680 &&
+            norm(it.text) in setOf("ok","ок") }.singleOrNull()?.box
+        val rebuy = valid.any { it.box.centerY() in 388..525 &&
+            (norm(it.text).contains("авто ребай") ||
+             norm(it.text).contains("авто бай-ин")) }
+        val small = pair?.first
+        val big = pair?.second
+        val good = small != null && big != null && small > 0L && big > small &&
+            balance != null && debit != null && minimum != null && maximum != null &&
+            input != null && ok != null && minimum > 0L &&
+            maximum >= minimum && input in minimum..maximum &&
+            debit == input && balance >= debit
+        return OneWinBuyInDialogReading(
+            if (good) OneWinBuyInReadingStatus.VERIFIED
+                else OneWinBuyInReadingStatus.INCOMPLETE,
+            small, big, balance, debit, minimum, maximum, input, ok, rebuy,
+            if (good) "Суммы и элементы окна согласованы; средства НЕ переводились"
+                else "Требуется повторная проверка текста и сумм бай-ина")
+    }
+}
+
+/** A matching second OCR snapshot is only evidence of the open dialog. */
+class OneWinBuyInAgreement {
+    private var prior: Pair<OcrFrameTicket, OneWinBuyInDialogReading>? = null
+    fun reset() { prior = null }
+
+    @Synchronized fun observe(ticket: OcrFrameTicket,
+        candidate: OneWinBuyInDialogReading): OneWinBuyInDialogReading? {
+        val old = prior
+        prior = ticket to candidate
+        if (candidate.status != OneWinBuyInReadingStatus.VERIFIED || old == null ||
+            old.second != candidate) return null
+        val t = old.first
+        return candidate.takeIf { t.sourcePackage == ticket.sourcePackage &&
+            t.captureEpoch == ticket.captureEpoch &&
+            t.windowGeneration == ticket.windowGeneration &&
+            ticket.frameSequence > t.frameSequence &&
+            ticket.capturedAtMs > t.capturedAtMs &&
+            ticket.capturedAtMs - t.capturedAtMs in 250L..6_000L }
+    }
+}
+;
+            // read precisely one amount in THAT button area, but only
+            // when its label is independently visible on the same row.
+            if (grouped.none { re.containsMatchIn(norm(it.text)) }) return null
+            return grouped.flatMap { values(it.text) }.distinct().singleOrNull()
+        }
         val minimum = labeledValue(Regex("""^мин\b|^min\b"""), 30..340)
         val maximum = labeledValue(Regex("""^макс\b|^max\b"""), 680..980)
         val input = buttons.filter { it.box.centerX() in 350..675 &&
