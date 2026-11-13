@@ -23,7 +23,8 @@ object T043GptDecisionContract {
         nowMs: Long,
         verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList(),
         sessionPopupStatistics: String = "",
-        verifiedHandParticipation: String = ""
+        verifiedHandParticipation: String = "",
+        verifiedOpponentSeatRefs: Map<String, Int> = emptyMap()
     ): String? {
         val view = observation.view
         if (observation.tableId.isBlank() || observation.handId.isBlank() ||
@@ -94,17 +95,29 @@ object T043GptDecisionContract {
             .put("max_bet_chips", observation.maxVerifiedBetChips ?: JSONObject.NULL)
             .put("selected_bet_chips", observation.selectedBetChips ?: JSONObject.NULL)
             .put("poker_math", mathJson)
-        // Prior verified-hand profiles only. Names/IDs are deliberately omitted
-        // from the model prompt; counters have explicit opportunity denominators.
+        // Authenticated historic statistics are useful only when independently
+        // bound to the SAME visible seat and ACTIVE participant of this hand.
+        // Ordinal "opponent_1" is NEVER a live player identity.
+        val liveSeatRefs = verifiedHandParticipation
+            .takeIf { it.startsWith("active=") && it.contains(";folded=") }
+            ?.substringAfter("active=")?.substringBefore(';')
+            ?.split(',')?.toSet() ?: emptySet()
+        val validSeats = verifiedOpponentSeatRefs.filter {
+            it.value in 0..9 && "seat_${it.value}" in liveSeatRefs
+        }.filter { (actor, seat) ->
+            verifiedOpponentSeatRefs.count { it.value == seat } == 1 &&
+                actor.length in 1..128
+        }
         val profiles = JSONArray()
-        verifiedOpponentProfiles.take(3).forEachIndexed { index, p ->
+        T050VerifiedSeatProfileBinding.eligibleProfiles(
+            verifiedOpponentProfiles, validSeats).take(3).forEach { p ->
             if (p.observedHands >= 0 && p.vpipOpportunities >= 0 &&
                 p.pfrOpportunities >= 0 && p.facedBetOpportunities >= 0 &&
                 p.vpipSeen in 0..p.vpipOpportunities &&
                 p.pfrSeen in 0..p.pfrOpportunities &&
                 p.foldsFacingBet in 0..p.facedBetOpportunities) {
                 profiles.put(JSONObject()
-                    .put("ref", "opponent_${index + 1}")
+                    .put("ref", "seat_${requireNotNull(validSeats[p.opponentKey])}")
                     .put("observed_hands", p.observedHands)
                     .put("vpip_seen", p.vpipSeen)
                     .put("vpip_opportunities", p.vpipOpportunities)
