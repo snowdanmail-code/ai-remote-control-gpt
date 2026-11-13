@@ -299,6 +299,39 @@ class MainActivity : Activity() {
                     "разрешённый потолок бай-ина ${moneyInDollars(it.permittedBuyInCapCents)} $."
                 } ?: "Подтверждённой рекомендации пока нет")
         }
+        label("1WIN — ВЫХОД, КОГДА ЗА СТОЛОМ ОСТАЛОСЬ 3 ИЛИ МЕНЬШЕ ИГРОКОВ " +
+            "(ВКЛЮЧАЯ ВАШЕ МЕСТО). Выход возможен только между раздачами, " +
+            "после подтверждения каждого занятого/свободного места. " +
+            "Нужны SEAT_ACTION + SEAT_STACK для всех мест в JSON-калибровке " +
+            "и независимое подтверждение завершения раздачи.")
+        val heroSeatEntry = EditText(this).apply {
+            hint = "Индекс своего места в калибровке: 0–9"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        }
+        advanced.addView(heroSeatEntry)
+        button("1WIN — ВКЛЮЧИТЬ АВТОВЫХОД ПРИ 3 ИГРОКАХ") {
+            val hero = heroSeatEntry.text.toString().trim().toIntOrNull()
+            val enabled = hero != null &&
+                OnDeviceOneWinTableAutoExit.arm(this@MainActivity, hero)
+            status.text = if (enabled)
+                "Автовыход включён. Учитываем вашего игрока и только явно " +
+                    "распознанные свободные места. При 3 или менее игроках " +
+                    "после подтверждённой раздачи: меню → Покинуть игру → лобби."
+            else "Автовыход не включён: нужны захват, ARM, доступ к касаниям, " +
+                "полная калибровка мест и корректный индекс собственного места."
+        }
+        button("1WIN — ОСТАНОВИТЬ АВТОВЫХОД") {
+            OnDeviceOneWinTableAutoExit.stop("Выключено оператором")
+            status.text = "Автовыход выключен. Новые переходы не выполняются."
+        }
+        button("1WIN — ПРОВЕРИТЬ СОСТОЯНИЕ АВТОВЫХОДА") {
+            val exit = OnDeviceOneWinTableAutoExit.status()
+            val hand = OnDeviceHandState.snapshot(SystemClock.elapsedRealtime())
+            status.text = "Автовыход: " + exit.phase + "; " + exit.message +
+                "; занято: " + (exit.occupied?.toString() ?: "не подтверждено") +
+                "; раздача: " + hand.stage +
+                "; проверена: " + hand.trustworthyNow
+        }
         button("1WIN — АВТОМАТИЧЕСКИ ПРОЧИТАТЬ ПРОФИЛИ СОПЕРНИКОВ") {
             val started = OnDeviceOpponentProfileSweep.start(this@MainActivity)
             val current = OnDeviceOpponentProfileSweep.status()
