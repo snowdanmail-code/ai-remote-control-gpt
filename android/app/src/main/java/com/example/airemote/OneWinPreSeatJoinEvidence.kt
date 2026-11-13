@@ -81,7 +81,7 @@ object OneWinFreeSeatArrowDetector {
                         ((m.y - 20).coerceAtLeast(0) * 1000 / height),
                         ((m.x + 20).coerceAtMost(width - 1) * 1000 / width),
                         ((m.y + 20).coerceAtMost(height - 1) * 1000 / height)),
-                    m.score)
+                    m.score.coerceIn(0.0, 1.0))
             }
     }
 }
@@ -95,7 +95,8 @@ class OneWinFreeSeatAgreement {
     @Synchronized fun observe(ticket: OcrFrameTicket,
         markers: List<OneWinVacantSeatMarker>): List<OneWinVacantSeatMarker> {
         val prior = last
-        val clean = markers.filter { it.confidence in 0.87..1.0 &&
+        val clean = markers.filter { it.confidence.isFinite() &&
+            it.confidence >= 0.87 && it.confidence <= 1.000001 &&
             it.bounds.valid() }.sortedBy { it.bounds.centerY() * 1000 + it.bounds.centerX() }
         val stable = prior != null && prior.sourcePackage == ticket.sourcePackage &&
             prior.captureEpoch == ticket.captureEpoch &&
