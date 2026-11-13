@@ -761,11 +761,13 @@ object ChatGptCloudBridge {
         verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList(),
         sessionPopupStatistics: String = "",
         verifiedHandParticipation: String = "",
+        verifiedOpponentSeatRefs: Map<String, Int> = emptyMap(),
         report: (T043GptDecisionContract.Review) -> Unit
     ) {
         val prompt = T043GptDecisionContract.buildPrompt(observation, cards,
             android.os.SystemClock.elapsedRealtime(), verifiedOpponentProfiles,
-            sessionPopupStatistics, verifiedHandParticipation)
+            sessionPopupStatistics, verifiedHandParticipation,
+            verifiedOpponentSeatRefs)
         if (prompt == null) {
             report(T043GptDecisionContract.Review(false, "UNVERIFIED_OR_STALE_TURN"))
             return
