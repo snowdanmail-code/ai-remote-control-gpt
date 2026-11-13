@@ -86,7 +86,9 @@ class T047VerifiedOpponentActionBridgeTest {
                 m, session, "table7", action(), proof(), collector::observe))
         assertEquals(T046HandParticipation.FOLDED_CONFIRMED,
             m.snapshot(session).single().participation)
-        assertEquals(T047OpponentActionStatus.NOT_CONFIRMED_BY_HAND_COLLECTOR,
+        // Duplicate action is rejected before the collector is called,
+        // because the seat is already folded in this exact hand.
+        assertEquals(T047OpponentActionStatus.UNKNOWN_OR_AMBIGUOUS_SEAT,
             T047VerifiedOpponentActionBridge.ingest(
                 m, session, "table7", action(), proof(), collector::observe))
     }
