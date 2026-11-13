@@ -79,8 +79,10 @@ class T050TransientBadgePulseTest {
             listOf(badge(1,T050BadgeTone.GREEN,Double.NaN))),1100).isEmpty())
         assertTrue(m.observe(frame(2,1800,
             listOf(badge(1,T050BadgeTone.GREEN))),1900).isEmpty())
+        // A late inspection (>600ms after capture) is stale, even if
+        // the frame's arrival gap itself would otherwise be acceptable.
         assertTrue(m.observe(frame(3,2500,
-            listOf(badge(1,T050BadgeTone.GREEN))),2800).isEmpty())
+            listOf(badge(1,T050BadgeTone.GREEN))),3300).isEmpty())
     }
 
     @Test fun noActionCanBeInferredFromBareColoredPixels() {
