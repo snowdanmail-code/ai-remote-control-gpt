@@ -75,6 +75,25 @@ class OneWinPreSeatJoinEvidenceTest {
             OneWinBuyInDialogParser.read(raw.filterNot { it.text.startsWith("Макс") }).status)
     }
 
+    @Test fun smallOcrBoxJitterStillAllowsTwoFrameMinimumButNotChangedSums() {
+        val first = OneWinBuyInDialogParser.read(buyInLines())
+        val withShift = first.copy(
+            okBox = first.okBox?.copy(left = first.okBox.left + 4,
+                right = first.okBox.right + 4),
+            minButtonBox = first.minButtonBox?.copy(
+                left = first.minButtonBox.left + 3,
+                right = first.minButtonBox.right + 3))
+        val agree = OneWinBuyInAgreement()
+        val t1 = OcrFrameTicket(6L, 11L, 2000L, "com.example.game", 5L)
+        assertNull(agree.observe(t1, first))
+        assertNotNull(agree.observe(t1.copy(
+            frameSequence = 12L, capturedAtMs = 3300L), withShift))
+
+        val changed = withShift.copy(debitCents = 240L)
+        assertNull(agree.observe(t1.copy(
+            frameSequence = 13L, capturedAtMs = 4500L), changed))
+    }
+
     @Test fun secondIndependentOcrFrameMustAgreeOnTheSameBuyIn() {
         val gate = OneWinBuyInAgreement()
         val r = OneWinBuyInDialogParser.read(buyInLines())
