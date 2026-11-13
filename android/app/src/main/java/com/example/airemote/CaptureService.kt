@@ -217,6 +217,28 @@ class CaptureService : Service() {
                                         } == true
                                     }
                                 }
+                                // A separate on-device Cyrillic OCR reads the
+                                // six-seat table's actual bottom controls and bet
+                                // editor from the owner's recordings. It publishes
+                                // diagnostics only; never sends wagers or taps.
+                                if (surface.status == RecordedSurfaceStatus.TABLE_LIKE &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !CaptureObservationMode.isSpectator() &&
+                                    !OperatorStopStore.isStopped(applicationContext) &&
+                                    AppVisibilityGate.canPublish(visibilityTicket)) {
+                                    OnDeviceOneWinRecordedTableUi.offer(
+                                        applicationContext, screen, origin, now
+                                    ) {
+                                        !closing && FrameStore.isCapturing &&
+                                        FrameStore.captureEpoch == captureEpoch &&
+                                        FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                        FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                        LiveForegroundProbe.snapshot()?.let { root ->
+                                            root.packageName == origin.observedPackage &&
+                                            root.windowGeneration == origin.windowGeneration
+                                        } == true
+                                    }
+                                }
                                 // The navigator observes only measured table/panel
                                 // transitions. It never receives hero-button taps or
                                 // invents seat/player identity from a screenshot.
@@ -509,6 +531,7 @@ class CaptureService : Service() {
         OnDeviceAutomaticOcr.reset()
         OnDeviceOpponentPopupOcr.reset()
         OnDeviceOneWinCashLobby.reset()
+        OnDeviceOneWinRecordedTableUi.reset()
         OnDeviceOneWinTableAutoExit.stop("Захват завершён")
         OnDeviceHandState.reset("Захват завершён")
         OnDeviceStageBridge.reset("Захват завершён")
