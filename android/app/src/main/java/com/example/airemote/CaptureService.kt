@@ -157,6 +157,7 @@ class CaptureService : Service() {
                             lastProfile = -1
                             lastCardInspectionAt = 0L
                             OnDeviceSeatRoundVisualDiagnostics.reset()
+                            OnDeviceRawSeatBadgeDiagnostics.reset()
                             OnDeviceStageBridge.reset("Смена / неопределённость корневого окна")
                         }
                         val plane = image.planes[0]
@@ -266,6 +267,27 @@ class CaptureService : Service() {
                                             root.windowGeneration == origin.windowGeneration
                                         } == true
                                     }
+                                }
+                                // T050/04: the native screen is already sampled near 300ms.
+                                // Test measured seat badge colors on the existing
+                                // capture bitmap. NEVER equate a pulse to FOLD/RAISE.
+                                if (surface.status == RecordedSurfaceStatus.TABLE_LIKE &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !CaptureObservationMode.isSpectator() &&
+                                    LiveGamePermissionGate.permitted() &&
+                                    LiveGamePermissionGate.packageName() == origin.observedPackage &&
+                                    !OperatorStopStore.isStopped(applicationContext) &&
+                                    AppVisibilityGate.canPublish(visibilityTicket)) {
+                                    val pulses = OnDeviceRawSeatBadgeDiagnostics.inspect(
+                                        screen, origin, now, false)
+                                    if (pulses.isNotEmpty())
+                                        FrameStore.lastTransientSeatBadges = pulses
+                                    else if (FrameStore.lastTransientSeatBadges.isNotEmpty() &&
+                                        now - FrameStore.lastTransientSeatBadges.last().capturedAtMs > 1_600L)
+                                        FrameStore.lastTransientSeatBadges = emptyList()
+                                } else {
+                                    OnDeviceRawSeatBadgeDiagnostics.reset()
+                                    FrameStore.lastTransientSeatBadges = emptyList()
                                 }
                                 // Stage T045: after actual SEATED proof, start
                                 // the existing calibrated opponent avatar sweep
