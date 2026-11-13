@@ -37,7 +37,7 @@ class OneWinRecordedCashTableUiTest {
             line("Банк", 365, 945),
             line("Макс", 539, 945),
             line("Подтвердить", 715, 939, 235),
-            line("0.08 $", 742, 977, 140)
+            line("0.08 $", 742, 965, 140)
         ))
         assertEquals(OneWinRecordedTablePanel.BET_SIZE_EDITOR, observed.panel)
         assertEquals(8L, observed.proposedStakeCents)
