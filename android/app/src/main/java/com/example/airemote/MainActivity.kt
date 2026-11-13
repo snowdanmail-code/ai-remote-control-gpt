@@ -500,6 +500,16 @@ class MainActivity : Activity() {
                     ?: "не показана") +
                 ". Только чтение экрана; касания не выполняются."
         }
+        button("1WIN — БЫСТРЫЕ ПЛАШКИ ПО МЕСТАМ (300 МС)") {
+            val pulse = FrameStore.lastTransientSeatBadges
+            status.text = "Быстрые плашки: " +
+                (pulse.joinToString { "seat_" + it.seat + ":" + it.tone.name }
+                    .ifBlank { "сейчас новых нет" }) +
+                "\n" + OnDeviceRawSeatBadgeDiagnostics.lastStatus +
+                "\nЭто цветовые кандидаты, а НЕ прочитанный текст, " +
+                "НЕ доказанный рейз/фолд и НЕ разрешение касания. " +
+                "Для действия нужны OCR и независимое подтверждение."
+        }
         button("1WIN — ФИШКИ, РУБАШКИ КАРТ И ВРЕМЕННЫЕ ДЕЙСТВИЯ") {
             val report = FrameStore.lastSeatRound
             val profile = OnDeviceRealFrameRegions.activeProfile()
