@@ -8,7 +8,8 @@ import java.io.ByteArrayOutputStream
 enum class OneWinPreSeatPhase {
     OFF, SEARCHING, VACANCIES_CONFIRMED, SEAT_TAP_PENDING,
     WAITING_BUYIN_AFTER_TAP, WAITING_BUYIN,
-    BUYIN_RECHECK, BUYIN_VERIFIED, CANCELLED, BLOCKED
+    BUYIN_RECHECK, BUYIN_VERIFIED, VERIFYING_SEATED, SEATED,
+    CANCELLED, BLOCKED
 }
 data class OneWinPreSeatDiagnostic(
     val phase: OneWinPreSeatPhase,
@@ -42,13 +43,16 @@ object OnDeviceOneWinPreSeatScanner {
     private var pendingSeatTap: OneWinVacantSeatTapTicket? = null
     private var lastSeatTapObservationAtMs = 0L
     private var buyInNoTextFrames = 0
+    private var buyInVerifiedOnce = false
+    private var lastVerifiedBuyIn: OneWinBuyInDialogReading? = null
+    private val postBuyInHero = OneWinBottomHeroAfterBuyInAgreement()
     @Volatile private var status = OneWinPreSeatDiagnostic(
         OneWinPreSeatPhase.OFF, "Диагностика посадки выключена")
 
     @Synchronized fun current(): OneWinPreSeatDiagnostic = status
     @Synchronized fun active(): Boolean =
         status.phase !in setOf(OneWinPreSeatPhase.OFF, OneWinPreSeatPhase.CANCELLED,
-            OneWinPreSeatPhase.BLOCKED)
+            OneWinPreSeatPhase.BLOCKED, OneWinPreSeatPhase.SEATED)
 
     @Synchronized fun stop(reason: String = "Диагностика остановлена") {
         session++
@@ -62,6 +66,9 @@ object OnDeviceOneWinPreSeatScanner {
         pendingSeatTap = null
         lastSeatTapObservationAtMs = 0L
         buyInNoTextFrames = 0
+        buyInVerifiedOnce = false
+        lastVerifiedBuyIn = null
+        postBuyInHero.reset()
         requestCounter++
         arrowAgreement.reset()
         buyInAgreement.reset()
@@ -249,6 +256,9 @@ object OnDeviceOneWinPreSeatScanner {
                 }
                 val lines = outcome.getOrNull()?.lines
                 if (lines == null) {
+                    // A missing OCR result is not proof that the buy-in
+                    // dialog closed, nor evidence of a seated hero.
+                    postBuyInHero.reset()
                     status = status.copy(description =
                         "OCR не распознал окно, повторно проверяем экран без нажатий")
                     return@inspectStructured
@@ -256,9 +266,51 @@ object OnDeviceOneWinPreSeatScanner {
                 val reading = OneWinBuyInDialogParser.read(lines)
                 if (reading.status == OneWinBuyInReadingStatus.NOT_DIALOG) {
                     buyInAgreement.reset()
+                    if (buyInVerifiedOnce) {
+                        // A manually confirmed buy-in must now be followed
+                        // by current, independently recognized bottom cards.
+                        // Closing with X will never satisfy this requirement.
+                        val cards = FrameStore.confirmedCards?.takeIf {
+                            it.captureEpoch == epoch && now >= it.capturedAtMs &&
+                                now - it.capturedAtMs <= 1_600L
+                        }
+                        val evidence = cards?.let {
+                            OneWinHeroAfterBuyInFrame(
+                                ticket.sourcePackage, ticket.captureEpoch,
+                                ticket.windowGeneration, ticket.frameSequence,
+                                ticket.capturedAtMs, it.captureEpoch,
+                                it.capturedAtMs, it.hole)
+                        }
+                        val seated = postBuyInHero.observe(evidence, now,
+                            buyInPreviouslyVerified = true,
+                            dialogStillVisible = false)
+                        status = status.copy(
+                            phase = if (seated) OneWinPreSeatPhase.SEATED
+                                else OneWinPreSeatPhase.VERIFYING_SEATED,
+                            description = if (seated)
+                                "После подтверждённого бай-ина найдены две " +
+                                    "последовательные пары своих карт снизу. HERO за столом."
+                            else "Окно бай-ина закрыто; ожидаем подтверждение " +
+                                "двух нижних карт на новых кадрах. Посадка ещё не доказана.",
+                            vacancies = emptyList(),
+                            buyIn = lastVerifiedBuyIn)
+                    } else if (status.phase in setOf(
+                            OneWinPreSeatPhase.WAITING_BUYIN_AFTER_TAP,
+                            OneWinPreSeatPhase.WAITING_BUYIN,
+                            OneWinPreSeatPhase.BUYIN_RECHECK)) {
+                        buyInNoTextFrames++
+                        status = status.copy(
+                            description = "Бай-ин ещё не виден; повторно читаем экран, " +
+                                "проверка №" + buyInNoTextFrames +
+                                "; место повторно не нажимаем")
+                    }
                     return@inspectStructured
                 }
                 if (reading.status == OneWinBuyInReadingStatus.INCOMPLETE) {
+                    buyInAgreement.reset()
+                    postBuyInHero.reset()
+                    buyInVerifiedOnce = false
+                    lastVerifiedBuyIn = null
                     status = status.copy(
                         phase = OneWinPreSeatPhase.BUYIN_RECHECK,
                         description = "Окно бай-ина не полностью распознано, ждём новый кадр",
@@ -267,16 +319,24 @@ object OnDeviceOneWinPreSeatScanner {
                 }
                 val agreed = buyInAgreement.observe(ticket, reading)
                 val limits = OneWinCashLobbyLimitsStore.read(context)
+                if (agreed != null) {
+                    buyInVerifiedOnce = agreed.withinLimits(limits)
+                    lastVerifiedBuyIn = if (buyInVerifiedOnce) agreed else null
+                    postBuyInHero.reset()
+                }
+                val previous = status
                 status = if (agreed != null)
                     OneWinPreSeatDiagnostic(OneWinPreSeatPhase.BUYIN_VERIFIED,
                         if (agreed.withinLimits(limits))
                             "Бай-ин распознан и укладывается в сохранённые лимиты. " +
                                 "Требуется отдельное подтверждение оператора; ОК не нажимали"
                         else "Бай-ин распознан, но не подтверждён лимитами. ОК запрещён",
-                        knownVacancies, agreed, agreed.withinLimits(limits))
+                        knownVacancies, agreed, agreed.withinLimits(limits),
+                        previous.selectedSlot, previous.gesture)
                 else OneWinPreSeatDiagnostic(OneWinPreSeatPhase.WAITING_BUYIN,
                     "Первое чтение бай-ина, ожидаем второй независимый кадр",
-                    knownVacancies, reading, false)
+                    knownVacancies, reading, false,
+                    previous.selectedSlot, previous.gesture)
             }
         }
     }
