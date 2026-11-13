@@ -81,6 +81,15 @@ object ChatGptCloudBridge {
     fun isAuthorizing(): Boolean = operations.isSigningIn()
 
     fun connected(context: Context): Boolean = try { readRecord(context)?.let { !it.optBoolean("refresh_pending") } ?: false } catch (_: Exception) { false }
+
+    /** Identity-only OAuth is not enough. The user must grant plan allowance. */
+    fun planUsageAuthorized(context: Context): Boolean = try {
+        readRecord(context)?.let {
+            !it.optBoolean("refresh_pending") &&
+                ChatGptAuthProtocol.scopeAllowsInference(it.optString("scope", "")) &&
+                it.optString("access_token", "").isNotBlank()
+        } ?: false
+    } catch (_: Exception) { false }
     fun connectionLabel(context: Context): String {
         if (operations.isSigningIn()) return "ChatGPT: вход выполняется; дождитесь AUTH_OK в приложении"
         val record = try { readRecord(context) } catch (ex: Exception) { return describe(ex, ChatGptCloudStep.STORE) }
@@ -704,6 +713,39 @@ object ChatGptCloudBridge {
                 report("CLOUD_OK · модель ${reply.model} · ответ: ${reply.text.take(1500)}")
             else
                 report("Проверка облачного ИИ не пройдена: ${error ?: "UNKNOWN"}")
+        }
+    }
+
+    /**
+     * Non-playing diagnostic: send already captured opponent stats using
+     * the EXISTING Sign in with ChatGPT OAuth access token and the user's
+     * granted ChatGPT plan allowance. No API key, separate billing account
+     * or ChatGPT web-session scraping. One acknowledged request is NOT model
+     * memory; each actual turn request sends its context again.
+     */
+    fun sendSessionContext(context: Context, stats: String,
+                           report: (String) -> Unit) {
+        if (!planUsageAuthorized(context)) {
+            report("CHATGPT_PLAN_NOT_AUTHORIZED: подключите разрешение на использование подписки")
+            return
+        }
+        val nonce = ChatGptAuthProtocol.randomUrlSafe(16)
+        val handoff = ChatGptPlanHandoffProtocol.prepare(stats, nonce)
+        if (handoff == null) {
+            report("CONTEXT_NOT_READY: нет проверенных числовых наблюдений этого стола")
+            return
+        }
+        requestModelText(context, handoff.prompt) { reply, error ->
+            if (reply == null) {
+                report("CONTEXT_NOT_DELIVERED: " + (error ?: "CLOUD_UNAVAILABLE"))
+            } else if (ChatGptPlanHandoffProtocol.verifyAck(reply.text, handoff)) {
+                report("CONTEXT_ACK: передано мест " + handoff.seatCount +
+                    " через ChatGPT OAuth, модель " + reply.model +
+                    ". Подтверждён один запрос; история модели не сохраняется.")
+            } else {
+                report("CONTEXT_UNVERIFIED: ответ получен, но контрольный ACK не совпал; " +
+                    "повторного запроса нет")
+            }
         }
     }
 
