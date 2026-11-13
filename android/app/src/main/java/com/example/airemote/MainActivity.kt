@@ -299,6 +299,40 @@ class MainActivity : Activity() {
                     "разрешённый потолок бай-ина ${moneyInDollars(it.permittedBuyInCapCents)} $."
                 } ?: "Подтверждённой рекомендации пока нет")
         }
+        label("ТЗ №044 — ПОСАДКА ЗА СТОЛ. До посадки ищем ВСЕ " +
+            "стрелки свободных мест. После выбора места отдельно распознаём " +
+            "окно «Бай-Ин», минимальную/максимальную сумму, баланс и «Ок». " +
+            "Нижняя позиция пока не считается подтверждённым игроком. " +
+            "Сейчас режим только диагностический, денег не списывает.")
+        button("1WIN — ПРОВЕРИТЬ СВОБОДНЫЕ МЕСТА И БАЙ-ИН") {
+            val started = OnDeviceOneWinPreSeatScanner.start(this@MainActivity)
+            status.text = if (started)
+                "Диагностика посадки активна. Откройте стол 1win: распознаём " +
+                    "одну или несколько стрелок, затем окно бай-ина. " +
+                    "Касания и подтверждение суммы пока отключены."
+            else "Диагностика не запущена: нужен активный захват, " +
+                "разрешённое окно приложения и выключенный STOP."
+        }
+        button("1WIN — СТАТУС ПОСАДКИ И БАЙ-ИНА") {
+            val step = OnDeviceOneWinPreSeatScanner.current()
+            val buy = step.buyIn
+            status.text = "Посадка: " + step.phase + ". " + step.description +
+                "; стрелок: " + step.vacancies.size +
+                (buy?.let {
+                    "; окно: " + it.status +
+                        "; блайнды: " + (it.smallBlindCents?.let(::moneyInDollars) ?: "?") +
+                        "/" + (it.bigBlindCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; списание: " + (it.debitCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; доступно: " + (it.availableCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; мин: " + (it.minimumCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; макс: " + (it.maximumCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; в лимитах: " + step.withinConfiguredLimits
+                } ?: "")
+        }
+        button("1WIN — ОСТАНОВИТЬ ДИАГНОСТИКУ ПОСАДКИ") {
+            OnDeviceOneWinPreSeatScanner.stop("Остановлено оператором")
+            status.text = "Наблюдение посадки остановлено. Касаний не выполнялось."
+        }
         label("1WIN — ВЫХОД, КОГДА ЗА СТОЛОМ ОСТАЛОСЬ 3 ИЛИ МЕНЬШЕ ИГРОКОВ " +
             "(ВКЛЮЧАЯ ВАШЕ МЕСТО). Выход возможен только между раздачами, " +
             "после подтверждения каждого занятого/свободного места. " +
