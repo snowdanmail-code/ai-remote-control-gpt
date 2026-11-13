@@ -177,6 +177,14 @@ object OnDeviceOneWinPreSeatScanner {
             ticket = OcrFrameTicket(epoch, origin.localFrameSequence,
                 capturedAt, observedPackage, origin.windowGeneration)
         }
+        // Tie lower-hole-card proof to THIS captured frame before the
+        // asynchronous Cyrillic OCR worker starts. Reading FrameStore
+        // inside a delayed OCR callback would mix different frames.
+        val cardAtCapture = FrameStore.confirmedCards?.takeIf {
+            it.captureEpoch == ticket.captureEpoch &&
+                ticket.capturedAtMs >= it.capturedAtMs &&
+                ticket.capturedAtMs - it.capturedAtMs <= 1_500L
+        }
         // The pixels are copied on the capture worker before its Bitmap is recycled.
         var scaled: Bitmap? = null
         val evidence = runCatching {
@@ -283,10 +291,7 @@ object OnDeviceOneWinPreSeatScanner {
                         // A manually confirmed buy-in must now be followed
                         // by current, independently recognized bottom cards.
                         // Closing with X will never satisfy this requirement.
-                        val cards = FrameStore.confirmedCards?.takeIf {
-                            it.captureEpoch == epoch && now >= it.capturedAtMs &&
-                                now - it.capturedAtMs <= 1_600L
-                        }
+                        val cards = cardAtCapture
                         val evidence = cards?.let {
                             OneWinHeroAfterBuyInFrame(
                                 ticket.sourcePackage, ticket.captureEpoch,
