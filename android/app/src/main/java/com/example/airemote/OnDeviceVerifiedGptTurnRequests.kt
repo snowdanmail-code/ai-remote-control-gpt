@@ -58,7 +58,7 @@ object OnDeviceVerifiedGptTurnRequests {
         lastReason = "GPT: анализ подтверждённого хода и соперников"
         ChatGptCloudBridge.askVerifiedTurnDecision(
             context.applicationContext, observation, cards, profiles,
-            sessionStats, handSeats
+            sessionStats, handSeats, verifiedActorSeatRefs
         ) { result ->
             synchronized(this) {
                 if (requested == key)
