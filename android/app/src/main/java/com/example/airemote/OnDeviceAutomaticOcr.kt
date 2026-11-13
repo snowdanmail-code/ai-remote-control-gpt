@@ -87,10 +87,10 @@ object OnDeviceAutomaticOcr {
                                 FrameStore.confirmedTurnVisual, OperatorStopStore.isStopped(app))
                             FrameStore.lastSeatVisual = OnDeviceSeatVisualDiagnostics.inspect(
                                 ticket, snapshot.lines, frame.width, frame.height, finishedAt)
-                            FrameStore.lastSeatRound = OnDeviceSeatRoundVisualDiagnostics.inspect(
-                                frame, ticket, finishedAt,
-                                FrameStore.lastRealFrameRegions, FrameStore.lastSeatVisual,
-                                OperatorStopStore.isStopped(app))
+                            // Do not decode a full JPEG under FrameStore's
+                            // STOP/commit monitor. Defer T048 pixel sampling
+                            // until after this tiny atomic OCR publication.
+                            FrameStore.lastSeatRound = null
                         }, onFailure = {
                             assembler.reset()
                             FrameStore.lastAutomaticOcr = null
@@ -100,6 +100,27 @@ object OnDeviceAutomaticOcr {
                             FrameStore.lastRealFrameRegions = null
                             FrameStore.lastActionStrip = null
                         })
+                    }
+                    if (published && response.isSuccess) {
+                        val regions = FrameStore.lastRealFrameRegions?.takeIf {
+                            it.frameSequence == ticket.frameSequence
+                        }
+                        val badges = FrameStore.lastSeatVisual?.takeIf {
+                            it.frameSequence == ticket.frameSequence
+                        }
+                        val fused = OnDeviceSeatRoundVisualDiagnostics.inspect(
+                            frame, ticket, finishedAt, regions, badges,
+                            OperatorStopStore.isStopped(app))
+                        val fusedAt = SystemClock.elapsedRealtime()
+                        FrameStore.commitOcrIfCurrent(ticket, fusedAt, {
+                            !OperatorStopStore.isStopped(app) && rootStillMatches() &&
+                                OcrFrameProvenance.check(ticket, FrameStore.latest,
+                                    FrameStore.windowOrigin, FrameStore.captureEpoch,
+                                    fusedAt, false) == OcrFrameCheck.VALID_DIAGNOSTIC &&
+                                fusedAt - ticket.capturedAtMs in 0L..1_500L
+                        }) {
+                            FrameStore.lastSeatRound = fused
+                        }
                     }
                     if (!published) {
                         OnDeviceIncidentRecorder.record(app, IncidentCode.OCR_STALE,
