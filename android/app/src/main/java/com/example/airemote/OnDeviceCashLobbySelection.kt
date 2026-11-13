@@ -144,6 +144,7 @@ object OnDeviceCashLobbySelection {
             !LiveGamePermissionGate.permitted() ||
             OneWinCashLobbyLimitsStore.read(context) == null ||
             LocalPlayerCheckPilot.isActive() ||
+            OnDeviceOneWinTableAutoExit.active() ||
             OnDeviceLiveActionControl.guard.hasUnconfirmedAction()) return false
         pending = null
         pendingNavigation = null
