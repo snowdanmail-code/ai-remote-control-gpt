@@ -69,6 +69,7 @@ object FrameStore {
     }
     @Volatile var lastAutomaticOcr: AutomaticOcrEvidence? = null
     @Volatile var lastSeatVisual: SeatVisualReport? = null
+    @Volatile var lastSeatRound: T048Reading? = null
     @Volatile var lastRealFrameRegions: RegionObservationReport? = null
     @Volatile var lastActionStrip: ActionStripReport? = null
     @Volatile var lastHeroTurnEpisode: HeroTurnLifecycleReport? = null
@@ -98,6 +99,8 @@ object FrameStore {
         latest = null
         lastAutomaticOcr = null
         lastSeatVisual = null
+        lastSeatRound = null
+        OnDeviceSeatRoundVisualDiagnostics.reset()
         lastRealFrameRegions = null
         lastActionStrip = null
         lastHeroTurnEpisode = null
@@ -153,6 +156,8 @@ object FrameStore {
         latest = null
         lastAutomaticOcr = null
         lastSeatVisual = null
+        lastSeatRound = null
+        OnDeviceSeatRoundVisualDiagnostics.reset()
         lastRealFrameRegions = null
         lastActionStrip = null
         lastHeroTurnEpisode = null
