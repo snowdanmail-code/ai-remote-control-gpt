@@ -44,6 +44,15 @@ data class T048Reading(
     val actionBadges: Map<Int, SeatCueAction> = emptyMap(),
     val combined: List<T048CombinedCue> = emptyList()
 ) {
+    /**
+     * The displayed pot often ALREADY equals the sum of chips by seats.
+     * Equality is a useful visual diagnostic, NOT a second pot.
+     */
+    val visibleSeatWagersTotalMinor: Long?
+        get() = seatContributionsMinor.values.takeIf { it.isNotEmpty() }?.sum()
+    val centralPotEqualsVisibleWagers: Boolean?
+        get() = if (potMinor != null && seatContributionsMinor.size >= 3)
+            potMinor == visibleSeatWagersTotalMinor else null
     val authorizesGameplay: Boolean get() = false
     val provesOpponentAction: Boolean get() = false
     val canUpdateOpponentMemory: Boolean get() = false
