@@ -446,6 +446,9 @@ object OnDeviceOneWinPreSeatScanner {
             synchronized(this) {
                 if (generation != session) return@inspectStructured
                 inFlight = false
+                // A delayed OCR callback must not revive a STOP, BLOCKED
+                // or already-confirmed SEATED session.
+                if (!active()) return@inspectStructured
                 if (OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
                     !rootStillSame() || now - capturedAt !in 0L..6_000L) {
                     knownVacancies = emptyList()
@@ -508,12 +511,30 @@ object OnDeviceOneWinPreSeatScanner {
                 if (reading.status == OneWinBuyInReadingStatus.INCOMPLETE) {
                     buyInAgreement.reset()
                     postBuyInHero.reset()
+                    if (okTapAttempted) {
+                        // The dialog can animate/vanish after OS OK.
+                        // A partially visible transition is NOT a new
+                        // unapproved buy-in or permission to tap again.
+                        status = status.copy(description =
+                            "После «ОК» окно распознаётся частично; " +
+                                "ожидаем подтверждение посадки")
+                        return@inspectStructured
+                    }
                     buyInVerifiedOnce = false
                     lastVerifiedBuyIn = null
                     status = status.copy(
                         phase = OneWinPreSeatPhase.BUYIN_RECHECK,
                         description = "Окно бай-ина не полностью распознано, ждём новый кадр",
                         buyIn = reading, withinConfiguredLimits = false)
+                    return@inspectStructured
+                }
+                if (okTapAttempted) {
+                    // Even if 'OK' did not dismiss the dialog, NEVER send
+                    // another confirmation. Wait for fresh post-seat evidence
+                    // or operator STOP/inspection.
+                    status = status.copy(
+                        description = "Минимальный бай-ин уже подтверждали. " +
+                            "Повторного «ОК» нет; ждём закрытия окна и HERO.")
                     return@inspectStructured
                 }
                 // An OCR worker may return a frame acquired before the
