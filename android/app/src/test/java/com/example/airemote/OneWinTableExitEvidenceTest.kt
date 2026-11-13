@@ -12,7 +12,7 @@ class OneWinTableExitEvidenceTest {
             (0..5).associateWith { index ->
                 if (index < count) OneWinSeatPresence.OCCUPIED
                 else OneWinSeatPresence.EMPTY
-            }
+            }, 6
         )
     private fun stage(phase: HandStage = HandStage.WAITING, trusted: Boolean = true) =
         HandStateSnapshot(phase, trusted, 8L, 42L, "verified test fixture")
@@ -31,7 +31,7 @@ class OneWinTableExitEvidenceTest {
                 1 to OneWinSeatPresence.OCCUPIED, 2 to OneWinSeatPresence.OCCUPIED))
         // A snapshot with only visible occupied positions is NOT complete
         // if the reporter knows 6 positions. The source must send all seats.
-        assertFalse(gate.inspect(incomplete, stage(trusted = false), 1100, false, false))
+        assertFalse(gate.inspect(incomplete, stage(), 1100, false, false))
         assertFalse(gate.inspect(sample(1, 1000, hero = 5), stage(), 1100, false, false))
         assertFalse(gate.inspect(sample(1, 1000).copy(seats = emptyMap()),
             stage(), 1100, false, false))
