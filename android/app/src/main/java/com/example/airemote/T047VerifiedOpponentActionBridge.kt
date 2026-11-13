@@ -69,8 +69,7 @@ object T047VerifiedOpponentActionBridge {
         if (currentSeat.ambiguousIdentity ||
             currentSeat.participation == T046HandParticipation.LEFT_TABLE_CONFIRMED ||
             (currentSeat.lastVerifiedHand == event.handKey &&
-                currentSeat.participation == T046HandParticipation.FOLDED_CONFIRMED &&
-                event.action != "FOLD"))
+                currentSeat.participation == T046HandParticipation.FOLDED_CONFIRMED))
             return T047OpponentActionStatus.UNKNOWN_OR_AMBIGUOUS_SEAT
 
         // No permanent identity is inferred from a nickname. The separate
