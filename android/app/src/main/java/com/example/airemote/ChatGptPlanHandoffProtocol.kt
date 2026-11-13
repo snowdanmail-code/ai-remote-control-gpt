@@ -24,7 +24,7 @@ object ChatGptPlanHandoffProtocol {
     private val decimal = Regex("""[0-9]{1,6}(?:\.[0-9])?""")
 
     fun prepare(stats: String, nonce: String): ChatGptPlanHandoff? {
-        if (stats.isBlank() || stats.length > 280 ||
+        if (stats.isBlank() || stats.length > 900 ||
             !safe.matches(stats) || !noncePattern.matches(nonce)) return null
         val entries = stats.split(';')
         if (entries.size !in 1..5 || entries.any { it.isBlank() }) return null
@@ -32,7 +32,7 @@ object ChatGptPlanHandoffProtocol {
             val match = seatHead.matchEntire(line) ?: return null
             val seat = match.groupValues[1].toInt()
             val values = match.groupValues[2].split(',')
-            if (values.size !in 1..4) return null
+            if (values.size !in 1..11) return null
             val names = mutableSetOf<String>()
             for (metric in values) {
                 val key = metric.substringBefore('=', "")
@@ -54,7 +54,7 @@ object ChatGptPlanHandoffProtocol {
             "Do not make a poker move. Reply ONLY a JSON object with exactly " +
             "schema, nonce, seats; schema=$SCHEMA, nonce=$nonce, " +
             "seats=${seats.size}. No markdown. Context: $stats"
-        return prompt.takeIf { it.length <= 1000 }?.let {
+        return prompt.takeIf { it.length <= 1600 }?.let {
             ChatGptPlanHandoff(nonce, seats.size, it)
         }
     }
