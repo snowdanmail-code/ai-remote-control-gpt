@@ -52,25 +52,7 @@ object OnDeviceOneWinPostSeatStudy {
             observation.windowGeneration != windowGeneration ||
             !observation.tableHandIndependentlyVerified ||
             !observation.windowIndependentlyVerified) return ""
-        return sessionProfiles.sortedBy { it.seatIndex }.take(5).joinToString(";") { profile ->
-            val stat = profile.metrics
-                .filter {
-                    it.evidence == "POPUP_OCR_ONLY" &&
-                        it.amount.isFinite() && it.amount >= 0.0 &&
-                        it.amount <= (if (it.metric.percent) 100.0 else 100_000.0)
-                }
-                .distinctBy { it.metric }
-                .take(4)
-                .joinToString(",") { metric ->
-                    metric.metric.name + "=" +
-                        if (metric.amount % 1.0 == 0.0)
-                            metric.amount.toLong().toString()
-                        else (metric.amount * 10.0).toLong().let {
-                            (it / 10).toString() + "." + (it % 10).toString()
-                        }
-                }
-            "seat_" + profile.seatIndex + ":" + stat
-        }.take(280)
+        return T045SessionStatsFormatter.format(sessionProfiles)
     }
 
     @Synchronized fun reset(reason: String = "Сеанс завершён") {
@@ -185,4 +167,29 @@ object OnDeviceOneWinPostSeatStudy {
             }
         }
     }
+}
+
+/** Deterministic model-only formatter; never attributes OCR to a stable identity. */
+object T045SessionStatsFormatter {
+    fun format(profiles: List<ObservedOpponentProfile>): String {
+            return profiles.sortedBy { it.seatIndex }.take(5).joinToString(";") { profile ->
+                val stat = profile.metrics
+                    .filter {
+                        it.evidence == "POPUP_OCR_ONLY" &&
+                            it.amount.isFinite() && it.amount >= 0.0 &&
+                            it.amount <= (if (it.metric.percent) 100.0 else 100_000.0)
+                    }
+                    .distinctBy { it.metric }
+                    .take(4)
+                    .joinToString(",") { metric ->
+                        metric.metric.name + "=" +
+                            if (metric.amount % 1.0 == 0.0)
+                                metric.amount.toLong().toString()
+                            else (metric.amount * 10.0).toLong().let {
+                                (it / 10).toString() + "." + (it % 10).toString()
+                            }
+                    }
+                "seat_" + profile.seatIndex + ":" + stat
+            }.take(280)
+        }
 }
