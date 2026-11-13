@@ -162,6 +162,41 @@ class T043GptDecisionContractTest {
         assertFalse(injected!!.contains("INJECT PLEASE"))
     }
 
+    @Test fun promptNeverSilentlyDropsVerifiedActiveRosterToFitLongHistory() {
+        val a = (1..5).map { index ->
+            OpponentLearningSummary("actor$index", 400, 100, 200, 40, 200,
+                48, 31, 33, 80, 23, 10)
+        }
+        val participants = "active=seat_1,seat_2,seat_3,seat_4,seat_5;" +
+            "folded=;left=;unknown=0;roster_unverified=0"
+        val bound = (1..5).associate { "actor$it" to it }
+        val prompt = T043GptDecisionContract.buildPrompt(
+            observation(), cards(), 2_000L, a,
+            "seat_1:VPIP=50,PFR=20,HANDS=200;seat_2:VPIP=60,PFR=35,HANDS=100",
+            participants, bound)
+        // A model may get a smaller optional stats list or NO request,
+        // but must never get a request with the current roster omitted.
+        if (prompt != null) {
+            assertTrue(prompt.contains("hand_participation_verified_only"))
+            assertTrue(prompt.contains("active=seat_1,seat_2"))
+            assertTrue(prompt.length <= 1_600)
+        }
+    }
+
+    @Test fun unrelatedHistoricOpponentProfileIsNeverAssignedToCurrentSeat() {
+        val key = "actor_not_present"
+        val a = OpponentLearningSummary(key,200,65,160,23,160,
+            12, 9, 24, 70, 20, 8)
+        val prompt = T043GptDecisionContract.buildPrompt(
+            observation(), cards(), 2_000L, listOf(a),
+            "seat_2:VPIP=41,PFR=23,HANDS=60",
+            "active=seat_2;folded=;left=;unknown=0",
+            mapOf(key to 3))
+        assertNotNull(prompt)
+        assertFalse(prompt!!.contains("postflop_aggression_actions"))
+        assertFalse(prompt.contains(key))
+    }
+
     @Test fun alreadyBuiltMathCalculatesPotOddsFromVerifiedPotAndCall() {
         val p = T043GptDecisionContract.buildPrompt(
             observation(call = 100L), cards(), 2_000L)
