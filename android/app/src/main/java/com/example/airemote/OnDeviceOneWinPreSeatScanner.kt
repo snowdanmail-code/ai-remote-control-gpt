@@ -53,11 +53,22 @@ object OnDeviceOneWinPreSeatScanner {
     private var buyInNoTextFrames = 0
     private var buyInVerifiedOnce = false
     private var lastVerifiedBuyIn: OneWinBuyInDialogReading? = null
+    private var confirmedSeatedWindow: Long? = null
     private val postBuyInHero = OneWinBottomHeroAfterBuyInAgreement()
     @Volatile private var status = OneWinPreSeatDiagnostic(
         OneWinPreSeatPhase.OFF, "Диагностика посадки выключена")
 
     @Synchronized fun current(): OneWinPreSeatDiagnostic = status
+
+    /** Only a fully completed seating proof can open post-seat profile study. */
+    @Synchronized fun verifiedSeatedIn(origin: WindowOriginAssessment): Boolean =
+        status.phase == OneWinPreSeatPhase.SEATED &&
+            origin.safeForLocalDiagnostics &&
+            origin.observedPackage == observedPackage &&
+            origin.captureEpoch == epoch &&
+            origin.windowGeneration == confirmedSeatedWindow &&
+            FrameStore.captureEpoch == epoch &&
+            FrameStore.isCapturing
     @Synchronized fun active(): Boolean =
         status.phase !in setOf(OneWinPreSeatPhase.OFF, OneWinPreSeatPhase.CANCELLED,
             OneWinPreSeatPhase.BLOCKED, OneWinPreSeatPhase.SEATED)
@@ -84,6 +95,7 @@ object OnDeviceOneWinPreSeatScanner {
         buyInNoTextFrames = 0
         buyInVerifiedOnce = false
         lastVerifiedBuyIn = null
+        confirmedSeatedWindow = null
         postBuyInHero.reset()
         requestCounter++
         arrowAgreement.reset()
@@ -494,6 +506,7 @@ object OnDeviceOneWinPreSeatScanner {
                         val seated = postBuyInHero.observe(evidence, now,
                             buyInPreviouslyVerified = true,
                             dialogStillVisible = false)
+                        if (seated) confirmedSeatedWindow = ticket.windowGeneration
                         status = status.copy(
                             phase = if (seated) OneWinPreSeatPhase.SEATED
                                 else OneWinPreSeatPhase.VERIFYING_SEATED,
