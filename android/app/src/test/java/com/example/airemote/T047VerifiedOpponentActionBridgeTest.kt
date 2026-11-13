@@ -115,7 +115,8 @@ class T047VerifiedOpponentActionBridgeTest {
         val m=memory()
         assertEquals(T047OpponentActionStatus.ACCEPTED,
             T047VerifiedOpponentActionBridge.ingest(m,session,"table7",
-                action("CHECK"),proof()) { OpponentEvidenceResult.ACCEPTED })
+                action("CHECK").copy(facingBetVerified = false),
+                proof()) { OpponentEvidenceResult.ACCEPTED })
         assertEquals(T046HandParticipation.ACTIVE_CONFIRMED,
             m.snapshot(session).single().participation)
         assertEquals(T047OpponentActionStatus.MEMORY_REJECTED,
