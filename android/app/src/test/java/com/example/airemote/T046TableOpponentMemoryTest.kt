@@ -60,7 +60,7 @@ class T046TableOpponentMemoryTest {
             T046HandParticipation.LEFT_TABLE_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
         assertFalse(m.applyVerifiedEvent(session, "hand", "act", 7,
             T046HandParticipation.ACTIVE_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
-        assertEquals("active=;folded=;left=;unknown=1",
+        assertEquals("active=;folded=;left=;unknown=1;roster_unverified=1",
             m.summaryForChatGpt(session, "hand"))
     }
 
@@ -91,6 +91,23 @@ class T046TableOpponentMemoryTest {
         assertFalse(m.applyVerifiedEvent(session,"h1","ev",1,
             T046HandParticipation.ACTIVE_CONFIRMED,T046Evidence.VERIFIED_HAND_EVENT))
         assertTrue(m.summaryForChatGpt(session,"h1").contains("unknown=1"))
+    }
+
+    @Test fun verifiedSeatReplacementInvalidatesPreviousNicknameAndStats() {
+        val m = T046TableOpponentMemory()
+        m.beginSession(session,5)
+        m.observePopup(session,profile(2,"oldPlayer",43.0))
+        m.beginVerifiedHand(session,"h1",true)
+        val original = m.snapshot(session).single()
+        assertFalse(m.confirmedSeatTurnover(session,2,"replace1",false))
+        assertFalse(m.confirmedSeatTurnover(anotherWindow,2,"replace1",true))
+        assertTrue(m.confirmedSeatTurnover(session,2,"replace1",true))
+        val after = m.snapshot(session).single()
+        assertNotEquals(original.sessionAlias, after.sessionAlias)
+        assertNull(after.nickname)
+        assertTrue(after.popupStatistics.isEmpty())
+        assertEquals(T046HandParticipation.UNKNOWN,after.participation)
+        assertFalse(m.confirmedSeatTurnover(session,2,"replace1",true))
     }
 
     @Test fun staleSessionAndRepeatedEventNeverBecomeProof() {
