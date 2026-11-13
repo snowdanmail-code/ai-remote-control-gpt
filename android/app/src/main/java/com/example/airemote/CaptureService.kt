@@ -217,11 +217,33 @@ class CaptureService : Service() {
                                         } == true
                                     }
                                 }
+                                // T044: pre-seating is NOT an occupied HERO seat.
+                                // Detect every visible down-arrow vacancy, then read
+                                // the buy-in dialog independently. Read-only; no tap.
+                                if (OnDeviceOneWinPreSeatScanner.active() &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !CaptureObservationMode.isSpectator() &&
+                                    !OperatorStopStore.isStopped(applicationContext) &&
+                                    AppVisibilityGate.canPublish(visibilityTicket)) {
+                                    OnDeviceOneWinPreSeatScanner.offer(
+                                        applicationContext, screen, origin, now
+                                    ) {
+                                        !closing && FrameStore.isCapturing &&
+                                        FrameStore.captureEpoch == captureEpoch &&
+                                        FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                        FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                        LiveForegroundProbe.snapshot()?.let { root ->
+                                            root.packageName == origin.observedPackage &&
+                                            root.windowGeneration == origin.windowGeneration
+                                        } == true
+                                    }
+                                }
                                 // A separate on-device Cyrillic OCR reads the
                                 // six-seat table's actual bottom controls and bet
                                 // editor from the owner's recordings. It publishes
                                 // diagnostics only; never sends wagers or taps.
-                                if (surface.status != RecordedSurfaceStatus.PANEL_VISIBLE &&
+                                if (!OnDeviceOneWinPreSeatScanner.active() &&
+                                    surface.status != RecordedSurfaceStatus.PANEL_VISIBLE &&
                                     origin.safeForLocalDiagnostics &&
                                     !CaptureObservationMode.isSpectator() &&
                                     LiveGamePermissionGate.permitted() &&
@@ -533,6 +555,7 @@ class CaptureService : Service() {
         OnDeviceAutomaticOcr.reset()
         OnDeviceOpponentPopupOcr.reset()
         OnDeviceOneWinCashLobby.reset()
+        OnDeviceOneWinPreSeatScanner.stop("Захват завершён")
         OnDeviceOneWinRecordedTableUi.reset()
         OnDeviceOneWinTableAutoExit.stop("Захват завершён")
         OnDeviceHandState.reset("Захват завершён")
