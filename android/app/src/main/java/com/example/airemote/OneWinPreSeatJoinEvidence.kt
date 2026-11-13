@@ -235,12 +235,34 @@ class OneWinBuyInAgreement {
     private var prior: Pair<OcrFrameTicket, OneWinBuyInDialogReading>? = null
     fun reset() { prior = null }
 
+    private fun sameNumbersAndControls(a: OneWinBuyInDialogReading,
+                                        b: OneWinBuyInDialogReading): Boolean {
+        fun nearby(x: NormalizedTextBox?, y: NormalizedTextBox?): Boolean {
+            if (x == null || y == null) return x == null && y == null
+            return x.valid() && y.valid() &&
+                kotlin.math.abs(x.centerX() - y.centerX()) <= 12 &&
+                kotlin.math.abs(x.centerY() - y.centerY()) <= 12
+        }
+        return a.status == OneWinBuyInReadingStatus.VERIFIED &&
+            b.status == OneWinBuyInReadingStatus.VERIFIED &&
+            a.smallBlindCents == b.smallBlindCents &&
+            a.bigBlindCents == b.bigBlindCents &&
+            a.availableCents == b.availableCents &&
+            a.debitCents == b.debitCents &&
+            a.minimumCents == b.minimumCents &&
+            a.maximumCents == b.maximumCents &&
+            a.inputCents == b.inputCents &&
+            a.autoRebuyControlVisible == b.autoRebuyControlVisible &&
+            nearby(a.okBox, b.okBox) &&
+            nearby(a.minButtonBox, b.minButtonBox)
+    }
+
     @Synchronized fun observe(ticket: OcrFrameTicket,
         candidate: OneWinBuyInDialogReading): OneWinBuyInDialogReading? {
         val old = prior
         prior = ticket to candidate
         if (candidate.status != OneWinBuyInReadingStatus.VERIFIED || old == null ||
-            old.second != candidate) return null
+            !sameNumbersAndControls(old.second, candidate)) return null
         val t = old.first
         return candidate.takeIf { t.sourcePackage == ticket.sourcePackage &&
             t.captureEpoch == ticket.captureEpoch &&
