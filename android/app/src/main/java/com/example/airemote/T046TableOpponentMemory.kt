@@ -36,7 +36,9 @@ data class T046OpponentSeatMemory(
     val popupStatistics: List<OpponentPopupMetricValue>,
     val ambiguousIdentity: Boolean,
     val participation: T046HandParticipation,
-    val lastVerifiedHand: String?
+    val lastVerifiedHand: String?,
+    /** Stable provider-verified identity ONLY; never derived from nickname. */
+    val verifiedActorKey: String? = null
 )
 
 /**
@@ -97,7 +99,8 @@ class T046TableOpponentMemory {
             occupants[profile.seatIndex] = if (conflict)
                 old.copy(nickname = null, popupStatistics = emptyList(),
                     ambiguousIdentity = true,
-                    participation = T046HandParticipation.UNKNOWN)
+                    participation = T046HandParticipation.UNKNOWN,
+                    verifiedActorKey = null)
             else if (old.ambiguousIdentity) old
             else old.copy(nickname = old.nickname ?: name,
                 popupStatistics = profile.metrics.toList())
@@ -131,7 +134,8 @@ class T046TableOpponentMemory {
         eventId: String,
         seat: Int,
         next: T046HandParticipation,
-        evidence: T046Evidence
+        evidence: T046Evidence,
+        stableVerifiedActorKey: String? = null
     ): Boolean {
         if (session != key || verifiedHandId != handKey ||
             eventId.isBlank() || eventId.length > 96 ||
@@ -150,8 +154,24 @@ class T046TableOpponentMemory {
                 existing.lastVerifiedHand == verifiedHandId &&
                 next != T046HandParticipation.LEFT_TABLE_CONFIRMED) ||
             !appliedEvents.add(eventId)) return false
+        // A genuinely different stable actor in the same place requires
+        // a proven vacancy/new-arrival transition. Never transfer the
+        // previous participant's metrics based on a new name or action.
+        val actor = stableVerifiedActorKey?.takeIf {
+            it.length in 1..128 && it.none(Char::isISOControl)
+        }
+        if (stableVerifiedActorKey != null && actor == null) return false
+        if (actor != null && existing.verifiedActorKey != null &&
+            existing.verifiedActorKey != actor) {
+            occupants[seat] = existing.copy(
+                ambiguousIdentity = true, nickname = null,
+                popupStatistics = emptyList(), verifiedActorKey = null,
+                participation = T046HandParticipation.UNKNOWN)
+            return false
+        }
         occupants[seat] = existing.copy(participation = next,
-            lastVerifiedHand = verifiedHandId)
+            lastVerifiedHand = verifiedHandId,
+            verifiedActorKey = existing.verifiedActorKey ?: actor)
         return true
     }
 
