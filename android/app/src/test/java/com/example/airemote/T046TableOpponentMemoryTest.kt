@@ -7,7 +7,7 @@ class T046TableOpponentMemoryTest {
     private val session = T046TableSession("com.example.game", 8L, 3L)
     private val anotherWindow = session.copy(windowGeneration = 4L)
     private fun profile(seat: Int, nick: String = "playerA", value: Double = 43.0) =
-        ObservedOpponentProfile(seat, nick, listOf(
+        T046PopupObservation(seat, nick, listOf(
             OpponentPopupMetricValue(OpponentPopupMetric.VPIP, value),
             OpponentPopupMetricValue(OpponentPopupMetric.PFR, 17.0)
         ))
