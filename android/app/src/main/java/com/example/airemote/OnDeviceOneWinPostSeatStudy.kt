@@ -31,6 +31,64 @@ object OnDeviceOneWinPostSeatStudy {
         OneWinPostSeatStudyPhase.OFF, "Изучение соперников не запускалось")
     private var sessionProfiles: List<ObservedOpponentProfile> = emptyList()
     private val tableMemory = T046TableOpponentMemory()
+    private val verifiedTable = T050TableIdentityLedger()
+
+    @Synchronized fun verifiedTableStatus(): String =
+        verifiedTable.current()?.tableId ?: "нет подтверждённого tableId"
+
+    /**
+     * Called only from the independently authenticated player frame flow.
+     * Old avatar profiles predate the first trusted table ID and cannot
+     * safely be attributed to that table. Rescan them after binding.
+     * A newly observed verified table in the same window ends this seating.
+     */
+    @Synchronized fun acceptVerifiedTableIdentity(
+        context: Context, observation: AutonomousObservation
+    ): Boolean {
+        val origin = FrameStore.windowOrigin ?: return false
+        if (!observation.tableHandIndependentlyVerified ||
+            !observation.windowIndependentlyVerified ||
+            observation.tableId.isBlank() ||
+            observation.foregroundPackage != packageName ||
+            observation.view.captureEpoch != captureEpoch ||
+            observation.windowGeneration != windowGeneration ||
+            origin.observedPackage != packageName ||
+            origin.captureEpoch != captureEpoch ||
+            origin.windowGeneration != windowGeneration ||
+            !OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin) ||
+            current.phase == OneWinPostSeatStudyPhase.OFF ||
+            OperatorStopStore.isStopped(context)) return false
+
+        val key = T050VerifiedTableIdentity(packageName, captureEpoch,
+            windowGeneration, observation.tableId)
+        return when (verifiedTable.accept(key, true)) {
+            T050TableIdentityResult.UNVERIFIED -> false
+            T050TableIdentityResult.SAME_TRUSTED_TABLE -> true
+            T050TableIdentityResult.FIRST_TRUSTED_ID -> {
+                // No cross-table nicknames or OCR statistics from an earlier
+                // read-only sweep before the trusted table ID was known.
+                tableMemory.reset()
+                sessionProfiles = emptyList()
+                autoTransferAttempted = false
+                cloudSending = false
+                cloudStatus = "ChatGPT: нужна повторная сверка профилей после tableId"
+                started = false
+                OnDeviceOpponentProfileSweep.reset("Привязка к tableId; повторно читаем аватары")
+                current = OneWinPostSeatStudyStatus(
+                    OneWinPostSeatStudyPhase.WAITING_SAFE_TABLE,
+                    "Подтверждён стол: повторно изучаем игроков именно этого стола")
+                false
+            }
+            T050TableIdentityResult.CHANGED_TABLE_OR_WINDOW -> {
+                OnDeviceOneWinPreSeatScanner.stop(
+                    "Подтверждён другой tableId — прежняя посадка недействительна")
+                OnDeviceOpponentProfileSweep.reset("Подтверждена смена стола")
+                reset("Подтверждена смена стола; старая память уничтожена")
+                false
+            }
+        }
+    }
+
 
     private fun currentSession(): T046TableSession =
         T046TableSession(packageName, captureEpoch, windowGeneration)
@@ -78,6 +136,9 @@ object OnDeviceOneWinPostSeatStudy {
             !observation.windowIndependentlyVerified ||
             observation.tableId != action.tableKey ||
             observation.handId != action.handKey ||
+            !verifiedTable.belongsTo(T050VerifiedTableIdentity(
+                packageName, captureEpoch, windowGeneration,
+                observation.tableId)) ||
             observation.view.captureEpoch != captureEpoch ||
             observation.windowGeneration != windowGeneration ||
             origin.observedPackage != packageName ||
@@ -105,7 +166,10 @@ object OnDeviceOneWinPostSeatStudy {
             !observation.windowIndependentlyVerified ||
             observation.view.captureEpoch != captureEpoch ||
             observation.windowGeneration != windowGeneration ||
-            current.phase != OneWinPostSeatStudyPhase.COMPLETE) return ""
+            current.phase != OneWinPostSeatStudyPhase.COMPLETE ||
+            !verifiedTable.belongsTo(T050VerifiedTableIdentity(
+                packageName, captureEpoch, windowGeneration,
+                observation.tableId))) return ""
         val key = currentSession()
         tableMemory.beginVerifiedHand(key, observation.handId, true)
         return tableMemory.summaryForChatGpt(key, observation.handId)
@@ -123,6 +187,7 @@ object OnDeviceOneWinPostSeatStudy {
      */
     @Synchronized fun transferToChatGpt(context: Context): Boolean {
         if (current.phase != OneWinPostSeatStudyPhase.COMPLETE ||
+            verifiedTable.current() == null ||
             cloudSending || ChatGptCloudBridge.isBusy() ||
             !ChatGptCloudBridge.planUsageAuthorized(context)) return false
         val origin = FrameStore.windowOrigin ?: return false
@@ -177,7 +242,10 @@ object OnDeviceOneWinPostSeatStudy {
             observation.view.captureEpoch != captureEpoch ||
             observation.windowGeneration != windowGeneration ||
             !observation.tableHandIndependentlyVerified ||
-            !observation.windowIndependentlyVerified) return ""
+            !observation.windowIndependentlyVerified ||
+            !verifiedTable.belongsTo(T050VerifiedTableIdentity(
+                packageName, captureEpoch, windowGeneration,
+                observation.tableId))) return ""
         val key = currentSession()
         tableMemory.beginVerifiedHand(key, observation.handId, true)
         return T045SessionStatsFormatter.format(usableSeatStatistics())
@@ -191,6 +259,7 @@ object OnDeviceOneWinPostSeatStudy {
         started = false
         sessionProfiles = emptyList()
         tableMemory.reset()
+        verifiedTable.reset()
         autoTransferAttempted = false
         cloudSending = false
         cloudStatus = "ChatGPT: данные сеанса не отправлялись"
