@@ -221,9 +221,11 @@ class CaptureService : Service() {
                                 // six-seat table's actual bottom controls and bet
                                 // editor from the owner's recordings. It publishes
                                 // diagnostics only; never sends wagers or taps.
-                                if (surface.status == RecordedSurfaceStatus.TABLE_LIKE &&
+                                if (surface.status != RecordedSurfaceStatus.PANEL_VISIBLE &&
                                     origin.safeForLocalDiagnostics &&
                                     !CaptureObservationMode.isSpectator() &&
+                                    LiveGamePermissionGate.permitted() &&
+                                    LiveGamePermissionGate.packageName() == origin.observedPackage &&
                                     !OperatorStopStore.isStopped(applicationContext) &&
                                     AppVisibilityGate.canPublish(visibilityTicket)) {
                                     OnDeviceOneWinRecordedTableUi.offer(
