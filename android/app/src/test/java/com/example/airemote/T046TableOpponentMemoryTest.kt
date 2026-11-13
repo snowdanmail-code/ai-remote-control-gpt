@@ -60,7 +60,7 @@ class T046TableOpponentMemoryTest {
             T046HandParticipation.LEFT_TABLE_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
         assertFalse(m.applyVerifiedEvent(session, "hand", "act", 7,
             T046HandParticipation.ACTIVE_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
-        assertEquals("active=;folded=;left=;unknown=1;roster_unverified=1",
+        assertEquals("active=;folded=;left=;unknown=1;roster_unverified=1;unknown_seats=seat_2",
             m.summaryForChatGpt(session, "hand"))
     }
 
@@ -108,6 +108,21 @@ class T046TableOpponentMemoryTest {
         assertTrue(after.popupStatistics.isEmpty())
         assertEquals(T046HandParticipation.UNKNOWN,after.participation)
         assertFalse(m.confirmedSeatTurnover(session,2,"replace1",true))
+    }
+
+    @Test fun unknownSeatIdsAppearButNeverClaimFoldFromUnverifiedOcr() {
+        val m = T046TableOpponentMemory()
+        m.beginSession(session, 5)
+        m.observePopup(session, profile(1, "nameOne"))
+        m.observePopup(session, profile(2, "nameTwo"))
+        m.beginVerifiedHand(session, "verified-h", true)
+        assertFalse(m.applyVerifiedEvent(session, "verified-h", "ocrOnly", 1,
+            T046HandParticipation.FOLDED_CONFIRMED, T046Evidence.OCR_ONLY))
+        val text = m.summaryForChatGpt(session, "verified-h")
+        assertTrue(text.contains("unknown=2"))
+        assertTrue(text.contains("unknown_seats=seat_1,seat_2"))
+        assertTrue(text.contains("folded="))
+        assertFalse(text.contains("nameOne"))
     }
 
     @Test fun staleSessionAndRepeatedEventNeverBecomeProof() {
