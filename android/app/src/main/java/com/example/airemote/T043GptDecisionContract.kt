@@ -175,10 +175,10 @@ object T043GptDecisionContract {
             profiles.remove(profiles.length() - 1)
             prompt = directive + packet.toString()
         }
-        if (prompt.length > 1_600 && safeParticipation != null) {
-            packet.remove("hand_participation_verified_only")
-            prompt = directive + packet.toString()
-        }
+        // Never silently erase a verified current-hand roster to squeeze
+        // in a model request: that would remove the only evidence of
+        // who has folded / remains / is UNKNOWN. Prefer no inference.
+        if (prompt.length > 1_600 && safeParticipation != null) return null
         return prompt.takeIf { it.length <= 1600 }
     }
 
