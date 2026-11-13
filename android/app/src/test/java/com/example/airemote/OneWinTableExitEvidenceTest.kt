@@ -74,6 +74,38 @@ class OneWinTableExitEvidenceTest {
                 else it }))
     }
 
+    @Test fun recognizesActualCloseTableConfirmationAndRightSideYes() {
+        val modal = listOf(
+            line("Вы уверены, что хотите закрыть стол?", 158, 481, 676),
+            line("Нет", 302, 555, 60),
+            line("Да", 675, 554, 55)
+        )
+        val dialog = OneWinTableExitMenuParser.confirmationDialog(modal)
+        assertNotNull(dialog)
+        assertEquals(702, dialog!!.yesBox.centerX())
+        assertEquals(332, dialog.noBox.centerX())
+    }
+
+    @Test fun wrappedQuestionIsAcceptedButStrayYesAndWrongDialogAreRejected() {
+        val wrapped = listOf(
+            line("Вы уверены, что хотите", 130, 468, 580),
+            line("закрыть стол?", 290, 505, 350),
+            line("Нет", 300, 559, 45),
+            line("Да", 698, 558, 35)
+        )
+        assertNotNull(OneWinTableExitMenuParser.confirmationDialog(wrapped))
+        assertNull(OneWinTableExitMenuParser.confirmationDialog(
+            wrapped.filterNot { it.text == "Нет" }))
+        assertNull(OneWinTableExitMenuParser.confirmationDialog(
+            wrapped.map { if (it.text == "закрыть стол?") it.copy(text = "удалить счёт?")
+                else it }))
+        assertNull(OneWinTableExitMenuParser.confirmationDialog(
+            wrapped.map { if (it.text == "Да") it.copy(box =
+                NormalizedTextBox(280, 558, 315, 587)) else it }))
+        assertNull(OneWinTableExitMenuParser.confirmationDialog(
+            wrapped + line("Да", 720, 580, 35)))
+    }
+
     @Test fun verifiesLobbiesWithoutMistakingDrawerForLobby() {
         val lobby = listOf(
             line("Кэш-Игры", 410, 53),
