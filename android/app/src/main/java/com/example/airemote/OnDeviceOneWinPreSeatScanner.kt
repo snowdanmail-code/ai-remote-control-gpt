@@ -193,7 +193,9 @@ object OnDeviceOneWinPreSeatScanner {
             ticket.windowGeneration != FrameStore.windowOrigin?.windowGeneration ||
             !FrameStore.isCapturing ||
             nowMs < ticket.observedAtMs ||
-            nowMs - ticket.observedAtMs > 1_100L) return false
+            nowMs - ticket.observedAtMs > 1_100L ||
+            ticket.observedAtMs < ticket.capturedAtMs ||
+            ticket.observedAtMs - ticket.capturedAtMs > 4_000L) return false
         val limits = OneWinCashLobbyLimitsStore.read(
             pendingBuyInContext ?: return false)
         val decision = OneWinMinimumBuyInPolicy.evaluate(ticket.expected, limits,
