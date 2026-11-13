@@ -5,7 +5,8 @@ package com.example.airemote
  * Coordinates are per-JPEG normalized [0,1000], NEVER tap coordinates.
  * The operator must measure these on an authentic frame; no baked-in 1win layout.
  */
-enum class RealFieldRole { SEAT_ACTION, SEAT_STACK, SEAT_CONTRIBUTION, SEAT_TURN, SEAT_AVATAR,
+enum class RealFieldRole { SEAT_ACTION, SEAT_STACK, SEAT_CONTRIBUTION, SEAT_TURN,
+    SEAT_AVATAR, SEAT_CARD_BACK,
     PROFILE_DISMISS, POT, TIMER, HERO_FOLD, HERO_CHECK_CALL, HERO_BET_RAISE }
 
 data class RealFrameZone(
@@ -35,6 +36,16 @@ data class RealFrameCalibration(
         // manually measured original frame. A seat action rectangle is NOT
         // an avatar target; an empty-table dismiss target is not a bet button.
         val avatars = zones.filter { it.role == RealFieldRole.SEAT_AVATAR }
+        // Blue facedown cards live NEXT TO an avatar and need their own
+        // measured region; using the avatar's teal fill gives false positives.
+        val backs = zones.filter { it.role == RealFieldRole.SEAT_CARD_BACK }
+        if (backs.any {
+                it.seatIndex !in actionSeats ||
+                it.box.centerX() !in 30..970 ||
+                it.box.centerY() !in 90..880 ||
+                it.box.right - it.box.left !in 18..175 ||
+                it.box.bottom - it.box.top !in 12..145
+            }) return false
         val dismiss = zones.filter { it.role == RealFieldRole.PROFILE_DISMISS }
         if (avatars.any { a ->
                 a.seatIndex !in actionSeats ||
