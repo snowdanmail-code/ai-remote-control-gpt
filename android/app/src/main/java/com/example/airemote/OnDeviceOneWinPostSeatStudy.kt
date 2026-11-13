@@ -292,7 +292,21 @@ object T045SessionStatsFormatter {
                         item.amount.isFinite() && item.amount >= 0.0 &&
                         item.amount <=
                             (if (item.metric.percent) 100.0 else 100_000.0)
-                }.distinctBy { it.metric }.take(maxMetricsPerSeat)
+                }.distinctBy { it.metric }
+                .let { all ->
+                    if (maxMetricsPerSeat <= 4) {
+                        // GPT needs the sample count to distinguish an
+                        // informed read from a two-hand coincidence.
+                        val order = listOf(OpponentPopupMetric.VPIP,
+                            OpponentPopupMetric.PFR,
+                            OpponentPopupMetric.HANDS,
+                            OpponentPopupMetric.THREE_BET)
+                        all.sortedBy {
+                            val i = order.indexOf(it.metric)
+                            if (i < 0) 100 + it.metric.ordinal else i
+                        }
+                    } else all
+                }.take(maxMetricsPerSeat)
             var row = "seat_" + profile.seatIndex + ":"
             var count = 0
             for (item in stats) {
