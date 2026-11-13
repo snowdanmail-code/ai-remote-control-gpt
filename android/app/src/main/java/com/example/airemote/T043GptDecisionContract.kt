@@ -22,7 +22,8 @@ object T043GptDecisionContract {
         cards: StableCardReading,
         nowMs: Long,
         verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList(),
-        sessionPopupStatistics: String = ""
+        sessionPopupStatistics: String = "",
+        verifiedHandParticipation: String = ""
     ): String? {
         val view = observation.view
         if (observation.tableId.isBlank() || observation.handId.isBlank() ||
@@ -126,6 +127,15 @@ object T043GptDecisionContract {
         }
         if (safeSession != null)
             packet.put("session_popup_ocr_only", safeSession)
+        // This is an attested seat/hand summary, never inferred from a
+        // missing avatar or a bare fold label on a screenshot.
+        val safeParticipation = verifiedHandParticipation.takeIf {
+            it.length in 1..160 &&
+                it.startsWith("active=") && it.contains(";unknown=") &&
+                Regex("""[A-Za-z0-9_=,;]+""").matches(it)
+        }
+        if (safeParticipation != null)
+            packet.put("hand_participation_verified_only", safeParticipation)
         // JSON-escape every external field. No free-text player names or OCR
         // instructions are interpolated into the system directive.
         val directive = "Analyze this Texas Hold'em turn with virtual chips. " +
@@ -133,7 +143,8 @@ object T043GptDecisionContract {
             "Verified poker_math contains deterministic made-hand and pot-odds values. " +
             "Null equity means unknown, not zero. Session popup stats are OCR-only, " +
             "not verified identities or evidence of hidden cards. " +
-            "Player statistics have limited samples. " +
+            "Player statistics have limited samples. Hand participation " +
+            "with unknown>0 is incomplete; never assume unknown seats folded. " +
             "Return ONLY a JSON object with keys schema, action, amount_chips. " +
             "schema must be $SCHEMA; action must be one of legal_actions. " +
             "For BET/RAISE use the already selected and verified amount, " +
@@ -148,6 +159,10 @@ object T043GptDecisionContract {
         }
         while (prompt.length > 1_600 && profiles.length() > 0) {
             profiles.remove(profiles.length() - 1)
+            prompt = directive + packet.toString()
+        }
+        if (prompt.length > 1_600 && safeParticipation != null) {
+            packet.remove("hand_participation_verified_only")
             prompt = directive + packet.toString()
         }
         return prompt.takeIf { it.length <= 1600 }
