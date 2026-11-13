@@ -65,6 +65,39 @@ class OneWinTableExitEvidenceGate {
 }
 
 /**
+ * Re-read policy for UNKNOWN/OCR failures: never convert a poor reading into
+ * gesture permission, but keep observing fresh frames at a bounded cadence.
+ * There is no maximum retry count; STOP or lost session permission cancels.
+ */
+class OneWinExitRecognitionRetryPolicy(
+    private val minimumDelayMs: Long = 1_300L,
+    private val maximumDelayMs: Long = 8_000L
+) {
+    var inconclusiveFrames: Int = 0
+        private set
+    var nextReadAtMs: Long = 0L
+        private set
+
+    fun reset() {
+        inconclusiveFrames = 0
+        nextReadAtMs = 0L
+    }
+
+    fun mayRead(nowMs: Long): Boolean =
+        nowMs >= 0L && nowMs >= nextReadAtMs
+
+    fun observe(nowMs: Long, recognized: Boolean) {
+        if (nowMs < 0L) return
+        inconclusiveFrames = if (recognized) 0
+            else (inconclusiveFrames + 1).coerceAtMost(1_000_000)
+        val shift = (inconclusiveFrames - 1).coerceIn(0, 3)
+        val delay = if (recognized) minimumDelayMs
+            else (minimumDelayMs * (1L shl shift)).coerceAtMost(maximumDelayMs)
+        nextReadAtMs = nowMs + delay
+    }
+}
+
+/**
  * Exact menu OCR, not inferred coordinates. The owner screenshot shows the
  * left drawer contains 'Покинуть игру', 'Касса', 'Настройки', 'Назад в лобби'.
  */
