@@ -76,6 +76,7 @@ object OnDeviceOneWinPreSeatScanner {
         okTapAttempted = false
         okTapCompleted = false
         pendingBuyInTap = null
+        pendingBuyInContext = null
         lastBuyInTouchMs = -1L
         seatTapAttempted = false
         pendingSeatTap = null
@@ -196,14 +197,15 @@ object OnDeviceOneWinPreSeatScanner {
         val limits = OneWinCashLobbyLimitsStore.read(
             pendingBuyInContext ?: return false)
         val decision = OneWinMinimumBuyInPolicy.evaluate(ticket.expected, limits,
-            minimumTapAttempted)
+            ticket.purpose == OneWinBuyInTapPurpose.CONFIRM_OK &&
+                minimumTapAttempted)
         return when (ticket.purpose) {
             OneWinBuyInTapPurpose.CHOOSE_MIN ->
                 status.phase == OneWinPreSeatPhase.MIN_TAP_PENDING &&
                     minimumTapAttempted &&
                     ticket.expected.minimumCents == ticket.minimumCents &&
                     ticket.target == ticket.expected.minButtonBox &&
-                    decision.step == OneWinMinBuyInStep.RECHECK_OCR
+                    decision.step == OneWinMinBuyInStep.PRESS_MIN
             OneWinBuyInTapPurpose.CONFIRM_OK ->
                 status.phase == OneWinPreSeatPhase.OK_TAP_PENDING &&
                     okTapAttempted &&
@@ -350,6 +352,8 @@ object OnDeviceOneWinPreSeatScanner {
             ticket = OcrFrameTicket(epoch, origin.localFrameSequence,
                 capturedAt, observedPackage, origin.windowGeneration)
         }
+        val originalFrameWidth = frame.width
+        val originalFrameHeight = frame.height
         // Tie lower-hole-card proof to THIS captured frame before the
         // asynchronous Cyrillic OCR worker starts. Reading FrameStore
         // inside a delayed OCR callback would mix different frames.
@@ -461,8 +465,9 @@ object OnDeviceOneWinPreSeatScanner {
                 val reading = OneWinBuyInDialogParser.read(lines)
                 if (reading.status == OneWinBuyInReadingStatus.NOT_DIALOG) {
                     buyInAgreement.reset()
-                    if (buyInVerifiedOnce) {
-                        // A manually confirmed buy-in must now be followed
+                    if (buyInVerifiedOnce &&
+                        (!autoConfirmMinimum || (okTapAttempted && okTapCompleted))) {
+                        // A completed minimum buy-in must now be followed
                         // by current, independently recognized bottom cards.
                         // Closing with X will never satisfy this requirement.
                         val cards = cardAtCapture
@@ -509,6 +514,23 @@ object OnDeviceOneWinPreSeatScanner {
                         buyIn = reading, withinConfiguredLimits = false)
                     return@inspectStructured
                 }
+                // An OCR worker may return a frame acquired before the
+                // Min tap completed. Those pixels are never eligible to
+                // authorize the next OK tap, even if text accidentally agrees.
+                if (minimumTapCompletedAtMs >= 0L &&
+                    ticket.capturedAtMs <= minimumTapCompletedAtMs) {
+                    buyInAgreement.reset()
+                    status = status.copy(
+                        phase = OneWinPreSeatPhase.WAITING_MIN_RECHECK,
+                        description = "Проверяем «Мин» только на новых кадрах")
+                    return@inspectStructured
+                }
+                // Never dispatch a second gesture from a still-pending one.
+                if (pendingBuyInTap != null) {
+                    status = status.copy(description =
+                        "Ожидается подтверждение жеста Android; не нажимаем повторно")
+                    return@inspectStructured
+                }
                 val agreed = buyInAgreement.observe(ticket, reading)
                 val limits = OneWinCashLobbyLimitsStore.read(context)
                 if (agreed != null) {
@@ -525,10 +547,37 @@ object OnDeviceOneWinPreSeatScanner {
                         else "Бай-ин распознан, но не подтверждён лимитами. ОК запрещён",
                         knownVacancies, agreed, agreed.withinLimits(limits),
                         previous.selectedSlot, previous.gesture)
-                else OneWinPreSeatDiagnostic(OneWinPreSeatPhase.WAITING_BUYIN,
+                else OneWinPreSeatDiagnostic(
+                    if (minimumTapAttempted) OneWinPreSeatPhase.WAITING_MIN_RECHECK
+                        else OneWinPreSeatPhase.WAITING_BUYIN,
                     "Первое чтение бай-ина, ожидаем второй независимый кадр",
                     knownVacancies, reading, false,
                     previous.selectedSlot, previous.gesture)
+
+                // Minimal buy-in, NEVER "max" or an automatic rebuy.
+                // Two identical OCR frames are required before each touch.
+                if (agreed != null && autoConfirmMinimum && !okTapAttempted &&
+                    !OperatorStopStore.isStopped(context) &&
+                    !CaptureObservationMode.isSpectator() &&
+                    LiveGamePermissionGate.permitted() &&
+                    FrameStore.captureEpoch == ticket.captureEpoch &&
+                    OnDeviceAutonomousRuntime.status().state !=
+                        AutoLoopState.WAITING_FOR_RESULT &&
+                    !OnDeviceLiveActionControl.guard.hasUnconfirmedAction() &&
+                    !LocalPlayerCheckPilot.isActive()) {
+                    val decision = OneWinMinimumBuyInPolicy.evaluate(
+                        agreed, limits, minimumTapAttempted)
+                    when (decision.step) {
+                        OneWinMinBuyInStep.PRESS_MIN, OneWinMinBuyInStep.PRESS_OK ->
+                            dispatchMinimumBuyInDecision(context, now, ticket,
+                                originalFrameWidth, originalFrameHeight,
+                                agreed, decision)
+                        OneWinMinBuyInStep.RECHECK_OCR ->
+                            status = status.copy(description =
+                                "Не подтверждён минимальный бай-ин: " +
+                                    decision.explanation + "; повторно читаем окно")
+                    }
+                }
             }
         }
     }
