@@ -90,6 +90,8 @@ object OnDeviceOneWinTableAutoExit {
             CaptureObservationMode.isSpectator() ||
             !LiveGamePermissionGate.permitted() ||
             LocalPlayerCheckPilot.isActive() ||
+            // A vacancy-arrow pre-seat surface is not yet a seated HERO.
+            OnDeviceOneWinPreSeatScanner.active() ||
             OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
             OnDeviceCashLobbySelection.scanning()) return false
         val layout = OnDeviceRealFrameRegions.activeProfile() ?: return false
