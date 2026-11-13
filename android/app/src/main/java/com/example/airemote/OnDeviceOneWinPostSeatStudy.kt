@@ -30,6 +30,51 @@ object OnDeviceOneWinPostSeatStudy {
     private var current = OneWinPostSeatStudyStatus(
         OneWinPostSeatStudyPhase.OFF, "Изучение соперников не запускалось")
     private var sessionProfiles: List<ObservedOpponentProfile> = emptyList()
+    private var autoTransferAttempted = false
+    private var cloudSending = false
+    private var cloudStatus = "ChatGPT: данные текущего стола ещё не отправлялись"
+
+    @Synchronized fun transferStatus(): String = cloudStatus
+
+    /**
+     * A one-time OAuth plan-allowance handoff after finishing the profile
+     * sweep. Manual requests use this same path. Each turn still sends
+     * current stats again because direct Responses requests use store=false.
+     */
+    @Synchronized fun transferToChatGpt(context: Context): Boolean {
+        if (current.phase != OneWinPostSeatStudyPhase.COMPLETE ||
+            cloudSending || ChatGptCloudBridge.isBusy() ||
+            !ChatGptCloudBridge.planUsageAuthorized(context)) return false
+        val origin = FrameStore.windowOrigin ?: return false
+        if (!origin.safeForLocalDiagnostics ||
+            origin.observedPackage != packageName ||
+            origin.captureEpoch != captureEpoch ||
+            origin.windowGeneration != windowGeneration ||
+            !OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin)) return false
+        val stats = T045SessionStatsFormatter.format(sessionProfiles)
+        if (ChatGptPlanHandoffProtocol.prepare(
+                stats, ChatGptAuthProtocol.randomUrlSafe(16)) == null) {
+            cloudStatus = "ChatGPT: нет достоверно прочитанных числовых метрик"
+            return false
+        }
+        val expectedPackage = packageName
+        val expectedEpoch = captureEpoch
+        val expectedWindow = windowGeneration
+        autoTransferAttempted = true
+        cloudSending = true
+        cloudStatus = "ChatGPT: передаю данные соперников через разрешённый лимит подписки"
+        ChatGptCloudBridge.sendSessionContext(context.applicationContext, stats) { result ->
+            synchronized(this) {
+                if (packageName == expectedPackage &&
+                    captureEpoch == expectedEpoch &&
+                    windowGeneration == expectedWindow) {
+                    cloudSending = false
+                    cloudStatus = result
+                }
+            }
+        }
+        return true
+    }
 
     @Synchronized fun status(): OneWinPostSeatStudyStatus = current
 
@@ -62,6 +107,9 @@ object OnDeviceOneWinPostSeatStudy {
         lastTryAtMs = -3_000L
         started = false
         sessionProfiles = emptyList()
+        autoTransferAttempted = false
+        cloudSending = false
+        cloudStatus = "ChatGPT: данные сеанса не отправлялись"
         current = OneWinPostSeatStudyStatus(OneWinPostSeatStudyPhase.OFF, reason)
     }
 
@@ -151,6 +199,14 @@ object OnDeviceOneWinPostSeatStudy {
                         "для анализа текущей сессии, не являются " +
                         "доказанной постоянной личностью.",
                     sessionProfiles.size, hero)
+                // Send exactly once; if the subscription allowance has not
+                // been granted, keep the data locally until operator requests
+                // a manual transfer. Never scrape ChatGPT or use an API key.
+                if (!autoTransferAttempted &&
+                    ChatGptCloudBridge.planUsageAuthorized(context) &&
+                    !ChatGptCloudBridge.isBusy()) {
+                    transferToChatGpt(context)
+                }
             }
             OpponentProfileSweepPhase.BLOCKED -> {
                 current = OneWinPostSeatStudyStatus(
