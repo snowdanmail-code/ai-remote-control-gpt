@@ -465,8 +465,9 @@ class LiveGestureAccessibilityService : AccessibilityService() {
      * Only scrolls the lobby list; never the table during an active hand.
      */
     /**
-     * Navigation ONLY: open the measured hamburger, then tap a twice-OCR-
-     * verified 'Покинуть игру'. Never a poker wager/buy-in or blind retry.
+     * Navigation ONLY: open measured hamburger, choose twice-verified
+     * 'Покинуть игру', then twice-verify the exact confirmation dialog
+     * before tapping the recognized right-side 'Да'. No blind retry.
      */
     internal fun offerOneWinTableExitNavigation(
         ticket: OneWinTableExitTicket, finished: (Boolean) -> Unit
@@ -512,6 +513,14 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                     ticket.target?.takeIf {
                         it.valid() && it.centerX() in 35..490 &&
                             it.centerY() in 95..280
+                    } ?: run { reject(); return@post }
+                OneWinTableExitTap.CONFIRM_YES ->
+                    ticket.target?.takeIf {
+                        // Only the text box of the right-side Yes control
+                        // from the twice-confirmed, exact exit question.
+                        it.valid() && it.centerX() in 510..940 &&
+                            it.centerY() in 525..650 &&
+                            it.right - it.left in 8..240
                     } ?: run { reject(); return@post }
             }
             val x = (target.centerX().toLong() * m.widthPixels / 1000L).toInt()
