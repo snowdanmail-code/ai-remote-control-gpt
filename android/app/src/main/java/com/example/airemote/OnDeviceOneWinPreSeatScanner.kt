@@ -274,7 +274,7 @@ object OnDeviceOneWinPreSeatScanner {
             OneWinBuyInTapPurpose.CHOOSE_MIN else OneWinBuyInTapPurpose.CONFIRM_OK
         val click = OneWinBuyInTapTicket(requestCounter, purpose,
             ticket.sourcePackage, ticket.captureEpoch, ticket.windowGeneration,
-            ticket.frameSequence, ticket.capturedAtMs, frameWidth,
+            ticket.frameSequence, nowMs, ticket.capturedAtMs, frameWidth,
             frameHeight, amount, target, approved)
         pendingBuyInTap = click
         lastBuyInTouchMs = nowMs
