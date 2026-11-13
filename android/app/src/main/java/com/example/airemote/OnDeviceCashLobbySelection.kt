@@ -97,6 +97,7 @@ object OnDeviceCashLobbySelection {
     private var sorted = false
     private var sortAttempted = false
     private var lastNavigationAtMs = 0L
+    private var navigationOcrRechecks = 0
     private var pageBeforeSwipe = ""
     private val pageTracker = OneWinCashLobbyBrowseTracker(18)
     @Volatile private var current = CashLobbySelectionStatus(
@@ -116,10 +117,14 @@ object OnDeviceCashLobbySelection {
                 CashLobbySelectionPhase.WAITING_SORTED_LOBBY,
                 CashLobbySelectionPhase.WAITING_SCROLLED_LOBBY) &&
             lastNavigationAtMs > 0L && nowMs - lastNavigationAtMs > 7_000L) {
-            armed = false
-            pendingNavigation = null
-            current = CashLobbySelectionStatus(CashLobbySelectionPhase.EXPIRED,
-                "После жеста не подтверждено ожидаемое меню/прокрутка за 7 секунд")
+            // A missed OCR frame is NOT a failed navigation. Re-read new
+            // pixels, without re-sending any tap or swipe. Keep a human-readable
+            // count until STOP, window loss or positive screen confirmation.
+            lastNavigationAtMs = nowMs
+            navigationOcrRechecks++
+            current = CashLobbySelectionStatus(phase,
+                "OCR ещё не подтвердил экран после жеста. Повторная проверка #" +
+                    navigationOcrRechecks + "; касание не повторяем")
         }
     }
 
@@ -133,6 +138,7 @@ object OnDeviceCashLobbySelection {
         sortAttempted = false
         pageBeforeSwipe = ""
         lastNavigationAtMs = 0L
+        navigationOcrRechecks = 0
         pageTracker.reset()
         current = CashLobbySelectionStatus(CashLobbySelectionPhase.STOPPED, reason)
     }
@@ -154,6 +160,7 @@ object OnDeviceCashLobbySelection {
         sorted = false
         pageBeforeSwipe = ""
         lastNavigationAtMs = 0L
+        navigationOcrRechecks = 0
         pageTracker.reset()
         current = CashLobbySelectionStatus(CashLobbySelectionPhase.WAITING_LOBBY,
             "Ожидается подтверждённый экран кэш-игр 1win")
@@ -222,6 +229,7 @@ object OnDeviceCashLobbySelection {
                     return@synchronized
                 }
                 lastNavigationAtMs = SystemClock.elapsedRealtime()
+                navigationOcrRechecks = 0
                 when (ticket.action) {
                     OneWinCashLobbyNavAction.OPEN_SORT ->
                         current = CashLobbySelectionStatus(
