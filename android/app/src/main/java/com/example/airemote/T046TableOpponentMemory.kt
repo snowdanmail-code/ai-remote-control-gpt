@@ -159,7 +159,7 @@ class T046TableOpponentMemory {
         if (seats.isEmpty()) return ""
         fun refs(state: T046HandParticipation): String =
             seats.filter { !it.ambiguousIdentity && it.participation == state }
-                .joinToString(",") { it.sessionAlias }
+                .joinToString(",") { "seat_" + it.seat }
         // Never claim an opponent has folded or left from a missing avatar.
         // Unknown remains explicit rather than treated as ACTIVE.
         val report = "active=" + refs(T046HandParticipation.ACTIVE_CONFIRMED) +
