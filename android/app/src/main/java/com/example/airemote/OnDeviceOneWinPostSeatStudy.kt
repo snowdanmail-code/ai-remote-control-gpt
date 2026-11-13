@@ -89,7 +89,9 @@ object OnDeviceOneWinPostSeatStudy {
             !OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin)) return false
         val permittedSeats = tableMemory.snapshot(currentSession())
             .filter { !it.ambiguousIdentity &&
-                it.participation != T046HandParticipation.LEFT_TABLE_CONFIRMED }
+                it.participation !in setOf(
+                    T046HandParticipation.LEFT_TABLE_CONFIRMED,
+                    T046HandParticipation.FOLDED_CONFIRMED) }
             .map { it.seat }.toSet()
         val stats = T045SessionStatsFormatter.formatForHandoff(
             sessionProfiles.filter { it.seatIndex in permittedSeats })
@@ -142,7 +144,9 @@ object OnDeviceOneWinPostSeatStudy {
         tableMemory.beginVerifiedHand(key, observation.handId, true)
         val safeSeats = tableMemory.snapshot(key)
             .filter { !it.ambiguousIdentity &&
-                it.participation != T046HandParticipation.LEFT_TABLE_CONFIRMED }
+                it.participation !in setOf(
+                    T046HandParticipation.LEFT_TABLE_CONFIRMED,
+                    T046HandParticipation.FOLDED_CONFIRMED) }
             .map { it.seat }.toSet()
         return T045SessionStatsFormatter.format(
             sessionProfiles.filter { it.seatIndex in safeSeats })
