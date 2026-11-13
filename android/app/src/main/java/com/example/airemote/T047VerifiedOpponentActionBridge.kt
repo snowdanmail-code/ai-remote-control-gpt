@@ -90,7 +90,10 @@ object T047VerifiedOpponentActionBridge {
             independentlyVerified = true)
         return if (memory.applyVerifiedEvent(session, event.handKey,
                 event.actionKey, binding.seat, next,
-                T046Evidence.VERIFIED_HAND_EVENT))
+                T046Evidence.VERIFIED_HAND_EVENT,
+                // Within-hand actor keys are NOT durable identities.
+                if (event.stableOpponentIdentityVerified) event.opponentKey
+                else null))
             T047OpponentActionStatus.ACCEPTED
         else T047OpponentActionStatus.MEMORY_REJECTED
     }
