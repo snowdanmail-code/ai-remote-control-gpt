@@ -38,6 +38,20 @@ class RealFrameRegionJvmTest {
         assertFalse(value.authorizesAction)
     }
 
+    @Test fun separatelyCalibratedCardBackRegionsAreAcceptedButNotTrustedActions() {
+        val calibrated = profile().copy(zones = profile().zones + listOf(
+            RealFrameZone(RealFieldRole.SEAT_CARD_BACK,
+                NormalizedTextBox(204, 305, 286, 350), 1),
+            RealFrameZone(RealFieldRole.SEAT_CARD_BACK,
+                NormalizedTextBox(710, 310, 795, 350), 2)
+        ))
+        assertTrue(calibrated.valid())
+        val invalid = calibrated.copy(zones = calibrated.zones + listOf(
+            RealFrameZone(RealFieldRole.SEAT_CARD_BACK,
+                NormalizedTextBox(204, 305, 286, 350), 9)))
+        assertFalse(invalid.valid())
+    }
+
     @Test fun differentSourceOrReplayIsRejected() {
         val reader = RealFrameRegionDiagnostics()
         reader.configure(profile())
