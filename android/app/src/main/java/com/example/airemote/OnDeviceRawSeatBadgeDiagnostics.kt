@@ -73,8 +73,16 @@ object OnDeviceRawSeatBadgeDiagnostics {
                     }
                     total++
                 }
-            T050SeatTone(requireNotNull(zone.seatIndex),
-                T050BadgePixelTone.classifyCounts(green,light,red,total))
+            val classified = T050BadgePixelTone.classifyCounts(
+                green,light,red,total)
+            val count = when(classified) {
+                T050BadgeTone.GREEN -> green
+                T050BadgeTone.LIGHT -> light
+                T050BadgeTone.RED -> red
+                T050BadgeTone.NONE -> 0
+            }
+            T050SeatTone(requireNotNull(zone.seatIndex), classified,
+                if (total > 0) count.toDouble()/total else 0.0)
         }
         if (tones.size != zones.size) {
             reset()
