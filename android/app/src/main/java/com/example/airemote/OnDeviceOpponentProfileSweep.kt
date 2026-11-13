@@ -106,6 +106,7 @@ object OnDeviceOpponentProfileSweep {
             OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
             CaptureObservationMode.isSpectator() || !LiveGamePermissionGate.permitted() ||
             LocalPlayerCheckPilot.isActive() ||
+            OnDeviceOneWinTableAutoExit.active() ||
             OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
             OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT)
             return false
