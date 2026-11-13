@@ -9,7 +9,7 @@ Usage:
    --first Screen_Recording_20261113_030125.mp4 \
    --second Screen_Recording_20261113_030422.mp4
 
-opencv-python is required ONLY for this optional local replay. Github CI
+opencv-python and the ffmpeg executable are needed ONLY for this optional local replay. Github CI
 validates the manifest structure without the private videos.
 """
 import argparse
@@ -43,30 +43,36 @@ def check_manifest(data: dict) -> None:
 
 
 def sample(video: Path, second: float, rect, cv2) -> tuple:
-    cap = cv2.VideoCapture(str(video))
-    if not cap.isOpened():
-        raise RuntimeError(f"Unable to open {video}")
-    try:
-        assert int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) == 1080
-        assert int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) == 2340
-        cap.set(cv2.CAP_PROP_POS_MSEC, 1000.0 * second)
-        ok, frame = cap.read()
-        if not ok:
-            raise RuntimeError(f"Cannot decode {video} t={second}")
-        x1, y1, x2, y2 = rect
-        roi = frame[y1:y2:2, x1:x2:2]
-        import numpy as np
-        b = roi[:, :, 0].astype(float)
-        g = roi[:, :, 1].astype(float)
-        r = roi[:, :, 2].astype(float)
-        lo = np.minimum(np.minimum(b, g), r)
-        hi = np.maximum(np.maximum(b, g), r)
-        green = (g >= 90) & (g >= r * 1.35) & (g >= b * 1.12) & (g-lo > 40)
-        light = (lo >= 166) & (hi-lo < 60)
-        red = (r >= 140) & (r >= g * 1.35) & (r >= b * 1.26) & (r-lo > 38)
-        return (float(green.mean()), float(light.mean()), float(red.mean()))
-    finally:
-        cap.release()
+    """Get the true presentation-time frame; Android recordings use VFR.
+
+    OpenCV CAP_PROP_POS_MSEC seeking is NOT accurate for this VFR source:
+    asking for 40s has been observed to return a roughly 42s frame.
+    Accurate seeking via FFmpeg protects the labeled ground truth.
+    """
+    import subprocess
+    import numpy as np
+
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-loglevel", "error",
+         "-ss", str(second), "-i", str(video),
+         "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"],
+        capture_output=True, check=True
+    )
+    buffer = np.frombuffer(result.stdout, dtype=np.uint8)
+    frame = cv2.imdecode(buffer, cv2.IMREAD_COLOR)
+    if frame is None or frame.shape[:2] != (2340, 1080):
+        raise RuntimeError(f"Cannot decode exact 1080x2340 video at t={second}")
+    x1, y1, x2, y2 = rect
+    roi = frame[y1:y2:2, x1:x2:2]
+    b = roi[:, :, 0].astype(float)
+    g = roi[:, :, 1].astype(float)
+    r = roi[:, :, 2].astype(float)
+    lo = np.minimum(np.minimum(b, g), r)
+    hi = np.maximum(np.maximum(b, g), r)
+    green = (g >= 90) & (g >= r * 1.35) & (g >= b * 1.12) & (g-lo > 40)
+    light = (lo >= 166) & (hi-lo < 60)
+    red = (r >= 140) & (r >= g * 1.35) & (r >= b * 1.26) & (r-lo > 38)
+    return (float(green.mean()), float(light.mean()), float(red.mean()))
 
 
 def main() -> None:
