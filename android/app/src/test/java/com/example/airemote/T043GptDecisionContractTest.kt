@@ -106,12 +106,21 @@ class T043GptDecisionContractTest {
             privateKey, 42, 12, 40, 8, 40, 15, 5, 2, 10, 8, 3
         )
         val prompt = T043GptDecisionContract.buildPrompt(
-            observation(), cards(), 2_000L, listOf(profile, profile, profile))
+            observation(), cards(), 2_000L, listOf(profile, profile, profile),
+            verifiedHandParticipation =
+                "active=seat_2;folded=;left=;unknown=1",
+            verifiedOpponentSeatRefs = mapOf(privateKey to 2))
         assertNotNull(prompt)
         assertTrue(prompt!!.contains("verified_opponent_statistics"))
         assertTrue(prompt.contains("vpip_opportunities"))
+        assertTrue(prompt.contains("\\"ref\\":\\"seat_2\\""))
         assertFalse(prompt.contains(privateKey))
+        assertFalse(prompt.contains("opponent_1"))
         assertTrue(prompt.length <= 1_600)
+        val unbound = T043GptDecisionContract.buildPrompt(
+            observation(), cards(), 2_000L, listOf(profile))
+        assertNotNull(unbound)
+        assertFalse(unbound!!.contains("vpip_opportunities"))
     }
 
 
