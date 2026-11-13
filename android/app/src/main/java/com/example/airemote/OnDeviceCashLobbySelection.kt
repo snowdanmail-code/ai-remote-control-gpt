@@ -366,7 +366,7 @@ object OnDeviceCashLobbySelection {
                 if (accepted) {
                     // Table entry is not seating. After navigation, observe
                     // free arrows and the buy-in window without touching funds.
-                    OnDeviceOneWinPreSeatScanner.start(context)
+                    OnDeviceOneWinPreSeatScanner.start(context, chooseSeat = true)
                 }
                 current = CashLobbySelectionStatus(
                     if (accepted) CashLobbySelectionPhase.ENTRY_SUBMITTED
