@@ -63,6 +63,28 @@ class T048SeatRoundVisualFusionTest {
         assertFalse(observed.provesOpponentAction)
     }
 
+    @Test fun expiredFoldBadgeCannotBeReusedWhenCardBacksDisappearLater() {
+        val fusion = T048SeatSignalFusion()
+        fusion.observe(sample(1, 1000L,
+            backs = mapOf(2 to true),
+            badges = mapOf(2 to SeatCueAction.FOLD)),1100L)
+        val later = fusion.observe(sample(2, 2300L,
+            backs = mapOf(2 to false),
+            badges = emptyMap()),2400L)
+        assertTrue(later.combined.isEmpty())
+        assertEquals(T048ReadingStatus.INCONCLUSIVE,later.status)
+    }
+
+    @Test fun expiredRaiseBadgeCannotMatchLaterSeatWagerIncrease() {
+        val fusion = T048SeatSignalFusion()
+        fusion.observe(sample(1, 1000L, seatBets = mapOf(1 to 2L),
+            backs = mapOf(1 to true),
+            badges = mapOf(1 to SeatCueAction.RAISE)),1100L)
+        val later = fusion.observe(sample(2, 2200L,
+            seatBets = mapOf(1 to 8L), backs = mapOf(1 to true)),2300L)
+        assertTrue(later.combined.isEmpty())
+    }
+
     @Test fun changeInCardBacksAloneIsNotFoldProof() {
         val fusion=T048SeatSignalFusion()
         fusion.observe(sample(1,1000L,backs=mapOf(1 to true)),1100L)
