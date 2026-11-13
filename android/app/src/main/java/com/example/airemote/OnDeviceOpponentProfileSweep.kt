@@ -110,6 +110,10 @@ object OnDeviceOpponentProfileSweep {
             OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
             OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT)
             return false
+        // A readable table is not necessarily OUR seated table. Require
+        // the independently verified post-buy-in HERO identity first.
+        val origin = FrameStore.windowOrigin ?: return false
+        if (!OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin)) return false
         val calibration = OnDeviceRealFrameRegions.activeProfile() ?: return false
         // Six-seat 1win rotates the view: HERO is the bottom screen slot,
         // NOT a fixed physical chair index. Never open our own avatar.
@@ -138,7 +142,9 @@ object OnDeviceOpponentProfileSweep {
             OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT)
             return false
         val turn = FrameStore.turnConsensus.current(nowMs) ?: return false
-        return turn.state == TurnDisplayState.WAITING || turn.state == TurnDisplayState.PREACTION
+        // PREACTION controls may trigger as soon as the turn rotates.
+        // Only a positively observed WAITING state is safe for profile UI.
+        return turn.state == TurnDisplayState.WAITING
     }
 
     @Synchronized fun observe(
