@@ -33,6 +33,17 @@ object OnDeviceVerifiedGptTurnRequests {
             OperatorStopStore.isStopped(context) || !ChatGptCloudBridge.planUsageAuthorized(context) ||
             !observation.tableHandIndependentlyVerified ||
             !observation.windowIndependentlyVerified) return false
+        // A captured window is not the identity of a table. Bind and
+        // recheck using an independently verified tableId before cloud
+        // advice may reference local opponent profiles. On first binding
+        // the old pre-verification sweep is purged and scanned again.
+        if (!OnDeviceOneWinPostSeatStudy.acceptVerifiedTableIdentity(
+                context, observation) ||
+            OnDeviceOneWinPostSeatStudy.status().phase !=
+                OneWinPostSeatStudyPhase.COMPLETE) {
+            lastReason = "GPT: проверяем tableId и изучаем соперников текущего стола"
+            return false
+        }
         val key = TurnKey(observation.tableId, observation.handId,
             observation.turnId, observation.view.captureEpoch, observation.windowGeneration)
         if (key == requested) return false
