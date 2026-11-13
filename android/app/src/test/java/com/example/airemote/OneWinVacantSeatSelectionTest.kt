@@ -49,7 +49,8 @@ class OneWinVacantSeatSelectionTest {
         val choice = requireNotNull(OneWinVacantSeatGeometry.choose(
             listOf(marker(500,180))))
         val ticket = OneWinVacantSeatTapTicket(
-            9L, "com.example.game", 8L, 1L, 5L, 10_000L, choice)
+            9L, "com.example.game", 8L, 1L, 5L, 10_000L,
+            1080, 2340, choice)
         assertEquals(OneWinPreSeatSlot.TOP, ticket.selected.slot)
         assertEquals(OneWinSeatEntryGestureOutcome.NEVER_DISPATCHED,
             OneWinSeatEntryGestureOutcome.NEVER_DISPATCHED)
