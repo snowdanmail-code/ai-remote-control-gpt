@@ -55,6 +55,42 @@ class OneWinTableExitEvidenceTest {
         assertFalse(gate.inspect(sample(5, 7000), stage(), 7100, false, false))
     }
 
+    @Test fun unreadableOcrKeepsRecheckingWithBackoffRatherThanStopping() {
+        val retry = OneWinExitRecognitionRetryPolicy()
+        assertTrue(retry.mayRead(0L))
+        retry.observe(1_000L, recognized = false)
+        assertEquals(1, retry.inconclusiveFrames)
+        assertFalse(retry.mayRead(2_000L))
+        assertTrue(retry.mayRead(2_300L))
+        retry.observe(2_300L, recognized = false)
+        assertFalse(retry.mayRead(4_800L))
+        assertTrue(retry.mayRead(4_900L))
+        retry.observe(4_900L, recognized = false)
+        assertTrue(retry.mayRead(10_100L))
+        retry.observe(10_100L, recognized = false)
+        assertFalse(retry.mayRead(18_000L))
+        assertTrue(retry.mayRead(18_100L))
+        // A readable frame resets the failure counter and shortens the cadence.
+        retry.observe(18_100L, recognized = true)
+        assertEquals(0, retry.inconclusiveFrames)
+        assertFalse(retry.mayRead(19_399L))
+        assertTrue(retry.mayRead(19_400L))
+        retry.reset()
+        assertTrue(retry.mayRead(1L))
+    }
+
+    @Test fun repeatedUncertaintyIsNeverMisinterpretedAsConsentToExit() {
+        val gate = OneWinTableExitEvidenceGate()
+        val retry = OneWinExitRecognitionRetryPolicy()
+        repeat(16) {
+            retry.observe(1_000L + it * 9_000L, recognized = false)
+        }
+        assertEquals(16, retry.inconclusiveFrames)
+        assertFalse(gate.inspect(null, stage(), 145_000L, false, false))
+        assertFalse(gate.inspect(sample(1, 145_000L),
+            stage(HandStage.PREFLOP), 145_100L, false, false))
+    }
+
     private fun line(text: String, x: Int, y: Int, w: Int = 225) =
         PositionedOcrLine(text, NormalizedTextBox(x, y, x + w, y + 32))
 
