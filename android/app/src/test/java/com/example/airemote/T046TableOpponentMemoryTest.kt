@@ -22,7 +22,7 @@ class T046TableOpponentMemoryTest {
         assertTrue(m.applyVerifiedEvent(session, "hand_01", "a001", 2,
             T046HandParticipation.ACTIVE_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
         val report = m.summaryForChatGpt(session, "hand_01")
-        assertTrue(report.contains("active=P1"))
+        assertTrue(report.contains("active=seat_2"))
         assertTrue(report.contains("unknown=1"))
         assertFalse(report.contains("PrivateNick"))
         assertEquals("PrivateNick_321", m.snapshot(session)
@@ -40,7 +40,7 @@ class T046TableOpponentMemoryTest {
             T046HandParticipation.ACTIVE_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
         assertTrue(m.applyVerifiedEvent(session, "one", "b", 2,
             T046HandParticipation.FOLDED_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
-        assertTrue(m.summaryForChatGpt(session, "one").contains("folded=P1"))
+        assertTrue(m.summaryForChatGpt(session, "one").contains("folded=seat_2"))
         assertFalse(m.applyVerifiedEvent(session, "one", "c", 2,
             T046HandParticipation.ACTIVE_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
         assertTrue(m.beginVerifiedHand(session, "two", true))
