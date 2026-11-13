@@ -305,12 +305,19 @@ class MainActivity : Activity() {
             "Нужны SEAT_ACTION + SEAT_STACK для всех мест в JSON-калибровке " +
             "и независимое подтверждение завершения раздачи.")
         val heroSeatEntry = EditText(this).apply {
-            hint = "Индекс своего места в калибровке: 0–9"
+            hint = "Свое место: авто (нижнее); при необходимости индекс 0–9"
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
         }
         advanced.addView(heroSeatEntry)
         button("1WIN — ВКЛЮЧИТЬ АВТОВЫХОД ПРИ 3 ИГРОКАХ") {
-            val hero = heroSeatEntry.text.toString().trim().toIntOrNull()
+            val bottom = OneWinPortraitHeroSeat.inferBottomSeat(
+                OnDeviceRealFrameRegions.activeProfile())
+            val userOverride = heroSeatEntry.text.toString().trim()
+            // Video evidence: HERO always sits at screen bottom; real seat
+            // number rotates. A manual override may not contradict the
+            // independently measured bottom slot.
+            val hero = if (userOverride.isBlank()) bottom
+                else userOverride.toIntOrNull()?.takeIf { it == bottom }
             val enabled = hero != null &&
                 OnDeviceOneWinTableAutoExit.arm(this@MainActivity, hero)
             status.text = if (enabled)
@@ -319,7 +326,7 @@ class MainActivity : Activity() {
                     "после подтверждённой раздачи: меню → Покинуть игру → " +
                     "вопрос о закрытии стола → Да → подтверждение лобби."
             else "Автовыход не включён: нужны захват, ARM, доступ к касаниям, " +
-                "полная калибровка мест и корректный индекс собственного места."
+                "полная калибровка мест, нижняя позиция героя и правильная привязка экрана."
         }
         button("1WIN — ОСТАНОВИТЬ АВТОВЫХОД") {
             OnDeviceOneWinTableAutoExit.stop("Выключено оператором")
@@ -356,6 +363,22 @@ class MainActivity : Activity() {
             status.text = "Обход: ${scan.phase} — ${scan.description}. " +
                 "Результаты только диагностические, не связаны с постоянным ID.\\n" +
                 observed.ifBlank { "Профили пока не собраны" } + "\n" + popup
+        }
+        button("1WIN — РЕЖИМ СТОЛА И ПАНЕЛЬ СТАВКИ (ВИДЕО-ДИАГНОСТИКА)") {
+            val ui = OnDeviceOneWinRecordedTableUi.current(SystemClock.elapsedRealtime())
+            val visible = ui?.reading
+            status.text = if (visible == null)
+                "Интерфейс стола ещё не подтверждён двумя кадрами. " +
+                    OnDeviceOneWinRecordedTableUi.lastStatus
+            else "Видео-распознавание: " + visible.panel +
+                "; кнопки: " + visible.actions.joinToString { it.action.name +
+                    (it.amountCents?.let { amount ->
+                        " " + moneyInDollars(amount) + " $"
+                    } ?: "") } +
+                "; предложенная ставка: " +
+                (visible.proposedStakeCents?.let { moneyInDollars(it) + " $" }
+                    ?: "не показана") +
+                ". Только чтение экрана; касания не выполняются."
         }
         button("ДИАГНОСТИКА МЕСТ ИГРОКОВ") {
             status.text = FrameStore.lastSeatVisual?.summary()
