@@ -21,7 +21,8 @@ object T043GptDecisionContract {
         observation: AutonomousObservation,
         cards: StableCardReading,
         nowMs: Long,
-        verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList()
+        verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList(),
+        sessionPopupStatistics: String = ""
     ): String? {
         val view = observation.view
         if (observation.tableId.isBlank() || observation.handId.isBlank() ||
@@ -117,18 +118,34 @@ object T043GptDecisionContract {
             }
         }
         packet.put("verified_opponent_statistics", profiles)
+        // OCR popup values have only a screen-seat link, NOT a stable
+        // opponent identity. These never become verified-hand stats.
+        val safeSession = sessionPopupStatistics.takeIf {
+            it.length in 1..280 &&
+                Regex("""[A-Za-z0-9_:=.,;]+""").matches(it)
+        }
+        if (safeSession != null)
+            packet.put("session_popup_ocr_only", safeSession)
         // JSON-escape every external field. No free-text player names or OCR
         // instructions are interpolated into the system directive.
         val directive = "Analyze this Texas Hold'em turn with virtual chips. " +
             "Unknown values are unknown; do not invent cards or opponent stats. " +
             "Verified poker_math contains deterministic made-hand and pot-odds values. " +
-            "Null equity means unknown, not zero. Player statistics have limited samples. " +
+            "Null equity means unknown, not zero. Session popup stats are OCR-only, " +
+            "not verified identities or evidence of hidden cards. " +
+            "Player statistics have limited samples. " +
             "Return ONLY a JSON object with keys schema, action, amount_chips. " +
             "schema must be $SCHEMA; action must be one of legal_actions. " +
             "For BET/RAISE use the already selected and verified amount, " +
             "otherwise amount_chips must be null. " +
             "This is advice, not permission to tap.\\n"
         var prompt = directive + packet.toString()
+        // Nonessential unverified popup fields must be the FIRST to drop
+        // when a bounded decision prompt would exceed the transport size.
+        if (prompt.length > 1_600 && safeSession != null) {
+            packet.remove("session_popup_ocr_only")
+            prompt = directive + packet.toString()
+        }
         while (prompt.length > 1_600 && profiles.length() > 0) {
             profiles.remove(profiles.length() - 1)
             prompt = directive + packet.toString()
