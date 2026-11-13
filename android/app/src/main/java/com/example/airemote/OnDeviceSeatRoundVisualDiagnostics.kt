@@ -22,34 +22,36 @@ object OnDeviceSeatRoundVisualDiagnostics {
             fusion.reset()
             return null
         }
+        val regionReport = regions ?: run { fusion.reset(); return null }
+        val badgeReport = badges ?: run { fusion.reset(); return null }
         if (stopped || !profile.valid() || profile.expectedPackage != ticket.sourcePackage ||
             profile.frameWidth != frame.width || profile.frameHeight != frame.height ||
             frame.captureEpoch != ticket.captureEpoch ||
             frame.seq != ticket.frameSequence ||
             frame.capturedAtMs != ticket.capturedAtMs ||
             frame.windowGeneration != ticket.windowGeneration ||
-            regions?.status != RegionObservationStatus.OBSERVED ||
-            regions.frameSequence != ticket.frameSequence ||
-            badges?.frameSequence != ticket.frameSequence ||
+            regionReport.status != RegionObservationStatus.OBSERVED ||
+            regionReport.frameSequence != ticket.frameSequence ||
+            badgeReport.frameSequence != ticket.frameSequence ||
             nowMs - ticket.capturedAtMs !in 0L..1_800L) {
             fusion.reset()
             return null
         }
 
         fun money(role: RealFieldRole): Map<Int, Long> =
-            regions.fields.filter { it.role == role &&
+            regionReport.fields.filter { it.role == role &&
                 it.seatIndex != null && it.amountMinorUnits != null }
                 .groupBy { requireNotNull(it.seatIndex) }
                 .mapNotNull { (seat, values) ->
                     values.singleOrNull()?.amountMinorUnits?.let { seat to it }
                 }.toMap()
 
-        val pots = regions.fields.filter {
+        val pots = regionReport.fields.filter {
             it.role == RealFieldRole.POT && it.amountMinorUnits != null
         }
         val pot = pots.singleOrNull()?.amountMinorUnits
 
-        val actions = badges.candidates.groupBy { it.seatIndex }
+        val actions = badgeReport.candidates.groupBy { it.seatIndex }
             .mapNotNull { (seat, entries) ->
                 entries.singleOrNull()?.action?.let { seat to it }
             }.toMap()
