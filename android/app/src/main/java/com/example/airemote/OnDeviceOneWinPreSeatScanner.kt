@@ -6,15 +6,19 @@ import android.os.SystemClock
 import java.io.ByteArrayOutputStream
 
 enum class OneWinPreSeatPhase {
-    OFF, SEARCHING, VACANCIES_CONFIRMED, WAITING_BUYIN,
-    BUYIN_RECHECK, BUYIN_VERIFIED, CANCELLED
+    OFF, SEARCHING, VACANCIES_CONFIRMED, SEAT_TAP_PENDING,
+    WAITING_BUYIN_AFTER_TAP, WAITING_BUYIN,
+    BUYIN_RECHECK, BUYIN_VERIFIED, CANCELLED, BLOCKED
 }
 data class OneWinPreSeatDiagnostic(
     val phase: OneWinPreSeatPhase,
     val description: String,
     val vacancies: List<OneWinVacantSeatMarker> = emptyList(),
     val buyIn: OneWinBuyInDialogReading? = null,
-    val withinConfiguredLimits: Boolean = false
+    val withinConfiguredLimits: Boolean = false,
+    val selectedSlot: OneWinPreSeatSlot? = null,
+    val gesture: OneWinSeatEntryGestureOutcome =
+        OneWinSeatEntryGestureOutcome.NEVER_DISPATCHED
 )
 
 /**
@@ -32,12 +36,19 @@ object OnDeviceOneWinPreSeatScanner {
     private val arrowAgreement = OneWinFreeSeatAgreement()
     private val buyInAgreement = OneWinBuyInAgreement()
     private var knownVacancies = emptyList<OneWinVacantSeatMarker>()
+    private var armSeatEntry = false
+    private var seatTapAttempted = false
+    private var requestCounter = 0L
+    private var pendingSeatTap: OneWinVacantSeatTapTicket? = null
+    private var lastSeatTapObservationAtMs = 0L
+    private var buyInNoTextFrames = 0
     @Volatile private var status = OneWinPreSeatDiagnostic(
         OneWinPreSeatPhase.OFF, "Диагностика посадки выключена")
 
     @Synchronized fun current(): OneWinPreSeatDiagnostic = status
     @Synchronized fun active(): Boolean =
-        status.phase !in setOf(OneWinPreSeatPhase.OFF, OneWinPreSeatPhase.CANCELLED)
+        status.phase !in setOf(OneWinPreSeatPhase.OFF, OneWinPreSeatPhase.CANCELLED,
+            OneWinPreSeatPhase.BLOCKED)
 
     @Synchronized fun stop(reason: String = "Диагностика остановлена") {
         session++
@@ -46,12 +57,18 @@ object OnDeviceOneWinPreSeatScanner {
         inFlight = false
         lastRun = -INTERVAL_MS
         knownVacancies = emptyList()
+        armSeatEntry = false
+        seatTapAttempted = false
+        pendingSeatTap = null
+        lastSeatTapObservationAtMs = 0L
+        buyInNoTextFrames = 0
+        requestCounter++
         arrowAgreement.reset()
         buyInAgreement.reset()
         status = OneWinPreSeatDiagnostic(OneWinPreSeatPhase.OFF, reason)
     }
 
-    @Synchronized fun start(context: Context): Boolean {
+    @Synchronized fun start(context: Context, chooseSeat: Boolean = false): Boolean {
         if (OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
             CaptureObservationMode.isSpectator() ||
             !LiveGamePermissionGate.permitted() ||
@@ -59,13 +76,72 @@ object OnDeviceOneWinPreSeatScanner {
         stop("Новый просмотр посадки")
         observedPackage = requireNotNull(LiveGamePermissionGate.packageName())
         epoch = FrameStore.captureEpoch
+        armSeatEntry = chooseSeat
         status = OneWinPreSeatDiagnostic(OneWinPreSeatPhase.SEARCHING,
             "Ищем стрелки свободных мест по изображению и окно «Бай-Ин» по OCR")
         return true
     }
 
+    /**
+     * Operator explicitly arms ONE non-money seat-arrow tap. It can also be
+     * armed when the user starts the existing automatic lobby-table search.
+     */
+    @Synchronized fun armSeatNavigation(context: Context): Boolean {
+        if (!active()) return start(context, chooseSeat = true)
+        if (seatTapAttempted || pendingSeatTap != null ||
+            status.phase !in setOf(OneWinPreSeatPhase.SEARCHING,
+                OneWinPreSeatPhase.VACANCIES_CONFIRMED) ||
+            OperatorStopStore.isStopped(context) ||
+            !FrameStore.isCapturing || CaptureObservationMode.isSpectator() ||
+            !LiveGamePermissionGate.permitted()) return false
+        armSeatEntry = true
+        status = status.copy(description =
+            "Однократный выбор стрелки включён; ожидаем два новых совпадающих кадра")
+        arrowAgreement.reset()
+        knownVacancies = emptyList()
+        return true
+    }
+
+    @Synchronized fun seatTicketMatches(ticket: OneWinVacantSeatTapTicket,
+                                        nowMs: Long): Boolean =
+        pendingSeatTap == ticket && seatTapAttempted &&
+            status.phase == OneWinPreSeatPhase.SEAT_TAP_PENDING &&
+            ticket.sourcePackage == observedPackage &&
+            ticket.captureEpoch == epoch && ticket.captureEpoch == FrameStore.captureEpoch &&
+            ticket.windowGeneration == FrameStore.windowOrigin?.windowGeneration &&
+            ticket.selected.slot == OneWinVacantSeatGeometry.slotFor(ticket.selected.marker) &&
+            nowMs >= ticket.observedAtMs &&
+            nowMs - ticket.observedAtMs <= 1_100L
+
+    private fun sendSeatTap(context: Context, ticket: OneWinVacantSeatTapTicket) {
+        val service = LiveForegroundProbe.activeService()
+        if (service == null) {
+            pendingSeatTap = null
+            status = status.copy(phase = OneWinPreSeatPhase.BLOCKED,
+                description = "Нет службы Android Accessibility, касаний не было",
+                gesture = OneWinSeatEntryGestureOutcome.REJECTED_BY_ANDROID)
+            return
+        }
+        service.offerOneWinVacantSeatEntry(ticket) { submitted ->
+            synchronized(this) {
+                if (pendingSeatTap != ticket) return@synchronized
+                pendingSeatTap = null
+                status = status.copy(
+                    phase = if (submitted) OneWinPreSeatPhase.WAITING_BUYIN_AFTER_TAP
+                        else OneWinPreSeatPhase.BLOCKED,
+                    description = if (submitted)
+                        "Касание свободного места выполнено; повторно ищем окно «Бай-Ин»"
+                    else "Android отклонил касание; повторная отправка запрещена",
+                    gesture = if (submitted)
+                        OneWinSeatEntryGestureOutcome.ACCEPTED_BY_ANDROID
+                    else OneWinSeatEntryGestureOutcome.REJECTED_BY_ANDROID)
+            }
+        }
+    }
+
     fun offer(context: Context, frame: Bitmap, origin: WindowOriginAssessment,
-              capturedAt: Long, rootStillSame: () -> Boolean) {
+              capturedAt: Long, tableLike: Boolean,
+              rootStillSame: () -> Boolean) {
         val ticket: OcrFrameTicket
         val generation: Long
         synchronized(this) {
@@ -88,7 +164,10 @@ object OnDeviceOneWinPreSeatScanner {
             scaled = Bitmap.createScaledBitmap(frame, 354, targetH, true)
             val pixels = IntArray(354 * targetH)
             requireNotNull(scaled).getPixels(pixels, 0, 354, 0, 0, 354, targetH)
-            val candidates = OneWinFreeSeatArrowDetector.detect(pixels, 354, targetH)
+            val candidates = if (tableLike)
+                OneWinFreeSeatArrowDetector.detect(pixels, 354, targetH)
+                    .filter { OneWinVacantSeatGeometry.slotFor(it) != null }
+                else emptyList()
             val jpeg = ByteArrayOutputStream().use { out ->
                 check(frame.compress(Bitmap.CompressFormat.JPEG, 86, out))
                 out.toByteArray()
@@ -107,23 +186,49 @@ object OnDeviceOneWinPreSeatScanner {
             return
         }
 
-        // Screen geometry alone is not permission for any click.
+        // Only a verified table-like surface can contribute a seat vote.
+        // Two distinct frames must agree; no BUY-IN modal or lobby counts.
         synchronized(this) {
-            if (generation == session && !OperatorStopStore.isStopped(context)) {
+            if (generation == session && !OperatorStopStore.isStopped(context) &&
+                status.phase in setOf(OneWinPreSeatPhase.SEARCHING,
+                    OneWinPreSeatPhase.VACANCIES_CONFIRMED)) {
                 val stable = arrowAgreement.observe(ticket, evidence.first)
-                if (stable.isNotEmpty()) {
+                val choice = OneWinVacantSeatGeometry.choose(stable)
+                if (choice != null) {
                     knownVacancies = stable
                     status = OneWinPreSeatDiagnostic(
                         OneWinPreSeatPhase.VACANCIES_CONFIRMED,
                         "Подтверждено свободных мест: " + stable.size +
-                            "; ожидаем ручной выбор места; касаний не было",
-                        stable)
-                } else if (status.phase in setOf(
-                        OneWinPreSeatPhase.SEARCHING,
-                        OneWinPreSeatPhase.VACANCIES_CONFIRMED)) {
-                    status = OneWinPreSeatDiagnostic(OneWinPreSeatPhase.SEARCHING,
-                        "Проверяем расположение стрелок на следующем кадре",
-                        knownVacancies)
+                            if (armSeatEntry) "; выбрано место " + choice.slot
+                                else "; ожидаем выбор оператора",
+                        stable, selectedSlot = choice.slot)
+                    if (armSeatEntry && !seatTapAttempted &&
+                        !OnDeviceLiveActionControl.guard.hasUnconfirmedAction() &&
+                        !LocalPlayerCheckPilot.isActive() &&
+                        OnDeviceAutonomousRuntime.status().state !=
+                            AutoLoopState.WAITING_FOR_RESULT) {
+                        requestCounter++
+                        val click = OneWinVacantSeatTapTicket(
+                            requestCounter, observedPackage, epoch,
+                            requireNotNull(origin.windowGeneration),
+                            ticket.frameSequence, ticket.capturedAtMs, choice)
+                        seatTapAttempted = true
+                        pendingSeatTap = click
+                        lastSeatTapObservationAtMs = capturedAt
+                        status = status.copy(
+                            phase = OneWinPreSeatPhase.SEAT_TAP_PENDING,
+                            description = "Выбрана проверенная стрелка " +
+                                choice.slot + "; касание однократное",
+                            gesture = OneWinSeatEntryGestureOutcome.REQUESTED)
+                        sendSeatTap(context, click)
+                    }
+                } else {
+                    knownVacancies = emptyList()
+                    if (status.phase != OneWinPreSeatPhase.VACANCIES_CONFIRMED ||
+                        evidence.first.isEmpty()) {
+                        status = OneWinPreSeatDiagnostic(OneWinPreSeatPhase.SEARCHING,
+                            "Стрелки не подтверждены двумя кадрами; продолжаем чтение")
+                    }
                 }
             }
         }
