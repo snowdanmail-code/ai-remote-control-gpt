@@ -100,7 +100,8 @@ object FrameStore {
         lastAutomaticOcr = null
         lastSeatVisual = null
         lastSeatRound = null
-        OnDeviceSeatRoundVisualDiagnostics.reset()
+        // Android-only signal tracker resets in capture/OCR service;
+        // FrameStore itself is JVM-source-testable without Android graphics.
         lastRealFrameRegions = null
         lastActionStrip = null
         lastHeroTurnEpisode = null
@@ -157,7 +158,8 @@ object FrameStore {
         lastAutomaticOcr = null
         lastSeatVisual = null
         lastSeatRound = null
-        OnDeviceSeatRoundVisualDiagnostics.reset()
+        // Android-only signal tracker resets in capture/OCR service;
+        // FrameStore itself is JVM-source-testable without Android graphics.
         lastRealFrameRegions = null
         lastActionStrip = null
         lastHeroTurnEpisode = null
