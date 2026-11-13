@@ -500,6 +500,50 @@ class MainActivity : Activity() {
                     ?: "не показана") +
                 ". Только чтение экрана; касания не выполняются."
         }
+        button("1WIN — ФИШКИ, РУБАШКИ КАРТ И ВРЕМЕННЫЕ ДЕЙСТВИЯ") {
+            val report = FrameStore.lastSeatRound
+            val profile = OnDeviceRealFrameRegions.activeProfile()
+            val backZones = profile?.zones?.count {
+                it.role == RealFieldRole.SEAT_CARD_BACK
+            } ?: 0
+            status.text = if (report == null)
+                "Совместное распознавание ещё не готово. Нужна точная " +
+                    "калибровка SEAT_ACTION, SEAT_CONTRIBUTION и " +
+                    "SEAT_CARD_BACK на исходном кадре текущего разрешения. " +
+                    "Зон рубашек карт: " + backZones
+            else {
+                val contributions = report.seatContributionsMinor.entries
+                    .sortedBy { it.key }.joinToString { (seat, cents) ->
+                        "seat_" + seat + "=" + cents / 100.0
+                    }
+                val cards = report.seatCardBacks.entries
+                    .sortedBy { it.key }.joinToString { (seat, present) ->
+                        "seat_" + seat + "=" +
+                            (if (present) "рубашки видны" else "рубашек нет")
+                    }
+                val labels = report.actionBadges.entries
+                    .sortedBy { it.key }.joinToString { (seat, action) ->
+                        "seat_" + seat + "=" + action.name
+                    }
+                val composite = report.combined.joinToString("\n") { event ->
+                    event.kind.name + " у seat_" + (event.seat ?: -1) +
+                        ": " + (event.amountBeforeMinor ?: "?") +
+                        " -> " + (event.amountAfterMinor ?: "?")
+                }
+                "ТЗ №048: " + report.status +
+                    ". Фишки перед игроками: " +
+                    contributions.ifBlank { "не прочитаны" } +
+                    "; банк по центральной надписи: " +
+                    (report.potMinor?.div(100.0) ?: "не прочитан") +
+                    "; синие карты: " + cards.ifBlank { "нет калибровки/наблюдений" } +
+                    "; надписи: " + labels.ifBlank { "временно отсутствуют" } +
+                    "\nСовпадения признаков: " +
+                    composite.ifBlank { "пока не обнаружены" } +
+                    "\nЭто только наблюдение: не доказательство фолда, " +
+                    "не сумма денег для вызова и НЕ разрешение касания. " +
+                    "Банк и лежащие возле мест фишки не складываются автоматически."
+            }
+        }
         button("ДИАГНОСТИКА МЕСТ ИГРОКОВ") {
             status.text = FrameStore.lastSeatVisual?.summary()
                 ?: "Нет наблюдений. Для распознавания мест необходима калибровка " +
