@@ -14,13 +14,14 @@ data class OneWinExitSeatObservation(
     val frameSequence: Long,
     val atMs: Long,
     val heroSeat: Int,
-    val seats: Map<Int, OneWinSeatPresence>
+    val seats: Map<Int, OneWinSeatPresence>,
+    val expectedSeats: Int
 ) {
     val occupied: Int get() = seats.values.count { it == OneWinSeatPresence.OCCUPIED }
     fun complete(): Boolean =
         packageName.isNotBlank() && epoch >= 0 && window >= 0 &&
         frameSequence > 0 && atMs >= 0 && heroSeat in 0..9 &&
-        seats.size in 2..10 && heroSeat in seats &&
+        expectedSeats in 2..10 && seats.size == expectedSeats && heroSeat in seats &&
         seats[heroSeat] == OneWinSeatPresence.OCCUPIED &&
         seats.keys.all { it in 0..9 }
 }
