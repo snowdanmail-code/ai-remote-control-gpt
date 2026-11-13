@@ -145,10 +145,12 @@ class T048SeatSignalFusion {
                     current.contributionsMinor.getValue(it) > 0L
             } && old.displayedPotMinor != null &&
             current.displayedPotMinor != null &&
-            current.displayedPotMinor > old.displayedPotMinor) {
+            // At the start of a street, the bank may ALREADY include
+            // all seat contributions and stay unchanged when chips move.
+            current.displayedPotMinor >= old.displayedPotMinor) {
             cues.add(T048CombinedCue(T048CueKind.BETS_MOVING_TO_CENTER, null,
                 old.displayedPotMinor, current.displayedPotMinor,
-                "New board street + prior seat wagers no longer seen; pot changed; no double count"))
+                "Board advanced and previous seat amounts disappeared; collection plausible, not proven (OCR may have missed labels)"))
         }
         return result(if (cues.isEmpty()) T048ReadingStatus.INCONCLUSIVE
             else T048ReadingStatus.OBSERVED, cues)
