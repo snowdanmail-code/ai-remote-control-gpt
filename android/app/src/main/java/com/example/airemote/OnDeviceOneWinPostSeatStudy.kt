@@ -37,6 +37,40 @@ object OnDeviceOneWinPostSeatStudy {
     @Synchronized fun observedThisSession(): List<ObservedOpponentProfile> =
         sessionProfiles.toList()
 
+    /**
+     * Small advisory context for ChatGPT, strictly this same captured table
+     * and window. No nicknames or cross-table identity. An OCR popup can be
+     * wrong, so ALL these metrics remain explicitly unverified.
+     */
+    @Synchronized fun advisoryFor(observation: AutonomousObservation): String {
+        val origin = FrameStore.windowOrigin
+        if (current.phase != OneWinPostSeatStudyPhase.COMPLETE ||
+            origin?.observedPackage != packageName ||
+            origin.captureEpoch != captureEpoch ||
+            origin.windowGeneration != windowGeneration ||
+            observation.view.captureEpoch != captureEpoch ||
+            observation.windowGeneration != windowGeneration ||
+            !observation.tableHandIndependentlyVerified ||
+            !observation.windowIndependentlyVerified) return ""
+        return sessionProfiles.sortedBy { it.seatIndex }.take(5).joinToString(";") { profile ->
+            val stat = profile.metrics
+                .filter { it.amount.isFinite() && it.amount >= 0.0 &&
+                    it.amount <= if (it.metric.percent) 100.0 else 100_000.0 &&
+                    it.evidence == "POPUP_OCR_ONLY" }
+                .distinctBy { it.metric }
+                .take(4)
+                .joinToString(",") { metric ->
+                    metric.metric.name + "=" +
+                        if (metric.amount % 1.0 == 0.0)
+                            metric.amount.toLong().toString()
+                        else (metric.amount * 10.0).toLong().let {
+                            (it / 10).toString() + "." + (it % 10).toString()
+                        }
+                }
+            "seat_" + profile.seatIndex + ":" + stat
+        }.take(280)
+    }
+
     @Synchronized fun reset(reason: String = "Сеанс завершён") {
         packageName = ""
         captureEpoch = -1L
