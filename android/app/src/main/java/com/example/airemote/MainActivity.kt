@@ -303,7 +303,8 @@ class MainActivity : Activity() {
             "стрелки свободных мест. После выбора места отдельно распознаём " +
             "окно «Бай-Ин», минимальную/максимальную сумму, баланс и «Ок». " +
             "Нижняя позиция пока не считается подтверждённым игроком. " +
-            "Сейчас режим только диагностический, денег не списывает.")
+            "Нажатие стрелки включается отдельно либо после автоматического " +
+            "перехода из лобби. Подтверждение бай-ина и денежные операции отключены.")
         button("1WIN — ПРОВЕРИТЬ СВОБОДНЫЕ МЕСТА И БАЙ-ИН") {
             val started = OnDeviceOneWinPreSeatScanner.start(this@MainActivity)
             status.text = if (started)
@@ -313,11 +314,22 @@ class MainActivity : Activity() {
             else "Диагностика не запущена: нужен активный захват, " +
                 "разрешённое окно приложения и выключенный STOP."
         }
+        button("1WIN — ОДНОКРАТНО ВЫБРАТЬ СВОБОДНОЕ МЕСТО") {
+            val armed = OnDeviceOneWinPreSeatScanner.armSeatNavigation(this@MainActivity)
+            status.text = if (armed)
+                "Выбор места включён: после двух совпадающих кадров " +
+                    "нажмём одну стрелку свободного места. Затем только чтение «Бай-Ин». " +
+                    "Кнопка ОК и баланс НЕ затрагиваются."
+            else "Выбор места не включён: проверьте STOP, разрешения, " +
+                "захват и то, что первое касание ещё не было отправлено."
+        }
         button("1WIN — СТАТУС ПОСАДКИ И БАЙ-ИНА") {
             val step = OnDeviceOneWinPreSeatScanner.current()
             val buy = step.buyIn
             status.text = "Посадка: " + step.phase + ". " + step.description +
                 "; стрелок: " + step.vacancies.size +
+                "; выбранное место: " + (step.selectedSlot?.name ?: "пока нет") +
+                "; навигация: " + step.gesture.name +
                 (buy?.let {
                     "; окно: " + it.status +
                         "; блайнды: " + (it.smallBlindCents?.let(::moneyInDollars) ?: "?") +
