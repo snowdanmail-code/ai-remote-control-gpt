@@ -8,7 +8,9 @@ class T050TransientBadgePulseTest {
                       epoch:Long=7, window:Long=2) = T050BadgeFrame(
         "com.example.game",epoch,window,seq,at,tones)
 
-    private fun badge(seat:Int, tone:T050BadgeTone) = T050SeatTone(seat,tone)
+    private fun badge(seat:Int, tone:T050BadgeTone, strength:Double =
+        if (tone == T050BadgeTone.NONE) 0.0 else 0.45
+    ) = T050SeatTone(seat,tone,strength)
 
     @Test fun independentlyTracksTwoSimultaneousSeatBadges() {
         val m = T050TransientBadgePulseTracker()
@@ -50,6 +52,35 @@ class T050TransientBadgePulseTest {
             badge(1,T050BadgeTone.GREEN)),window=3),1700).size)
         assertTrue(m.observe(frame(4,2000,listOf(
             badge(1,T050BadgeTone.GREEN)),window=3),3000).isEmpty())
+    }
+
+    @Test fun realVideoWhiteAvatarBaselineThenBrighterFoldTriggersNewPulse() {
+        val m = T050TransientBadgePulseTracker()
+        // Measured in the owner's 1080x2340 video: the BOTS avatar has
+        // ~0.17 light fraction even when no FOLD badge is present.
+        m.observe(frame(1,1000L,listOf(
+            badge(2,T050BadgeTone.LIGHT,0.173))),1050L)
+        assertTrue(m.observe(frame(2,1330L,listOf(
+            badge(2,T050BadgeTone.LIGHT,0.173))),1400L).isEmpty())
+        // The separate white FOLD label increases it to ~0.54;
+        // only a second independent high-intensity frame confirms pulse.
+        assertTrue(m.observe(frame(3,1660L,listOf(
+            badge(2,T050BadgeTone.LIGHT,0.539))),1700L).isEmpty())
+        val result = m.observe(frame(4,1990L,listOf(
+            badge(2,T050BadgeTone.LIGHT,0.532))),2020L)
+        assertEquals(1,result.size)
+        assertEquals(2,result.single().seat)
+        assertFalse(result.single().confirmsAction)
+    }
+
+    @Test fun invalidFractionOrOverlyStaleFrameResetsPulseState() {
+        val m=T050TransientBadgePulseTracker()
+        assertTrue(m.observe(frame(1,1000,
+            listOf(badge(1,T050BadgeTone.GREEN,Double.NaN))),1100).isEmpty())
+        assertTrue(m.observe(frame(2,1800,
+            listOf(badge(1,T050BadgeTone.GREEN))),1900).isEmpty())
+        assertTrue(m.observe(frame(3,2500,
+            listOf(badge(1,T050BadgeTone.GREEN))),2800).isEmpty())
     }
 
     @Test fun noActionCanBeInferredFromBareColoredPixels() {
