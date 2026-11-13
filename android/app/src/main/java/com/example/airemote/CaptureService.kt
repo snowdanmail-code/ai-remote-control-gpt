@@ -220,6 +220,8 @@ class CaptureService : Service() {
                                 // T044: pre-seating is NOT an occupied HERO seat.
                                 // Detect every visible down-arrow vacancy, then read
                                 // the buy-in dialog independently. Read-only; no tap.
+                                OnDeviceOneWinPreSeatScanner.onCaptureTick(
+                                    applicationContext, now)
                                 if (OnDeviceOneWinPreSeatScanner.active() &&
                                     origin.safeForLocalDiagnostics &&
                                     !CaptureObservationMode.isSpectator() &&
