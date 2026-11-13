@@ -85,7 +85,10 @@ class T048SeatSignalFusion {
             old.frameWidth != current.frameWidth ||
             old.frameHeight != current.frameHeight ||
             t.frameSequence <= a.frameSequence ||
-            t.capturedAtMs - a.capturedAtMs !in 250L..8_000L) {
+            t.capturedAtMs - a.capturedAtMs !in 250L..8_000L ||
+            // 5 -> 0 common cards is usually a NEW hand, not a fold.
+            (old.boardCount != null && current.boardCount != null &&
+                current.boardCount < old.boardCount)) {
             // Keep only the new frame as the first frame of a new sequence.
             return result(T048ReadingStatus.STALE_OR_CHANGED)
         }
