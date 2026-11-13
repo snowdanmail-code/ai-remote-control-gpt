@@ -425,6 +425,23 @@ class MainActivity : Activity() {
                 "\nChatGPT использует только подтверждённый игровой ход. " +
                 "Показатели OCR не являются доказанной постоянной личностью."
         }
+        button("1WIN — ПРОВЕРИТЬ ПЕРЕДАЧУ СТАТИСТИКИ ЧЕРЕЗ CHATGPT") {
+            val study = OnDeviceOneWinPostSeatStudy.status()
+            val transferred = OnDeviceOneWinPostSeatStudy.transferToChatGpt(this@MainActivity)
+            status.text = if (transferred)
+                "Данные числовых показателей соперников отправляются через вход ChatGPT. " +
+                    "Используется разрешённый лимит подписки, без отдельного API-ключа. " +
+                    "Этот диагностический запрос не совершает игровых действий."
+            else "Передача не началась: нужны подтверждённые профили текущего стола, " +
+                    "согласие на расход лимита ChatGPT и свободный облачный канал. " +
+                    OnDeviceOneWinPostSeatStudy.transferStatus() +
+                    " (состояние изучения: " + study.phase + ")"
+        }
+        button("1WIN — СТАТУС ПЕРЕДАЧИ ДАННЫХ CHATGPT") {
+            status.text = OnDeviceOneWinPostSeatStudy.transferStatus() +
+                "\n" + OnDeviceVerifiedGptTurnRequests.status() +
+                "\n" + ChatGptCloudBridge.connectionLabel(this@MainActivity)
+        }
         button("1WIN — АВТОМАТИЧЕСКИ ПРОЧИТАТЬ ПРОФИЛИ СОПЕРНИКОВ") {
             val started = OnDeviceOpponentProfileSweep.start(this@MainActivity)
             val current = OnDeviceOpponentProfileSweep.status()
