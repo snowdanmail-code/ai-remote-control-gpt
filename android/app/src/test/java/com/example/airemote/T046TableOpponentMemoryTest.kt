@@ -49,7 +49,11 @@ class T046TableOpponentMemoryTest {
             T046HandParticipation.LEFT_TABLE_CONFIRMED,
             T046Evidence.VERIFIED_TABLE_EXIT))
         assertTrue(m.beginVerifiedHand(session, "two", true))
-        assertTrue(m.summaryForChatGpt(session, "two").contains("unknown=1"))
+        // Player left the TABLE (not just the hand); subsequent hands
+        // must not reclassify this known absence as an unknown participant.
+        val afterLeave = m.summaryForChatGpt(session, "two")
+        assertTrue(afterLeave.contains("left=seat_2"))
+        assertTrue(afterLeave.contains("unknown=0"))
     }
 
     @Test fun ocrFoldAndMissingSeatDoNotChangeHandParticipants() {
