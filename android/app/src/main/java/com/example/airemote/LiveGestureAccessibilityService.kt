@@ -715,12 +715,18 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 reject(); return@post
             }
             val m = resources.displayMetrics
+            // Screenshot coordinates must correspond to the actual display,
+            // not to a downscaled preview, letterbox or rotated viewport.
             if (m.widthPixels !in 320..5000 || m.heightPixels !in 640..9000 ||
-                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50 ||
+                ticket.frameWidth !in 320..5000 ||
+                ticket.frameHeight !in 640..9000 ||
+                abs(m.widthPixels - ticket.frameWidth) > ticket.frameWidth / 50 ||
+                abs(m.heightPixels - ticket.frameHeight) > ticket.frameHeight / 50) {
                 reject(); return@post
             }
-            val x = (marker.bounds.centerX().toLong() * m.widthPixels / 1000L).toInt()
-            val y = (marker.bounds.centerY().toLong() * m.heightPixels / 1000L).toInt()
+            val x = (marker.bounds.centerX().toLong() * ticket.frameWidth / 1000L).toInt()
+            val y = (marker.bounds.centerY().toLong() * ticket.frameHeight / 1000L).toInt()
             val overlay = params
             if (overlay != null && stopOverlay != null &&
                 x >= overlay.x && x < overlay.x + overlay.width &&
