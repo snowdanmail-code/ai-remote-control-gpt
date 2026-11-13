@@ -1,0 +1,153 @@
+{
+  "schema": "t050.recorded-seats.v1",
+  "source": "user-supplied portrait recordings; reference labels manually reviewed",
+  "video1": {
+    "filename": "Screen_Recording_20261113_030125.mp4",
+    "width": 1080,
+    "height": 2340,
+    "notes": "Timestamps approximate by +/- 1 second; screen labels are temporary",
+    "events": [
+      {
+        "second": 40,
+        "pot_minor": 7,
+        "actions": [],
+        "note": "No stable left raise badge at this exact second; several seat chips still shown"
+      },
+      {
+        "second": 42,
+        "pot_minor": 15,
+        "actions": [
+          {
+            "seat": "upper_left",
+            "text": "Рейз",
+            "chip_minor": 8
+          },
+          {
+            "seat": "top",
+            "text": "Фолд"
+          }
+        ],
+        "note": "Two different seats show temporary actions simultaneously"
+      },
+      {
+        "second": 46,
+        "pot_minor": 15,
+        "actions": [],
+        "note": "Upper-right RiverShark still has two card backs at this sampled frame"
+      },
+      {
+        "second": 48,
+        "pot_minor": 15,
+        "actions": [
+          {
+            "seat": "upper_right",
+            "text": "Фолд",
+            "cards_before": true,
+            "cards_after": false
+          }
+        ],
+        "note": "Right avatar's blue cards disappear as label appears"
+      },
+      {
+        "second": 56,
+        "pot_minor": 26,
+        "board_cards": 3,
+        "actions": [],
+        "note": "Flop and chip sweep observed; old seat wagers may disappear"
+      }
+    ]
+  },
+  "video2": {
+    "filename": "Screen_Recording_20261113_030422.mp4",
+    "width": 1080,
+    "height": 2340,
+    "events": [
+      {
+        "second": 48,
+        "pot_minor": 9,
+        "contributions_minor": {
+          "upper_left": 2,
+          "lower_left": 1,
+          "lower_right": 6
+        },
+        "note": "At this exact frame lower right wager 0.06 visible, temporary raise badge is not visible"
+      }
+    ]
+  },
+  "pixel_rois": [
+    {
+      "name": "left_action",
+      "rect_px": [
+        122,
+        780,
+        220,
+        817
+      ],
+      "reference": {
+        "t40": {
+          "green": 0.028,
+          "light": 0.063,
+          "red": 0.067
+        },
+        "t42": {
+          "green": 0.663,
+          "light": 0.006,
+          "red": 0.003
+        }
+      },
+      "note": "Green raise badge emerges"
+    },
+    {
+      "name": "top_action",
+      "rect_px": [
+        480,
+        510,
+        598,
+        544
+      ],
+      "reference": {
+        "t40": {
+          "green": 0,
+          "light": 0.097,
+          "red": 0
+        },
+        "t42": {
+          "green": 0,
+          "light": 0.741,
+          "red": 0
+        }
+      },
+      "note": "Light fold label emerges"
+    },
+    {
+      "name": "right_action",
+      "rect_px": [
+        846,
+        788,
+        970,
+        819
+      ],
+      "reference": {
+        "t40": {
+          "green": 0,
+          "light": 0.173,
+          "red": 0.2
+        },
+        "t48": {
+          "green": 0,
+          "light": 0.539,
+          "red": 0
+        }
+      },
+      "note": "Persistent white/red BOTS avatar background, then a brighter white fold badge"
+    }
+  ],
+  "invariants": [
+    "pot_is_not_added_to_seat_wagers",
+    "two_different_seats_can_show_badges_simultaneously",
+    "badges_are_visual_ocr_only_until_verified",
+    "missing_cards_is_not_player_identity",
+    "timestamps_have_approximately_one_second_tolerance"
+  ],
+  "disclaimer": "These measured coordinates are for the 1080x2340 VIDEO REPLAY only; never import as authenticated live tap geometry, and do not infer 1win package/table/hand identity from top-left number."
+}
