@@ -96,6 +96,29 @@ object OnDeviceOneWinPostSeatStudy {
     @Synchronized fun localSeatMemory(): List<T046OpponentSeatMemory> =
         tableMemory.snapshot(currentSession())
 
+    /** For the CURRENT independently verified table and hand only. */
+    @Synchronized fun verifiedOpponentSeatBindings(
+        observation: AutonomousObservation
+    ): Map<String, Int> {
+        if (current.phase != OneWinPostSeatStudyPhase.COMPLETE ||
+            !observation.tableHandIndependentlyVerified ||
+            !observation.windowIndependentlyVerified ||
+            observation.view.captureEpoch != captureEpoch ||
+            observation.windowGeneration != windowGeneration ||
+            !verifiedTable.belongsTo(T050VerifiedTableIdentity(
+                packageName, captureEpoch, windowGeneration,
+                observation.tableId))) return emptyMap()
+        val origin = FrameStore.windowOrigin ?: return emptyMap()
+        if (!OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin) ||
+            origin.observedPackage != packageName ||
+            origin.captureEpoch != captureEpoch ||
+            origin.windowGeneration != windowGeneration) return emptyMap()
+        val key = currentSession()
+        tableMemory.beginVerifiedHand(key, observation.handId, true)
+        return T050VerifiedSeatProfileBinding.authorizedSeatRefs(
+            tableMemory.snapshot(key))
+    }
+
     /**
      * The seat ledger, NOT the original profile-sweep list, is the only
      * authority for model-bound OCR statistics. On seat turnover it has an
