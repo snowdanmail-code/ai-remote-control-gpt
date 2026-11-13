@@ -38,6 +38,24 @@ class OneWinPreSeatJoinEvidenceTest {
         assertFalse(d.withinLimits(OneWinCashTableLimits(4L, 100L)))
     }
 
+    @Test fun splitOcrButtonLabelsStillRequireUniqueAmounts() {
+        val labels = buyInLines().filterNot {
+            it.text == "Мин 1.60 $" || it.text == "Макс 4 $"
+        } + listOf(
+            line("Мин", 60, 308, 90),
+            line("1.60 $", 160, 308, 130),
+            line("Макс", 740, 308, 90),
+            line("4 $", 835, 308, 100)
+        )
+        val result = OneWinBuyInDialogParser.read(labels)
+        assertEquals(OneWinBuyInReadingStatus.VERIFIED, result.status)
+        assertEquals(160L, result.minimumCents)
+        assertEquals(400L, result.maximumCents)
+        assertEquals(160L, result.debitCents)
+        assertEquals(160L, result.inputCents)
+        assertEquals(6_036L, result.availableCents)
+    }
+
     @Test fun rechecksUnreadableOrUnexpectedBuyInInsteadOfAssumingApproved() {
         val raw = buyInLines()
         assertEquals(OneWinBuyInReadingStatus.NOT_DIALOG,
