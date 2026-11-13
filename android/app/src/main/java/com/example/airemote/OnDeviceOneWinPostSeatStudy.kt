@@ -82,7 +82,12 @@ object OnDeviceOneWinPostSeatStudy {
             origin.captureEpoch != captureEpoch ||
             origin.windowGeneration != windowGeneration ||
             !OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin)) return false
-        val stats = T045SessionStatsFormatter.formatForHandoff(sessionProfiles)
+        val permittedSeats = tableMemory.snapshot(currentSession())
+            .filter { !it.ambiguousIdentity &&
+                it.participation != T046HandParticipation.LEFT_TABLE_CONFIRMED }
+            .map { it.seat }.toSet()
+        val stats = T045SessionStatsFormatter.formatForHandoff(
+            sessionProfiles.filter { it.seatIndex in permittedSeats })
         if (ChatGptPlanHandoffProtocol.prepare(
                 stats, ChatGptAuthProtocol.randomUrlSafe(16)) == null) {
             cloudStatus = "ChatGPT: нет достоверно прочитанных числовых метрик"
