@@ -65,6 +65,7 @@ data class OneWinBuyInTapTicket(
     val windowGeneration: Long,
     val frameSequence: Long,
     val observedAtMs: Long,
+    val capturedAtMs: Long,
     val frameWidth: Int,
     val frameHeight: Int,
     val minimumCents: Long,
