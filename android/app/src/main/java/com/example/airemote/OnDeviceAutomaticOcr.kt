@@ -19,6 +19,7 @@ object OnDeviceAutomaticOcr {
         // The in-flight ML Kit operation may finish later; provenance will reject it.
         assembler.reset()
         OnDeviceSeatVisualDiagnostics.reset()
+        OnDeviceSeatRoundVisualDiagnostics.reset()
         OnDeviceRealFrameRegions.resetSession()
         lastStartedAt = -INTERVAL_MS
         lastEpoch = -1L
@@ -86,10 +87,16 @@ object OnDeviceAutomaticOcr {
                                 FrameStore.confirmedTurnVisual, OperatorStopStore.isStopped(app))
                             FrameStore.lastSeatVisual = OnDeviceSeatVisualDiagnostics.inspect(
                                 ticket, snapshot.lines, frame.width, frame.height, finishedAt)
+                            FrameStore.lastSeatRound = OnDeviceSeatRoundVisualDiagnostics.inspect(
+                                frame, ticket, finishedAt,
+                                FrameStore.lastRealFrameRegions, FrameStore.lastSeatVisual,
+                                OperatorStopStore.isStopped(app))
                         }, onFailure = {
                             assembler.reset()
                             FrameStore.lastAutomaticOcr = null
                             FrameStore.lastSeatVisual = null
+                            FrameStore.lastSeatRound = null
+                            OnDeviceSeatRoundVisualDiagnostics.reset()
                             FrameStore.lastRealFrameRegions = null
                             FrameStore.lastActionStrip = null
                         })
