@@ -129,6 +129,20 @@ class T048SeatRoundVisualFusionTest {
         assertEquals(26L,after.potMinor)
     }
 
+    @Test fun collectedChipsMayLeaveTheDisplayedPotExactlyUnchanged() {
+        val fusion = T048SeatSignalFusion()
+        fusion.observe(sample(1, 1000L,
+            seatBets=mapOf(1 to 8L, 2 to 2L, 3 to 5L),
+            pot=15L, board=0),1100L)
+        val after = fusion.observe(sample(2, 2600L,
+            seatBets=emptyMap(), pot=15L, board=3),2700L)
+        assertEquals(T048ReadingStatus.OBSERVED, after.status)
+        assertEquals(T048CueKind.BETS_MOVING_TO_CENTER,
+            after.combined.single().kind)
+        assertEquals(15L, after.potMinor)
+        assertFalse(after.canUpdateOpponentMemory)
+    }
+
     @Test fun staleOrCrossWindowFramesCannotBeCorrelated() {
         val fusion=T048SeatSignalFusion()
         fusion.observe(sample(1,1000L,backs=mapOf(3 to true)),1100L)
