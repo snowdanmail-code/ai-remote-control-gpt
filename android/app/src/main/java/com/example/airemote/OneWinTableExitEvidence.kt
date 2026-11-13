@@ -68,6 +68,12 @@ class OneWinTableExitEvidenceGate {
  * Exact menu OCR, not inferred coordinates. The owner screenshot shows the
  * left drawer contains 'Покинуть игру', 'Касса', 'Настройки', 'Назад в лобби'.
  */
+/** Exact, individually localized Yes/No controls of the exit confirmation modal. */
+data class OneWinExitConfirmationDialog(
+    val yesBox: NormalizedTextBox,
+    val noBox: NormalizedTextBox
+)
+
 object OneWinTableExitMenuParser {
     private fun norm(s: String): String = s.trim().lowercase().replace(Regex("""\s+"""), " ")
     fun leaveButton(lines: List<PositionedOcrLine>): NormalizedTextBox? {
@@ -81,6 +87,38 @@ object OneWinTableExitMenuParser {
             norm(it.text) in setOf("касса", "настройки", "настройки стола", "назад в лобби")
         }
         return target.singleOrNull()?.box?.takeIf { support }
+    }
+
+    /**
+     * After 'Покинуть игру', 1win asks:
+     * 'Вы уверены, что хотите закрыть стол?' with No on the left and
+     * Yes on the right. Never tap Yes from an isolated 'Да' OCR fragment.
+     * All three labels must belong to one central dialog on THIS frame.
+     */
+    fun confirmationDialog(lines: List<PositionedOcrLine>): OneWinExitConfirmationDialog? {
+        val valid = lines.filter { it.box.valid() && it.text.isNotBlank() }
+        val questionLines = valid.filter {
+            it.box.centerX() in 120..900 && it.box.centerY() in 435..555 &&
+                it.text.length in 2..80
+        }.sortedWith(compareBy<PositionedOcrLine> { it.box.centerY() }
+            .thenBy { it.box.centerX() })
+        fun normalizedQuestion(text: String): String =
+            norm(text).replace(Regex("""[^\p{L}\p{N}\s]"""), "")
+                .replace(Regex("""\s+"""), " ").trim()
+        val question = normalizedQuestion(questionLines.joinToString(" ") { it.text })
+        if (question != "вы уверены что хотите закрыть стол") return null
+        val choices = valid.filter { it.box.centerY() in 525..650 &&
+            it.box.right - it.box.left in 8..240 }
+        val yes = choices.filter {
+            norm(it.text) == "да" && it.box.centerX() in 510..940
+        }.singleOrNull()?.box ?: return null
+        val no = choices.filter {
+            norm(it.text) == "нет" && it.box.centerX() in 60..500
+        }.singleOrNull()?.box ?: return null
+        if (yes.centerX() <= no.centerX() + 100 ||
+            kotlin.math.abs(yes.centerY() - no.centerY()) > 38 ||
+            yes.centerY() <= questionLines.maxOf { it.box.centerY() }) return null
+        return OneWinExitConfirmationDialog(yes, no)
     }
 
     fun lobbyVisible(lines: List<PositionedOcrLine>): Boolean {
