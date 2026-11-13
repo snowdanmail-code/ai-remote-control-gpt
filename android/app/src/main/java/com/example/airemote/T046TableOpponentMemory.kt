@@ -154,6 +154,28 @@ class T046TableOpponentMemory {
         return true
     }
 
+    /**
+     * After a trusted vacancy->reoccupation transition at this seat,
+     * all historical OCR metrics and the old local nickname are discarded.
+     * This is never invoked for a missing avatar or a single OCR change.
+     */
+    @Synchronized fun confirmedSeatTurnover(
+        key: T046TableSession, seat: Int,
+        eventId: String, vacancyAndArrivalIndependentlyVerified: Boolean
+    ): Boolean {
+        if (session != key || !vacancyAndArrivalIndependentlyVerified ||
+            seat == heroSeat || seat !in 0..9 ||
+            eventId.isBlank() ||
+            !Regex("""[A-Za-z0-9_.-]{1,96}""").matches(eventId) ||
+            occupants[seat] == null ||
+            !appliedEvents.add("replacement_" + eventId)) return false
+        sequence++
+        occupants[seat] = T046OpponentSeatMemory(
+            seat, "P" + sequence, null, emptyList(), false,
+            T046HandParticipation.UNKNOWN, handKey)
+        return true
+    }
+
     @Synchronized fun snapshot(key: T046TableSession): List<T046OpponentSeatMemory> =
         if (key != session) emptyList()
         else occupants.values.sortedBy { it.seat }.toList()
@@ -174,7 +196,9 @@ class T046TableOpponentMemory {
             ";unknown=" + seats.count {
                 it.ambiguousIdentity ||
                     it.participation == T046HandParticipation.UNKNOWN
-            }
+            } +
+            // Profiles never prove that every seat was inspected.
+            ";roster_unverified=1"
         return report.takeIf { it.length <= 160 } ?: ""
     }
 }
