@@ -133,15 +133,23 @@ object OnDeviceOneWinPreSeatScanner {
             synchronized(this) {
                 if (pendingSeatTap != ticket) return@synchronized
                 pendingSeatTap = null
-                status = status.copy(
-                    phase = if (submitted) OneWinPreSeatPhase.WAITING_BUYIN_AFTER_TAP
-                        else OneWinPreSeatPhase.BLOCKED,
-                    description = if (submitted)
-                        "Касание свободного места выполнено; повторно ищем окно «Бай-Ин»"
-                    else "Android отклонил касание; повторная отправка запрещена",
-                    gesture = if (submitted)
-                        OneWinSeatEntryGestureOutcome.ACCEPTED_BY_ANDROID
-                    else OneWinSeatEntryGestureOutcome.REJECTED_BY_ANDROID)
+                if (submitted) {
+                    // OCR may see the modal before Android delivers the
+                    // gesture-completion callback. NEVER regress an already
+                    // confirmed buy-in or seated state back to WAITING.
+                    if (status.phase == OneWinPreSeatPhase.SEAT_TAP_PENDING)
+                        status = status.copy(
+                            phase = OneWinPreSeatPhase.WAITING_BUYIN_AFTER_TAP,
+                            description = "Касание свободного места выполнено; " +
+                                "ищем «Бай-Ин» на новых кадрах",
+                            gesture = OneWinSeatEntryGestureOutcome.ACCEPTED_BY_ANDROID)
+                    else status = status.copy(
+                        gesture = OneWinSeatEntryGestureOutcome.ACCEPTED_BY_ANDROID)
+                } else status = status.copy(
+                    phase = OneWinPreSeatPhase.BLOCKED,
+                    description = "Android отклонил касание; " +
+                        "повторная отправка запрещена",
+                    gesture = OneWinSeatEntryGestureOutcome.REJECTED_BY_ANDROID)
             }
         }
     }
