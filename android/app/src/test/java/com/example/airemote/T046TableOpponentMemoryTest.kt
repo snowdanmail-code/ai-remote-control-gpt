@@ -43,6 +43,8 @@ class T046TableOpponentMemoryTest {
         assertTrue(m.summaryForChatGpt(session, "one").contains("folded=seat_2"))
         assertFalse(m.applyVerifiedEvent(session, "one", "c", 2,
             T046HandParticipation.ACTIVE_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
+        assertFalse(m.applyVerifiedEvent(session, "one", "d", 2,
+            T046HandParticipation.FOLDED_CONFIRMED, T046Evidence.VERIFIED_HAND_EVENT))
         assertTrue(m.beginVerifiedHand(session, "two", true))
         assertTrue(m.summaryForChatGpt(session, "two").contains("unknown=1"))
     }
