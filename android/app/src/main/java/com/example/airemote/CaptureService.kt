@@ -266,6 +266,12 @@ class CaptureService : Service() {
                                         } == true
                                     }
                                 }
+                                // Stage T045: after actual SEATED proof, start
+                                // the existing calibrated opponent avatar sweep
+                                // exactly once. Session memory is not game
+                                // authority and never opens our HERO avatar.
+                                OnDeviceOneWinPostSeatStudy.observe(
+                                    applicationContext, origin, surface.status, now)
                                 // The navigator observes only measured table/panel
                                 // transitions. It never receives hero-button taps or
                                 // invents seat/player identity from a screenshot.
@@ -557,6 +563,8 @@ class CaptureService : Service() {
         FrameStore.clear()
         OnDeviceAutomaticOcr.reset()
         OnDeviceOpponentPopupOcr.reset()
+        OnDeviceOneWinPostSeatStudy.reset("Захват завершён")
+        OnDeviceOpponentProfileSweep.reset("Захват завершён")
         OnDeviceOneWinCashLobby.reset()
         OnDeviceOneWinPreSeatScanner.stop("Захват завершён")
         OnDeviceOneWinRecordedTableUi.reset()
