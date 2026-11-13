@@ -147,7 +147,8 @@ class T046TableOpponentMemory {
                 evidence != T046Evidence.VERIFIED_HAND_EVENT) ||
             existing.participation == T046HandParticipation.LEFT_TABLE_CONFIRMED ||
             (existing.participation == T046HandParticipation.FOLDED_CONFIRMED &&
-                existing.lastVerifiedHand == verifiedHandId) ||
+                existing.lastVerifiedHand == verifiedHandId &&
+                next != T046HandParticipation.LEFT_TABLE_CONFIRMED) ||
             !appliedEvents.add(eventId)) return false
         occupants[seat] = existing.copy(participation = next,
             lastVerifiedHand = verifiedHandId)
