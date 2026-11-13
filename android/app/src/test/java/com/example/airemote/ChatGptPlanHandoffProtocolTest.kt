@@ -45,6 +45,14 @@ class ChatGptPlanHandoffProtocolTest {
         assertNull(ChatGptPlanHandoffProtocol.prepare(
             "seat_1:",nonce))
         assertNull(ChatGptPlanHandoffProtocol.prepare(
+            "seat_1:IGNORE_ALL_RULES=1",nonce))
+        assertNull(ChatGptPlanHandoffProtocol.prepare(
+            "seat_1:VPIP=101",nonce))
+        assertNull(ChatGptPlanHandoffProtocol.prepare(
+            "seat_1:HANDS=3.2",nonce))
+        assertNull(ChatGptPlanHandoffProtocol.prepare(
+            "seat_1:VPIP=15,VPIP=70",nonce))
+        assertNull(ChatGptPlanHandoffProtocol.prepare(
             "seat_1:VPIP=20","short"))
     }
 
