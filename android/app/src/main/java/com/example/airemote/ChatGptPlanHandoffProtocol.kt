@@ -21,6 +21,7 @@ object ChatGptPlanHandoffProtocol {
     private val safe = Regex("""[A-Za-z0-9_:=.,;]+""")
     private val noncePattern = Regex("""[A-Za-z0-9_-]{18,90}""")
     private val seatHead = Regex("""seat_([0-9]):([A-Za-z0-9_=.,]+)""")
+    private val decimal = Regex("""[0-9]{1,6}(?:\.[0-9])?""")
 
     fun prepare(stats: String, nonce: String): ChatGptPlanHandoff? {
         if (stats.isBlank() || stats.length > 280 ||
@@ -30,8 +31,21 @@ object ChatGptPlanHandoffProtocol {
         val seats = entries.map { line ->
             val match = seatHead.matchEntire(line) ?: return null
             val seat = match.groupValues[1].toInt()
-            if (match.groupValues[2].isBlank() ||
-                !match.groupValues[2].contains('=')) return null
+            val values = match.groupValues[2].split(',')
+            if (values.size !in 1..4) return null
+            val names = mutableSetOf<String>()
+            for (metric in values) {
+                val key = metric.substringBefore('=', "")
+                val value = metric.substringAfter('=', "")
+                if (key !in OpponentPopupMetric.entries.map { it.name } ||
+                    !names.add(key) || !decimal.matches(value)) return null
+                val number = value.toDoubleOrNull() ?: return null
+                val definition = OpponentPopupMetric.entries.first { it.name == key }
+                if (!number.isFinite() || number < 0.0 ||
+                    number > (if (definition.percent) 100.0 else 100_000.0) ||
+                    (definition == OpponentPopupMetric.HANDS && number % 1.0 != 0.0))
+                    return null
+            }
             seat
         }
         if (seats.toSet().size != seats.size) return null
