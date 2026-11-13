@@ -23,6 +23,7 @@ data class OneWinTableExitStatus(val phase: OneWinTableExitPhase,
  */
 object OnDeviceOneWinTableAutoExit {
     private val gate = OneWinTableExitEvidenceGate()
+    private val recheck = OneWinExitRecognitionRetryPolicy()
     private var phase = OneWinTableExitPhase.OFF
     private var heroSeat = -1
     private var token = 0L
@@ -31,8 +32,11 @@ object OnDeviceOneWinTableAutoExit {
     private var lastProbe = -1_300L
     private var probing = false
     private var menuCandidate: Pair<Long, NormalizedTextBox>? = null
+    private var menuCandidateWindow = -1L
     private var confirmCandidate: Pair<Long, OneWinExitConfirmationDialog>? = null
+    private var confirmCandidateWindow = -1L
     private var lobbyCandidateAtMs = -1L
+    private var lobbyCandidateWindow = -1L
     private var confirmedLeaveBox: NormalizedTextBox? = null
     private var confirmedYesBox: NormalizedTextBox? = null
     private var source = ""
@@ -64,8 +68,12 @@ object OnDeviceOneWinTableAutoExit {
         lastProbe = -1_300L
         probing = false
         menuCandidate = null
+        menuCandidateWindow = -1L
         confirmCandidate = null
+        confirmCandidateWindow = -1L
         lobbyCandidateAtMs = -1L
+        lobbyCandidateWindow = -1L
+        recheck.reset()
         confirmedLeaveBox = null
         confirmedYesBox = null
         gate.reset()
@@ -186,8 +194,12 @@ object OnDeviceOneWinTableAutoExit {
                 if (pending != t) return@synchronized
                 pending = null
                 menuCandidate = null
+                menuCandidateWindow = -1L
                 confirmCandidate = null
+                confirmCandidateWindow = -1L
                 lobbyCandidateAtMs = -1L
+                lobbyCandidateWindow = -1L
+                recheck.reset()
                 sinceMs = SystemClock.elapsedRealtime()
                 if (!complete) update(OneWinTableExitPhase.BLOCKED,
                     "Касание отклонено; автоматический повтор запрещён")
@@ -235,12 +247,30 @@ object OnDeviceOneWinTableAutoExit {
             stop("STOP / нет захвата или разрешения")
             return
         }
-        if (phase != OneWinTableExitPhase.WATCHING &&
+        // Never abandon a screen merely because its text is temporarily
+        // unreadable: continue on fresh frames with adaptive OCR backoff.
+        // Only an Android touch still awaiting a callback has a hard timeout.
+        if (phase in setOf(OneWinTableExitPhase.OPEN_PENDING,
+                OneWinTableExitPhase.LEAVE_PENDING,
+                OneWinTableExitPhase.CONFIRM_PENDING) &&
             sinceMs > 0 && nowMs - sinceMs > 12_000L) {
             pending = null
             update(OneWinTableExitPhase.BLOCKED,
-                "Не подтверждён переход; без повторных касаний")
+                "Нет подтверждения жеста Android; касание не повторяем вслепую")
         }
+    }
+
+    private fun inconclusive(atMs: Long, what: String) {
+        recheck.observe(atMs, false)
+        state = OneWinTableExitStatus(phase,
+            what + "; повторно читаем новый кадр (попытка #" +
+                recheck.inconclusiveFrames + ")", lastOccupied)
+    }
+
+    private fun firstMatch(atMs: Long, what: String) {
+        recheck.observe(atMs, true)
+        state = OneWinTableExitStatus(phase,
+            what + "; ожидаем ещё одно совпадающее наблюдение", lastOccupied)
     }
 
     fun offerScreen(context: Context, image: Bitmap,
@@ -249,6 +279,7 @@ object OnDeviceOneWinTableAutoExit {
         val session: Long
         synchronized(this) {
             if (!needsScreenProbe() || probing || atMs - lastProbe < 1_300L ||
+                !recheck.mayRead(atMs) ||
                 !origin.safeForLocalDiagnostics || origin.observedPackage != source ||
                 origin.captureEpoch != epoch || origin.windowGeneration == null) return
             session = token
@@ -262,7 +293,15 @@ object OnDeviceOneWinTableAutoExit {
             }
         }.getOrNull()
         if (data == null) {
-            synchronized(this) { probing = false }
+            synchronized(this) {
+                if (session == token) {
+                    probing = false
+                    recheck.observe(atMs, false)
+                    state = OneWinTableExitStatus(phase,
+                        "Кадр не удалось подготовить, повторная проверка #" +
+                            recheck.inconclusiveFrames, lastOccupied)
+                }
+            }
             return
         }
         OnDeviceCashLobbyTextRecognition.inspectStructured(context, data) { outcome ->
@@ -278,47 +317,87 @@ object OnDeviceOneWinTableAutoExit {
                     lobbyCandidateAtMs = -1L
                     return@inspectStructured
                 }
-                val lines = outcome.getOrNull()?.lines ?: return@inspectStructured
+                val lines = outcome.getOrNull()?.lines
+                if (lines == null) {
+                    inconclusive(atMs, "Ошибка OCR")
+                    return@inspectStructured
+                }
+                val observedWindow = requireNotNull(origin.windowGeneration)
                 if (phase == OneWinTableExitPhase.WAITING_MENU) {
                     val box = OneWinTableExitMenuParser.leaveButton(lines)
-                    if (box == null) { menuCandidate = null; return@inspectStructured }
+                    if (box == null) {
+                        if (atMs - (menuCandidate?.first ?: atMs) > 6_000L) {
+                            menuCandidate = null
+                            menuCandidateWindow = -1L
+                        }
+                        inconclusive(atMs, "Меню ещё не распознано")
+                        return@inspectStructured
+                    }
                     val old = menuCandidate
-                    if (old != null && atMs - old.first in 300L..6_000L &&
+                    if (old != null && menuCandidateWindow == observedWindow &&
+                        atMs - old.first in 300L..6_000L &&
                         abs(old.second.centerX() - box.centerX()) <= 15 &&
                         abs(old.second.centerY() - box.centerY()) <= 15) {
+                        recheck.observe(atMs, true)
                         confirmedLeaveBox = box
                         menuCandidate = null
-                        // A drawer may create a new Android window generation.
-                        // Bind the touch to the freshly verified current window.
-                        window = requireNotNull(origin.windowGeneration)
+                        menuCandidateWindow = -1L
+                        window = observedWindow
                         submit(context, OneWinTableExitTap.LEAVE_GAME, now, box)
-                    } else menuCandidate = atMs to box
+                    } else {
+                        menuCandidate = atMs to box
+                        menuCandidateWindow = observedWindow
+                        firstMatch(atMs, "Обнаружено меню выхода")
+                    }
                 } else if (phase == OneWinTableExitPhase.WAITING_CONFIRMATION) {
                     val dialog = OneWinTableExitMenuParser.confirmationDialog(lines)
                     if (dialog == null) {
-                        confirmCandidate = null
+                        if (atMs - (confirmCandidate?.first ?: atMs) > 6_000L) {
+                            confirmCandidate = null
+                            confirmCandidateWindow = -1L
+                        }
+                        inconclusive(atMs, "Диалог подтверждения ещё не распознан")
                         return@inspectStructured
                     }
                     val old = confirmCandidate
-                    if (old != null && atMs - old.first in 300L..6_000L &&
+                    if (old != null && confirmCandidateWindow == observedWindow &&
+                        atMs - old.first in 300L..6_000L &&
                         abs(old.second.yesBox.centerX() - dialog.yesBox.centerX()) <= 15 &&
                         abs(old.second.yesBox.centerY() - dialog.yesBox.centerY()) <= 15 &&
                         abs(old.second.noBox.centerX() - dialog.noBox.centerX()) <= 15 &&
                         abs(old.second.noBox.centerY() - dialog.noBox.centerY()) <= 15) {
+                        recheck.observe(atMs, true)
                         confirmedYesBox = dialog.yesBox
                         confirmCandidate = null
-                        window = requireNotNull(origin.windowGeneration)
+                        confirmCandidateWindow = -1L
+                        window = observedWindow
                         submit(context, OneWinTableExitTap.CONFIRM_YES, now, dialog.yesBox)
-                    } else confirmCandidate = atMs to dialog
+                    } else {
+                        confirmCandidate = atMs to dialog
+                        confirmCandidateWindow = observedWindow
+                        firstMatch(atMs, "Обнаружено окно подтверждения выхода")
+                    }
                 } else if (phase == OneWinTableExitPhase.WAITING_LOBBY) {
                     if (OneWinTableExitMenuParser.lobbyVisible(lines)) {
                         if (lobbyCandidateAtMs >= 0L &&
+                            lobbyCandidateWindow == observedWindow &&
                             atMs - lobbyCandidateAtMs in 300L..6_000L) {
+                            recheck.observe(atMs, true)
                             update(OneWinTableExitPhase.RETURNED,
                                 "Экран лобби подтверждён двумя OCR-кадрами")
                             gate.reset()
-                        } else lobbyCandidateAtMs = atMs
-                    } else lobbyCandidateAtMs = -1L
+                        } else {
+                            lobbyCandidateAtMs = atMs
+                            lobbyCandidateWindow = observedWindow
+                            firstMatch(atMs, "Найден экран лобби")
+                        }
+                    } else {
+                        if (atMs - lobbyCandidateAtMs > 6_000L) {
+                            lobbyCandidateAtMs = -1L
+                            lobbyCandidateWindow = -1L
+                        }
+                        inconclusive(atMs, "Возврат в лобби пока не подтверждён")
+                    }
                 }
             }
         }
