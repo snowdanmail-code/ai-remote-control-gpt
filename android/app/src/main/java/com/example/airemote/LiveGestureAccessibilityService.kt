@@ -464,6 +464,89 @@ class LiveGestureAccessibilityService : AccessibilityService() {
      *
      * Only scrolls the lobby list; never the table during an active hand.
      */
+    /**
+     * Navigation ONLY: open the measured hamburger, then tap a twice-OCR-
+     * verified 'Покинуть игру'. Never a poker wager/buy-in or blind retry.
+     */
+    internal fun offerOneWinTableExitNavigation(
+        ticket: OneWinTableExitTicket, finished: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { finished(false) }
+            val now = SystemClock.elapsedRealtime()
+            if (!OnDeviceOneWinTableAutoExit.ticketMatches(ticket, now) ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                !FrameStore.isCapturing || CaptureObservationMode.isSpectator() ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT ||
+                FrameStore.captureEpoch != ticket.epoch) {
+                reject(); return@post
+            }
+            val rootPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(rootPackage, now)
+            val root = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (rootPackage != ticket.sourcePackage ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.window ||
+                now - root.atMs !in 0..700L ||
+                origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.windowGeneration != ticket.window ||
+                origin.captureEpoch != ticket.epoch) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (m.widthPixels !in 320..5000 || m.heightPixels !in 640..9000 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            // User's 354x768 original: menu icon approx (16,54), or (45,70) / 1000.
+            // No guesswork for the second touch: it uses actual OCR bounds.
+            val target = when (ticket.action) {
+                OneWinTableExitTap.OPEN_MENU -> NormalizedTextBox(28, 51, 63, 88)
+                OneWinTableExitTap.LEAVE_GAME ->
+                    ticket.target?.takeIf {
+                        it.valid() && it.centerX() in 35..490 &&
+                            it.centerY() in 95..280
+                    } ?: run { reject(); return@post }
+            }
+            val x = (target.centerX().toLong() * m.widthPixels / 1000L).toInt()
+            val y = (target.centerY().toLong() * m.heightPixels / 1000L).toInt()
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x < overlay.x + overlay.width &&
+                y >= overlay.y && y < overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.epoch ||
+                !OnDeviceOneWinTableAutoExit.ticketMatches(ticket, SystemClock.elapsedRealtime())) {
+                reject(); return@post
+            }
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 70L)).build()
+            var done = false
+            fun finishOnce(ok: Boolean) {
+                if (!done) { done = true; finished(ok) }
+            }
+            val accepted = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    finishOnce(!OperatorStopStore.isStopped(applicationContext))
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    finishOnce(false)
+                }
+            }, main)
+            if (!accepted) finishOnce(false)
+        }
+    }
+
     internal fun offerOneWinCashLobbyNavigation(
         ticket: OneWinCashLobbyNavTicket, finished: (Boolean) -> Unit
     ) {
