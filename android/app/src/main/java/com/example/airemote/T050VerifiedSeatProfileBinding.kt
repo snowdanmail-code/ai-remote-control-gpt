@@ -12,7 +12,10 @@ object T050VerifiedSeatProfileBinding {
         val clean = occupants.filter {
             !it.ambiguousIdentity &&
                 it.participation == T046HandParticipation.ACTIVE_CONFIRMED &&
-                it.verifiedActorKey?.length in 1..128 &&
+                it.verifiedActorKey?.let { actor ->
+                    actor.isNotBlank() && actor.length <= 128 &&
+                        actor.none(Char::isISOControl)
+                } == true &&
                 it.seat in 0..9
         }
         // A duplicated stable actor key across two visible seats is a source
