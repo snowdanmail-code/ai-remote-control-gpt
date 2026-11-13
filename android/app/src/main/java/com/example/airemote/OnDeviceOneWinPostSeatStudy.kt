@@ -39,6 +39,22 @@ object OnDeviceOneWinPostSeatStudy {
         tableMemory.snapshot(currentSession())
 
     /**
+     * The seat ledger, NOT the original profile-sweep list, is the only
+     * authority for model-bound OCR statistics. On seat turnover it has an
+     * empty metric list; stale previous occupant stats can never leak to GPT.
+     */
+    private fun usableSeatStatistics(): List<ObservedOpponentProfile> =
+        tableMemory.snapshot(currentSession()).asSequence()
+            .filter { !it.ambiguousIdentity && it.popupStatistics.isNotEmpty() &&
+                it.participation !in setOf(
+                    T046HandParticipation.FOLDED_CONFIRMED,
+                    T046HandParticipation.LEFT_TABLE_CONFIRMED) }
+            .map { ObservedOpponentProfile(
+                it.seat, null, it.popupStatistics,
+                source = "SESSION_SEAT_OCR_ONLY") }
+            .toList()
+
+    /**
      * Verified integration, not a synthetic OCR-to-action shortcut.
      * Both current hand/turn provenance and an independent actor-seat
      * binding must be present; the existing hand collector must accept
@@ -115,14 +131,8 @@ object OnDeviceOneWinPostSeatStudy {
             origin.captureEpoch != captureEpoch ||
             origin.windowGeneration != windowGeneration ||
             !OnDeviceOneWinPreSeatScanner.verifiedSeatedIn(origin)) return false
-        val permittedSeats = tableMemory.snapshot(currentSession())
-            .filter { !it.ambiguousIdentity &&
-                it.participation !in setOf(
-                    T046HandParticipation.LEFT_TABLE_CONFIRMED,
-                    T046HandParticipation.FOLDED_CONFIRMED) }
-            .map { it.seat }.toSet()
         val stats = T045SessionStatsFormatter.formatForHandoff(
-            sessionProfiles.filter { it.seatIndex in permittedSeats })
+            usableSeatStatistics())
         if (ChatGptPlanHandoffProtocol.prepare(
                 stats, ChatGptAuthProtocol.randomUrlSafe(16)) == null) {
             cloudStatus = "ChatGPT: нет достоверно прочитанных числовых метрик"
@@ -170,14 +180,7 @@ object OnDeviceOneWinPostSeatStudy {
             !observation.windowIndependentlyVerified) return ""
         val key = currentSession()
         tableMemory.beginVerifiedHand(key, observation.handId, true)
-        val safeSeats = tableMemory.snapshot(key)
-            .filter { !it.ambiguousIdentity &&
-                it.participation !in setOf(
-                    T046HandParticipation.LEFT_TABLE_CONFIRMED,
-                    T046HandParticipation.FOLDED_CONFIRMED) }
-            .map { it.seat }.toSet()
-        return T045SessionStatsFormatter.format(
-            sessionProfiles.filter { it.seatIndex in safeSeats })
+        return T045SessionStatsFormatter.format(usableSeatStatistics())
     }
 
     @Synchronized fun reset(reason: String = "Сеанс завершён") {
