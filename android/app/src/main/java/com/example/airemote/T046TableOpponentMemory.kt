@@ -190,15 +190,19 @@ class T046TableOpponentMemory {
                 .joinToString(",") { "seat_" + it.seat }
         // Never claim an opponent has folded or left from a missing avatar.
         // Unknown remains explicit rather than treated as ACTIVE.
+        val uncertain = seats.filter {
+            it.ambiguousIdentity ||
+                it.participation == T046HandParticipation.UNKNOWN
+        }
         val report = "active=" + refs(T046HandParticipation.ACTIVE_CONFIRMED) +
             ";folded=" + refs(T046HandParticipation.FOLDED_CONFIRMED) +
             ";left=" + refs(T046HandParticipation.LEFT_TABLE_CONFIRMED) +
-            ";unknown=" + seats.count {
-                it.ambiguousIdentity ||
-                    it.participation == T046HandParticipation.UNKNOWN
-            } +
+            ";unknown=" + uncertain.size +
             // Profiles never prove that every seat was inspected.
             ";roster_unverified=1"
-        return report.takeIf { it.length <= 160 } ?: ""
+        val withSeatDetails = report + ";unknown_seats=" +
+            uncertain.joinToString(",") { "seat_" + it.seat }
+        return if (withSeatDetails.length <= 160) withSeatDetails
+            else report.takeIf { it.length <= 160 } ?: ""
     }
 }
