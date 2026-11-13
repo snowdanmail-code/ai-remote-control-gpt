@@ -196,6 +196,27 @@ class CaptureService : Service() {
                                 val surface = RecordedSurfaceGate.inspect(width, height) { x, y ->
                                     screen.getPixel(x, y)
                                 }
+                                // The operator-opted-in exit navigator reads ONLY
+                                // the menu/lobby while a transition is pending.
+                                // It never enables card/bet recognition underneath a drawer.
+                                OnDeviceOneWinTableAutoExit.onCaptureTick(applicationContext, now)
+                                if (OnDeviceOneWinTableAutoExit.needsScreenProbe() &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !OperatorStopStore.isStopped(applicationContext) &&
+                                    AppVisibilityGate.canPublish(visibilityTicket)) {
+                                    OnDeviceOneWinTableAutoExit.offerScreen(
+                                        applicationContext, screen, origin, now
+                                    ) {
+                                        !closing && FrameStore.isCapturing &&
+                                        FrameStore.captureEpoch == captureEpoch &&
+                                        FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                        FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                        LiveForegroundProbe.snapshot()?.let { root ->
+                                            root.packageName == origin.observedPackage &&
+                                            root.windowGeneration == origin.windowGeneration
+                                        } == true
+                                    }
+                                }
                                 // The navigator observes only measured table/panel
                                 // transitions. It never receives hero-button taps or
                                 // invents seat/player identity from a screenshot.
@@ -488,6 +509,7 @@ class CaptureService : Service() {
         OnDeviceAutomaticOcr.reset()
         OnDeviceOpponentPopupOcr.reset()
         OnDeviceOneWinCashLobby.reset()
+        OnDeviceOneWinTableAutoExit.stop("Захват завершён")
         OnDeviceHandState.reset("Захват завершён")
         OnDeviceStageBridge.reset("Захват завершён")
         OnDeviceVerifiedHandCompletion.resetTransientEvidence()
