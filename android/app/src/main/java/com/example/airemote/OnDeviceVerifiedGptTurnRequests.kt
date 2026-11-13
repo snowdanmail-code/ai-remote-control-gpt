@@ -40,10 +40,12 @@ object OnDeviceVerifiedGptTurnRequests {
         // Session popup metrics are read-only and never a verified identity
         // or proof of a permitted wager.
         val sessionStats = OnDeviceOneWinPostSeatStudy.advisoryFor(observation)
+        val handSeats = OnDeviceOneWinPostSeatStudy.verifiedHandSeatSummary(observation)
         requested = key
         lastReason = "GPT: анализ подтверждённого хода и соперников"
         ChatGptCloudBridge.askVerifiedTurnDecision(
-            context.applicationContext, observation, cards, profiles, sessionStats
+            context.applicationContext, observation, cards, profiles,
+            sessionStats, handSeats
         ) { result ->
             synchronized(this) {
                 if (requested == key)
