@@ -14,10 +14,22 @@ class ChatGptPlanHandoffProtocolTest {
         assertEquals(2,t.seatCount)
         assertTrue(t.prompt.contains(data))
         assertTrue(t.prompt.contains("unverified OCR"))
-        assertTrue(t.prompt.length <= 1000)
+        assertTrue(t.prompt.length <= 1600)
         assertFalse(t.prompt.contains("api_key"))
         val validAck = """{"schema":"t045.session-context.ack.v1","nonce":"$nonce","seats":2}"""
         assertTrue(ChatGptPlanHandoffProtocol.verifyAck(validAck,t))
+    }
+
+    @Test fun allElevenPopupMetricsFitInFullTableHandoff() {
+        val stats = "seat_1:VPIP=43,PFR=17,ATS=10,THREE_BET=4,C_BET=67," +
+            "FOLD_TO_C_BET=32,CHECK_RAISE=8,WTSD=21,WSD=51," +
+            "AGGRESSION_FACTOR=2.4,HANDS=127"
+        val ticket = ChatGptPlanHandoffProtocol.prepare(stats,nonce)
+        assertNotNull(ticket)
+        assertEquals(1,ticket!!.seatCount)
+        assertTrue(ticket.prompt.contains("AGGRESSION_FACTOR=2.4"))
+        assertTrue(ticket.prompt.contains("HANDS=127"))
+        assertTrue(ticket.prompt.length <= 1600)
     }
 
     @Test fun cannotSpoofReceiptFromAnotherSessionOrUnverifiedOutput() {
