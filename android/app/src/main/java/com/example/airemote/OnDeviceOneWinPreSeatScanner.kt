@@ -8,7 +8,8 @@ import java.io.ByteArrayOutputStream
 enum class OneWinPreSeatPhase {
     OFF, SEARCHING, VACANCIES_CONFIRMED, SEAT_TAP_PENDING,
     WAITING_BUYIN_AFTER_TAP, WAITING_BUYIN,
-    BUYIN_RECHECK, BUYIN_VERIFIED, VERIFYING_SEATED, SEATED,
+    BUYIN_RECHECK, BUYIN_VERIFIED, MIN_TAP_PENDING, WAITING_MIN_RECHECK,
+    OK_TAP_PENDING, WAITING_SEATED_AFTER_OK, VERIFYING_SEATED, SEATED,
     CANCELLED, BLOCKED
 }
 data class OneWinPreSeatDiagnostic(
@@ -38,6 +39,13 @@ object OnDeviceOneWinPreSeatScanner {
     private val buyInAgreement = OneWinBuyInAgreement()
     private var knownVacancies = emptyList<OneWinVacantSeatMarker>()
     private var armSeatEntry = false
+    private var autoConfirmMinimum = false
+    private var minimumTapAttempted = false
+    private var minimumTapCompletedAtMs = -1L
+    private var okTapAttempted = false
+    private var okTapCompleted = false
+    private var pendingBuyInTap: OneWinBuyInTapTicket? = null
+    private var lastBuyInTouchMs = -1L
     private var seatTapAttempted = false
     private var requestCounter = 0L
     private var pendingSeatTap: OneWinVacantSeatTapTicket? = null
@@ -62,6 +70,13 @@ object OnDeviceOneWinPreSeatScanner {
         lastRun = -INTERVAL_MS
         knownVacancies = emptyList()
         armSeatEntry = false
+        autoConfirmMinimum = false
+        minimumTapAttempted = false
+        minimumTapCompletedAtMs = -1L
+        okTapAttempted = false
+        okTapCompleted = false
+        pendingBuyInTap = null
+        lastBuyInTouchMs = -1L
         seatTapAttempted = false
         pendingSeatTap = null
         lastSeatTapObservationAtMs = 0L
@@ -88,6 +103,7 @@ object OnDeviceOneWinPreSeatScanner {
         observedPackage = requireNotNull(LiveGamePermissionGate.packageName())
         epoch = FrameStore.captureEpoch
         armSeatEntry = chooseSeat
+        autoConfirmMinimum = chooseSeat
         status = OneWinPreSeatDiagnostic(OneWinPreSeatPhase.SEARCHING,
             "Ищем стрелки свободных мест по изображению и окно «Бай-Ин» по OCR")
         return true
@@ -102,6 +118,15 @@ object OnDeviceOneWinPreSeatScanner {
             LiveGamePermissionGate.packageName() != observedPackage) {
             stop("Захват/разрешение изменены; посадка сброшена")
             return
+        }
+        if (status.phase in setOf(OneWinPreSeatPhase.MIN_TAP_PENDING,
+                OneWinPreSeatPhase.OK_TAP_PENDING) &&
+            pendingBuyInTap != null && nowMs >= lastBuyInTouchMs &&
+            nowMs - lastBuyInTouchMs > 12_000L) {
+            pendingBuyInTap = null
+            status = status.copy(phase = OneWinPreSeatPhase.BLOCKED,
+                description = "Не получено подтверждение жеста бай-ина от Android; " +
+                    "касание больше не повторяем")
         }
         if (status.phase == OneWinPreSeatPhase.SEAT_TAP_PENDING &&
             pendingSeatTap != null &&
@@ -129,11 +154,137 @@ object OnDeviceOneWinPreSeatScanner {
             !FrameStore.isCapturing || CaptureObservationMode.isSpectator() ||
             !LiveGamePermissionGate.permitted()) return false
         armSeatEntry = true
+        autoConfirmMinimum = true
         status = status.copy(description =
             "Однократный выбор стрелки включён; ожидаем два новых совпадающих кадра")
         arrowAgreement.reset()
         knownVacancies = emptyList()
         return true
+    }
+
+    /**
+     * One-step legacy-safe opt-in for a manually opened dialog; no seat
+     * gesture required. Only the current active session and previously
+     * unconfirmed buy-in qualify; no repeat OK after a submitted click.
+     */
+    @Synchronized fun armMinimumBuyIn(context: Context): Boolean {
+        if (!active() || okTapAttempted || pendingBuyInTap != null ||
+            OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
+            CaptureObservationMode.isSpectator() ||
+            !LiveGamePermissionGate.permitted() ||
+            status.phase !in setOf(OneWinPreSeatPhase.WAITING_BUYIN,
+                OneWinPreSeatPhase.BUYIN_RECHECK,
+                OneWinPreSeatPhase.BUYIN_VERIFIED,
+                OneWinPreSeatPhase.WAITING_MIN_RECHECK)) return false
+        autoConfirmMinimum = true
+        buyInAgreement.reset()
+        status = status.copy(description = "Авто-минимум включён; " +
+            "ждём два новых совпадающих чтения суммы перед кнопкой «ОК»")
+        return true
+    }
+
+    @Synchronized fun buyInTicketMatches(ticket: OneWinBuyInTapTicket,
+                                          nowMs: Long): Boolean {
+        if (pendingBuyInTap != ticket ||
+            ticket.sourcePackage != observedPackage ||
+            ticket.captureEpoch != epoch ||
+            ticket.captureEpoch != FrameStore.captureEpoch ||
+            ticket.windowGeneration != FrameStore.windowOrigin?.windowGeneration ||
+            !FrameStore.isCapturing ||
+            nowMs < ticket.observedAtMs ||
+            nowMs - ticket.observedAtMs > 1_100L) return false
+        val limits = OneWinCashLobbyLimitsStore.read(
+            pendingBuyInContext ?: return false)
+        val decision = OneWinMinimumBuyInPolicy.evaluate(ticket.expected, limits,
+            minimumTapAttempted)
+        return when (ticket.purpose) {
+            OneWinBuyInTapPurpose.CHOOSE_MIN ->
+                status.phase == OneWinPreSeatPhase.MIN_TAP_PENDING &&
+                    minimumTapAttempted &&
+                    ticket.expected.minimumCents == ticket.minimumCents &&
+                    ticket.target == ticket.expected.minButtonBox &&
+                    decision.step == OneWinMinBuyInStep.RECHECK_OCR
+            OneWinBuyInTapPurpose.CONFIRM_OK ->
+                status.phase == OneWinPreSeatPhase.OK_TAP_PENDING &&
+                    okTapAttempted &&
+                    ticket.target == ticket.expected.okBox &&
+                    ticket.expected.inputCents == ticket.minimumCents &&
+                    ticket.expected.debitCents == ticket.minimumCents &&
+                    decision.step == OneWinMinBuyInStep.PRESS_OK
+        }
+    }
+
+    private var pendingBuyInContext: Context? = null
+
+    private fun submitBuyInTap(context: Context, ticket: OneWinBuyInTapTicket) {
+        val service = LiveForegroundProbe.activeService()
+        if (service == null) {
+            pendingBuyInTap = null
+            status = status.copy(phase = OneWinPreSeatPhase.BLOCKED,
+                description = "Accessibility не подключён; бай-ин не подтверждён")
+            return
+        }
+        pendingBuyInContext = context.applicationContext
+        service.offerOneWinBuyInNavigation(ticket) { completed ->
+            synchronized(this) {
+                if (pendingBuyInTap != ticket) return@synchronized
+                pendingBuyInTap = null
+                if (!completed) {
+                    status = status.copy(
+                        phase = OneWinPreSeatPhase.BLOCKED,
+                        description = "Жест бай-ина отменён Android; нет повтора")
+                    return@synchronized
+                }
+                if (ticket.purpose == OneWinBuyInTapPurpose.CHOOSE_MIN) {
+                    minimumTapCompletedAtMs = android.os.SystemClock.elapsedRealtime()
+                    buyInAgreement.reset()
+                    if (status.phase == OneWinPreSeatPhase.MIN_TAP_PENDING)
+                        status = status.copy(phase = OneWinPreSeatPhase.WAITING_MIN_RECHECK,
+                            description = "Нажали «Мин»; проверяем новое значение и списание")
+                } else {
+                    okTapCompleted = true
+                    if (status.phase == OneWinPreSeatPhase.OK_TAP_PENDING)
+                        status = status.copy(phase = OneWinPreSeatPhase.WAITING_SEATED_AFTER_OK,
+                            description = "Android завершил нажатие «ОК»; " +
+                                "ожидаем две проверки посадки HERO")
+                }
+            }
+        }
+    }
+
+    private fun dispatchMinimumBuyInDecision(
+        context: Context, nowMs: Long,
+        ticket: OcrFrameTicket, frameWidth: Int, frameHeight: Int,
+        approved: OneWinBuyInDialogReading, decision: OneWinMinBuyInDecision
+    ) {
+        val target = decision.target ?: return
+        val amount = decision.amountCents ?: return
+        if (!autoConfirmMinimum || pendingBuyInTap != null || okTapAttempted ||
+            status.phase == OneWinPreSeatPhase.BLOCKED) return
+        if (decision.step == OneWinMinBuyInStep.PRESS_MIN && minimumTapAttempted)
+            return
+        if (decision.step !in setOf(OneWinMinBuyInStep.PRESS_MIN,
+                OneWinMinBuyInStep.PRESS_OK)) return
+        requestCounter++
+        val purpose = if (decision.step == OneWinMinBuyInStep.PRESS_MIN)
+            OneWinBuyInTapPurpose.CHOOSE_MIN else OneWinBuyInTapPurpose.CONFIRM_OK
+        val click = OneWinBuyInTapTicket(requestCounter, purpose,
+            ticket.sourcePackage, ticket.captureEpoch, ticket.windowGeneration,
+            ticket.frameSequence, ticket.capturedAtMs, frameWidth,
+            frameHeight, amount, target, approved)
+        pendingBuyInTap = click
+        lastBuyInTouchMs = nowMs
+        if (purpose == OneWinBuyInTapPurpose.CHOOSE_MIN) {
+            minimumTapAttempted = true
+            status = status.copy(phase = OneWinPreSeatPhase.MIN_TAP_PENDING,
+                description = "Выбираем минимальный бай-ин " + (amount / 100.0))
+        } else {
+            okTapAttempted = true
+            status = status.copy(phase = OneWinPreSeatPhase.OK_TAP_PENDING,
+                description = "Однократно подтверждаем минимальный бай-ин " +
+                    (amount / 100.0))
+        }
+        submitBuyInTap(context, click)
     }
 
     @Synchronized fun seatTicketMatches(ticket: OneWinVacantSeatTapTicket,
