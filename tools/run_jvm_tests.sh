@@ -35,6 +35,7 @@ com.example.airemote.IncidentJournalFieldsScenarios
 com.example.airemote.DeadlineScenarios
 com.example.airemote.PokerMathScenarios
 com.example.airemote.T054OpponentOpportunityScenarios
+com.example.airemote.T054HandContextScenarios
 com.example.airemote.OpponentAwarenessScenarios
 com.example.airemote.SeatVisualScenarios
 com.example.airemote.SeatTransitionScenarios
