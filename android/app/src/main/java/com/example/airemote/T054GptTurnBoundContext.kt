@@ -52,7 +52,8 @@ data class T054GptTurnBoundContext(
         if (hand.history.size > 120 ||
             hand.opponents.size > 8 ||
             hand.history.zipWithNext().any { (a, b) -> a.sequence >= b.sequence } ||
-            hand.history.any { it.actorSeat != null && it.actorSeat !in 0..8 })
+            hand.history.any { it.actorSeat != null && it.actorSeat !in 0..8 } ||
+            !actionStreetsFitContext(hand.history.asSequence().map { it.street }, hand.street))
             return false
         return true
     }

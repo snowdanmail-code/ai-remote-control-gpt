@@ -97,6 +97,18 @@ data class T054ReadOnlyHandContext(
         "actions=${history.size}; unknown=${unknownFields.sorted().joinToString(",")}"
 }
 
+/** UNKNOWN preserves partial history without resetting the last known street. */
+internal fun actionStreetsFitContext(history: Sequence<PokerStreet>, current: PokerStreet): Boolean {
+    var previous: PokerStreet? = null
+    for (street in history) {
+        if (street == PokerStreet.UNKNOWN) continue
+        if (previous != null && street < previous) return false
+        if (current != PokerStreet.UNKNOWN && street > current) return false
+        previous = street
+    }
+    return true
+}
+
 object T054ReadOnlyHandContextBuilder {
     /**
      * Reject contradictory evidence. Unknown amounts/players stay null.
@@ -114,6 +126,8 @@ object T054ReadOnlyHandContextBuilder {
             !betting.numericallyValid() ||
             observation.source.tableId == null || observation.source.sessionId == null ||
             observation.source.handId == null) return null
+        if (!actionStreetsFitContext(observation.actions.asSequence().map { it.street },
+                observation.street)) return null
         val hero = observation.heroSeat ?: return null
         val seat = observation.seats.singleOrNull { it.seatIndex == hero } ?: return null
         val expectedBoard = when (observation.street) {

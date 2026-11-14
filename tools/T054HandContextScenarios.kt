@@ -85,6 +85,23 @@ object T054HandContextScenarios {
             missingStreetBet.copy(currentBetToChips = 85L))!!
         verify("a verified full call can exactly match the hero stack",
             exactAllIn.potOddsRequiredEquity == PokerMath.potOddsRequiredEquity(100L, 10L))
+        val preflopRaise = observation(6).actions.single()
+        val flopCheck = CanonicalPokerAction(2, PokerStreet.FLOP, 1,
+            PokerActionKind.CHECK, null, PokerEvidence.INDEPENDENT, "evt2")
+        val unknownStreet = flopCheck.copy(sequence = 3, street = PokerStreet.UNKNOWN, eventId = "evt3")
+        val futureBet = flopCheck.copy(sequence = 4, street = PokerStreet.TURN, eventId = "evt4")
+        verify("future streets cannot enter the current hand context",
+            T054ReadOnlyHandContextBuilder.build(
+                observation(6).copy(actions = listOf(preflopRaise, flopCheck, futureBet)), bets) == null)
+        val latePreflop = preflopRaise.copy(sequence = 4, eventId = "evt4")
+        verify("unknown street does not hide a backwards street transition",
+            T054ReadOnlyHandContextBuilder.build(
+                observation(6).copy(actions = listOf(flopCheck, unknownStreet, latePreflop)), bets) == null)
+        val validPartial = T054ReadOnlyHandContextBuilder.build(
+            observation(6).copy(actions = listOf(preflopRaise, flopCheck, unknownStreet)), bets)!!
+        verify("partial but consistent action history retains unknown street evidence",
+            validPartial.history.map { it.street } ==
+                listOf(PokerStreet.PREFLOP, PokerStreet.FLOP, PokerStreet.UNKNOWN))
         println("Passed $checks T054 hand-context JVM scenarios")
     }
 }

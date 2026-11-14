@@ -173,6 +173,13 @@ class T054GptDecisionContextTest {
                 good.hand.unknownFields - "ACTION_HISTORY_COMPLETENESS"))))
     }
 
+    @Test fun futureStreetIsRejectedEvenIfAnEnvelopeHasMatchingFrameIds() {
+        val good = bound()
+        val futureAction = good.hand.history.single().copy(street = PokerStreet.FLOP)
+        val futureHistory = good.copy(hand = good.hand.copy(history = listOf(futureAction)))
+        assertNull(prompt(context = futureHistory))
+    }
+
     @Test fun regularChatGptContractStillWorksWithoutNewProducer() {
         val old = T043GptDecisionContract.buildPrompt(live(), cards(), 2000L)
         assertNotNull(old)
