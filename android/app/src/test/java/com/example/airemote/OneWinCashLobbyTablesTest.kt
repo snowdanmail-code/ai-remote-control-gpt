@@ -129,4 +129,28 @@ class OneWinCashLobbyTablesTest {
         assertFalse(r.headerVerified)
         assertTrue(r.tables.isEmpty())
     }
+
+    @Test fun diagnosticCountersExplainMissingHeaderWithoutExposingRawText() {
+        val lines = screenshotOcr().filterNot { it.text == "Кэш-Игры" }
+        val reading = OneWinCashLobbyParser.read(lines)
+        val result = OneWinCashLobbyReadOnlyDiagnostics.summarize(lines, reading)
+        assertTrue(result.contains("заголовок=НЕТ"))
+        assertTrue(result.contains("причина=NOT_CASH_GAMES_LOBBY"))
+        assertFalse(result.contains("Palma"))
+        assertFalse(result.contains("Viana"))
+    }
+
+    @Test fun diagnosticCountersExposeParserGatesWithoutReducingStrictChecks() {
+        val sample = screenshotOcr()
+        val reading = OneWinCashLobbyParser.read(sample)
+        val status = OneWinCashLobbyReadOnlyDiagnostics.summarize(sample, reading)
+        assertEquals(4, reading.tables.size)
+        assertTrue(status.contains("заголовок=ДА"))
+        assertTrue(status.contains("метки Бай-ин=4"))
+        assertTrue(status.contains("Холдем=4"))
+        assertTrue(status.contains("счётчики мест=4"))
+        assertTrue(status.contains("кандидатов=4"))
+        assertFalse(status.contains("Lubbock"))
+    }
+
 }
