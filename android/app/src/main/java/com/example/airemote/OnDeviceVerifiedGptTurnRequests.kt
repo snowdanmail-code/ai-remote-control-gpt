@@ -56,7 +56,7 @@ object OnDeviceVerifiedGptTurnRequests {
             OnDeviceOneWinPostSeatStudy.verifiedOpponentSeatBindings(observation)
         requested = key
         lastReason = "GPT: анализ подтверждённого хода и соперников"
-        ChatGptCloudBridge.askVerifiedTurnDecision(
+        val started = ChatGptCloudBridge.askVerifiedTurnDecision(
             context.applicationContext, observation, cards, profiles,
             sessionStats, handSeats, verifiedActorSeatRefs
         ) { result ->
@@ -67,6 +67,9 @@ object OnDeviceVerifiedGptTurnRequests {
                     else "GPT: ${result.reason}"
             }
         }
-        return true
+        // A refused start has no network request. Another verified frame can
+        // try once the bridge is free or the prompt can use a fresh frame.
+        if (!started) requested = null
+        return started
     }
 }

@@ -641,15 +641,15 @@ object ChatGptCloudBridge {
      * and a typed decision. This never dispatches an Android gesture.
      */
     private fun requestModelText(context: Context, prompt: String,
-                                 completed: (CloudTextReply?, String?) -> Unit) {
+                                 completed: (CloudTextReply?, String?) -> Unit): Boolean {
         appContext = context.applicationContext
         if (prompt.isBlank() || prompt.length > 1600) {
             completed(null, "Введите запрос до 1600 символов")
-            return
+            return false
         }
         if (!operations.tryBeginRequest()) {
             completed(null, "AUTH_IN_PROGRESS_OR_CLOUD_BUSY")
-            return
+            return false
         }
         val generation = operations.generation()
         Thread({
@@ -704,6 +704,7 @@ object ChatGptCloudBridge {
                 operations.finishRequest()
             }
         }, "chatgpt-inference").start()
+        return true
     }
 
     /** Manual cloud advisor test. The response remains display-only. */
@@ -765,16 +766,16 @@ object ChatGptCloudBridge {
         // Future authenticated provider only; current device sends null.
         turnContext: T054GptTurnBoundContext? = null,
         report: (T043GptDecisionContract.Review) -> Unit
-    ) {
+    ): Boolean {
         val prompt = T043GptDecisionContract.buildPrompt(observation, cards,
             android.os.SystemClock.elapsedRealtime(), verifiedOpponentProfiles,
             sessionPopupStatistics, verifiedHandParticipation,
             verifiedOpponentSeatRefs, turnContext)
         if (prompt == null) {
             report(T043GptDecisionContract.Review(false, "UNVERIFIED_OR_STALE_TURN"))
-            return
+            return false
         }
-        requestModelText(context, prompt) { reply, error ->
+        return requestModelText(context, prompt) { reply, error ->
             if (reply == null) {
                 report(T043GptDecisionContract.Review(false, "CLOUD_FAILURE: ${error ?: "UNKNOWN"}"))
                 return@requestModelText
