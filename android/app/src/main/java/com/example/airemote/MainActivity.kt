@@ -47,11 +47,19 @@ class MainActivity : Activity() {
             }
             if (::preview.isInitialized && OperatorStopStore.isStopped(this@MainActivity))
                 preview.setImageDrawable(null)
+            if (::operatorLiveText.isInitialized) {
+                val live = OnDeviceOperatorLiveTrace.snapshot(this@MainActivity, 8)
+                val message = live.overview + "\n\nПОСЛЕДНИЕ СОБЫТИЯ (новые сверху)\n" +
+                    live.recent.joinToString("\n")
+                if (operatorLiveText.text.toString() != message)
+                    operatorLiveText.text = message
+            }
             wasAuthorizing = authorizing
             cloudHandler.postDelayed(this, 400)
         }
     }
     private lateinit var status: TextView
+    private lateinit var operatorLiveText: TextView
     private lateinit var result: TextView
     private lateinit var preview: ImageView
     private lateinit var qualitySpinner: Spinner
@@ -216,6 +224,31 @@ class MainActivity : Activity() {
         label("Облачный ИИ подключается для испытаний и рекомендаций. " +
             "Реальные касания в 1win не разрешаются результатом тестового запроса.")
         status = TextView(this).apply { textSize = 16f; text = "Захват выключен"; content.addView(this) }
+        content.addView(TextView(this).apply {
+            text = "ЖИВОЙ ЖУРНАЛ ИИ · обновляется каждые 0,4 сек"
+            textSize = 15f
+            setTextColor(Color.rgb(33, 91, 145))
+            setPadding(0, 10, 0, 2)
+        })
+        content.addView(Button(this).apply {
+            text = if (OnDeviceOperatorLiveTrace.overlayEnabled(this@MainActivity))
+                "ВЫКЛЮЧИТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
+            else "ПОКАЗЫВАТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
+            setOnClickListener {
+                val enabled = !OnDeviceOperatorLiveTrace.overlayEnabled(this@MainActivity)
+                OnDeviceOperatorLiveTrace.setOverlayEnabled(this@MainActivity, enabled)
+                text = if (enabled) "ВЫКЛЮЧИТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
+                    else "ПОКАЗЫВАТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
+            }
+        })
+        operatorLiveText = TextView(this).apply {
+            textSize = 12f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(Color.rgb(42, 50, 62))
+            setPadding(8, 8, 8, 12)
+            text = "Ожидание событий. События и причины блокировок появятся здесь."
+            content.addView(this)
+        }
         handStateText = TextView(this).apply { textSize = 15f; advanced.addView(this) }
         label("Режим по умолчанию — ИГРОК. Наблюдатель считывает только общие " +
             "карты и никогда не включает автоматические игровые касания.")
