@@ -30,10 +30,11 @@ data class T054IndependentBettingSnapshot(
             (lastFullRaiseSizeChips == null || lastFullRaiseSizeChips > 0L) &&
             (currentBetToChips == null || heroCommittedOnStreetChips == null ||
                 heroCommittedOnStreetChips <= currentBetToChips) &&
-            // A verified cost-to-call must agree with known street totals.
+            // A short all-in may call LESS than outstanding street chips.
+            // The builder checks its exact amount against HERO's verified stack.
             (currentBetToChips == null || heroCommittedOnStreetChips == null ||
                 costToCallChips == null ||
-                currentBetToChips - heroCommittedOnStreetChips == costToCallChips)
+                costToCallChips <= currentBetToChips - heroCommittedOnStreetChips)
     }
 
     fun stableHand(): Boolean =
@@ -136,6 +137,16 @@ object T054ReadOnlyHandContextBuilder {
         val count = if (knownRoster && seat.activeInHand == true) active.size else null
         val positions = observation.positions()
         val heroStack = seat.stackChips
+        val streetOutstanding = if (betting.currentBetToChips != null &&
+            betting.heroCommittedOnStreetChips != null)
+            betting.currentBetToChips - betting.heroCommittedOnStreetChips else null
+        // Cost of CALL for a short stack is min(outstanding, stack behind).
+        // If stack is unknown, a smaller call cannot be independently justified.
+        val shortAllInCall = streetOutstanding != null && call != null &&
+            call < streetOutstanding
+        if (streetOutstanding != null && call != null &&
+            (heroStack != null && call != min(streetOutstanding, heroStack) ||
+                heroStack == null && call != streetOutstanding)) return null
         fun toBb(chips: Long?): Double? =
             if (chips == null || blind == null) null else chips.toDouble() / blind.toDouble()
         fun spr(chips: Long?): Double? =
@@ -176,6 +187,7 @@ object T054ReadOnlyHandContextBuilder {
         if (blind == null) unknown.add("BIG_BLIND")
         if (pot == null) unknown.add("POT")
         if (call == null) unknown.add("CALL_COST")
+        if (shortAllInCall) unknown.add("ALL_IN_ELIGIBLE_POT")
         if (observation.boardCards == null) unknown.add("BOARD")
         if (count != null && count > 0 && minimumEffective == null)
             unknown.add("ACTIVE_OPPONENT_STACK")
@@ -189,7 +201,9 @@ object T054ReadOnlyHandContextBuilder {
         if (observation.actions.any { it.amountChips != null })
             unknown.add("HISTORY_AMOUNT_SEMANTICS")
 
-        val odds = if (pot != null && call != null)
+        // A displayed total pot can contain side pots a short-all-in HERO
+        // cannot win. Never offer misleading pot odds for that case.
+        val odds = if (pot != null && call != null && !shortAllInCall)
             PokerMath.potOddsRequiredEquity(pot, call) else null
         return T054ReadOnlyHandContext(
             source = observation.source,
