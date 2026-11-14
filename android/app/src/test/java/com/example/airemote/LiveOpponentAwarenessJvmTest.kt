@@ -24,7 +24,7 @@ class LiveOpponentAwarenessJvmTest {
         assertEquals(true, fact.vpip)
         assertEquals(true, fact.preflopRaise)
         assertNull(fact.showdown)
-        assertNull(fact.foldedWhenFacingBet)
+        assertEquals(false, fact.foldedWhenFacingBet)
     }
 
     @Test fun preventsCrossWindowAndCrossHandReuse() {
