@@ -159,4 +159,24 @@ class T054ReadOnlyHandContextTest {
             observation(), betting().copy(costToCallChips = 10L)))
     }
 
+
+    @Test fun unknownStackTimingCannotBeTurnedIntoEffectiveStacks() {
+        val result = T054ReadOnlyHandContextBuilder.build(observation(),
+            betting().copy(stacksAreRemainingBehind = false))!!
+        assertNull(result.heroRemainingStackChips)
+        assertNull(result.minimumEffectiveRemainingStackChips)
+        assertNull(result.minimumEffectiveRemainingSpr)
+        assertNull(result.mathematicalRaiseBounds)
+        assertTrue(result.unknownFields.contains("STACK_TIMING_SEMANTICS"))
+    }
+
+    @Test fun displayPotAloneDoesNotCertifyBeforeActionPot() {
+        val result = T054ReadOnlyHandContextBuilder.build(observation(),
+            betting().copy(potBeforeHeroActionChips = null))!!
+        assertNull(result.potBeforeHeroActionChips)
+        assertNull(result.potOddsRequiredEquity)
+        assertNull(result.minimumEffectiveRemainingSpr)
+        assertTrue(result.unknownFields.contains("POT"))
+    }
+
 }
