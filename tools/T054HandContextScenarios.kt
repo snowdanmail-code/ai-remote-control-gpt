@@ -25,7 +25,7 @@ object T054HandContextScenarios {
             potBeforeHeroActionChips = 100L, costToCallChips = 25L,
             bigBlindChips = 10L, currentBetToChips = 100L,
             heroCommittedOnStreetChips = 75L, lastFullRaiseSizeChips = 50L,
-            evidence = PokerEvidence.INDEPENDENT)
+            stacksAreRemainingBehind = true, evidence = PokerEvidence.INDEPENDENT)
         var checks = 0
         fun verify(name: String, passed: Boolean) {
             check(passed) { name }
