@@ -1,0 +1,121 @@
+name: T053 lobby OCR diagnostic — signed Code99
+
+# Owner-requested one-shot signed test build; disabled again after publication.
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/t043-gpt-decision-contract]
+    paths: [.github/t053-build-request.txt]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: t053-samsung-code99-signing
+  cancel-in-progress: false
+
+jobs:
+  signed-samsung-prototype:
+    if: >-
+      ${{ github.repository == 'snowdanmail-code/ai-remote-control-gpt' &&
+          github.ref == 'refs/heads/feature/t043-gpt-decision-contract' &&
+          (github.event_name == 'workflow_dispatch' ||
+           (github.event_name == 'push' &&
+            github.event.head_commit.message == 'T053 BUILD REQUEST: signed Samsung Code99')) }}
+    runs-on: ubuntu-latest
+    environment: android-signing
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify existing certificate and restore prior signing key
+        shell: bash
+        env:
+          EXISTING_APK_KEYSTORE_B64: ${{ secrets.EXISTING_APK_KEYSTORE_B64 }}
+          EXISTING_APK_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          EXISTING_APK_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          EXISTING_APK_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$EXISTING_APK_KEYSTORE_B64" || { echo 'BLOCKED: prior keystore unavailable'; exit 1; }
+          test -n "$EXISTING_APK_STORE_PASSWORD" || exit 1
+          test -n "$EXISTING_APK_KEY_ALIAS" || exit 1
+          test -n "$EXISTING_APK_KEY_PASSWORD" || exit 1
+          umask 077
+          printf '%s' "$EXISTING_APK_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/previous-install.keystore"
+          chmod 600 "$RUNNER_TEMP/previous-install.keystore"
+          KEY_INFO="$(keytool -list -v -keystore "$RUNNER_TEMP/previous-install.keystore" -alias "$EXISTING_APK_KEY_ALIAS" -storepass:env EXISTING_APK_STORE_PASSWORD)"
+          grep -q 'Entry type: PrivateKeyEntry' <<< "$KEY_INFO" || exit 1
+          CERT="$(grep -m1 -E '^[[:space:]]*SHA256:' <<< "$KEY_INFO" | sed -E 's/^[[:space:]]*SHA256:[[:space:]]*//' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          test "$CERT" = '511567f44b5e527b8b388d0ea2a66ad30725a856ef76670c027b88c25007cd2c' || { echo 'BLOCKED: signing identity mismatch'; exit 1; }
+          echo "AI_REMOTE_SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/previous-install.keystore" >> "$GITHUB_ENV"
+          mkdir -p artifacts
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android SDK
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Stage prototype versionCode 99 (no tracked source mutation)
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p = Path('android/app/build.gradle.kts')
+          s = p.read_text()
+          assert s.count('versionCode = 75') == 1
+          assert s.count('versionName = "2.14.41-in-app-oauth-hardening"') == 1
+          s = s.replace('versionCode = 75', 'versionCode = 99', 1)
+          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"',
+                        'versionName = "2.14.41-t053-lobby-diagnostics-code99"', 1)
+          p.write_text(s)
+          PYCODE
+      - name: Android unit tests and signed APK
+        working-directory: android
+        env:
+          AI_REMOTE_SIGNING_STORE_PASSWORD: ${{ secrets.EXISTING_APK_STORE_PASSWORD }}
+          AI_REMOTE_SIGNING_KEY_ALIAS: ${{ secrets.EXISTING_APK_KEY_ALIAS }}
+          AI_REMOTE_SIGNING_KEY_PASSWORD: ${{ secrets.EXISTING_APK_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Verify signature, package, version, and integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/verify_android_upgrade.py \
+            --candidate android/app/build/outputs/apk/debug/app-debug.apk \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
+            --baseline-metadata tools/reference_prior_apk_v2.14.41.json \
+            --report artifacts/T053-code99-upgrade-verification.json
+          python3 - <<'PYCODE'
+          import json
+          from pathlib import Path
+          v = json.loads(Path('artifacts/T053-code99-upgrade-verification.json').read_text())
+          assert v['version_code'] == 99
+          assert v['package'] == 'com.example.airemote.dev'
+          PYCODE
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T053-OCR-Diagnostics-Code99.apk
+          cd artifacts
+          sha256sum AI-Remote-Control-GPT-T053-OCR-Diagnostics-Code99.apk > AI-Remote-Control-GPT-T053-OCR-Diagnostics-Code99.apk.sha256
+      - name: Publish verified Samsung candidate (not production-ready)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-remote-control-t053-ocr-diagnostics-code99
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            artifacts/AI-Remote-Control-GPT-T053-OCR-Diagnostics-Code99.apk
+            artifacts/AI-Remote-Control-GPT-T053-OCR-Diagnostics-Code99.apk.sha256
+            artifacts/T053-code99-upgrade-verification.json
+      - name: Erase private signing key
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/previous-install.keystore"
