@@ -50,13 +50,14 @@ class T054GptDecisionContextTest {
         pot: Long? = 400L, call: Long? = 0L,
         stack: Long? = 1000L,
         stackTiming: Boolean = true,
+        outstanding: Long? = null,
         events: List<CanonicalPokerAction> = canonical().actions
     ): T054GptTurnBoundContext {
         val base = canonical(pot, stack, events)
         val bets = T054IndependentBettingSnapshot(
             source = source, street = PokerStreet.PREFLOP,
             potBeforeHeroActionChips = pot, costToCallChips = call,
-            bigBlindChips = 10L, currentBetToChips = call,
+            bigBlindChips = 10L, currentBetToChips = outstanding ?: call,
             heroCommittedOnStreetChips = 0L,
             lastFullRaiseSizeChips = 10L,
             stacksAreRemainingBehind = stackTiming,
@@ -71,8 +72,11 @@ class T054GptDecisionContextTest {
     ): String? = T043GptDecisionContract.buildPrompt(
         observation, cards(), 2000L, turnContext = context)
 
-    private fun json(prompt: String): JSONObject =
-        JSONObject(prompt.substringAfter('\n'))
+    private fun json(prompt: String): JSONObject {
+        val start = prompt.indexOf("{\"schema\":")
+        require(start >= 0) { "Missing structured model packet" }
+        return JSONObject(prompt.substring(start))
+    }
 
     @Test fun verifiedReplayBindsPositionStacksSprAndEventsToCurrentTurn() {
         val prompt = prompt()
@@ -127,10 +131,9 @@ class T054GptDecisionContextTest {
     @Test fun shortAllInCannotInheritUnsafeGeneralPotOdds() {
         // HERO owes 25 but has 10. The displayed 400 can include side pots
         // that this player cannot win; the study math must remain unknown.
-        val b = bound(pot = 400L, call = 10L, stack = 10L)
-        val short = b.copy(hand = b.hand.copy(
-            potOddsRequiredEquity = null,
-            unknownFields = b.hand.unknownFields + "ALL_IN_ELIGIBLE_POT"))
+        val short = bound(pot = 400L, call = 10L, stack = 10L, outstanding = 25L)
+        assertTrue(short.hand.unknownFields.contains("ALL_IN_ELIGIBLE_POT"))
+        assertNull(short.hand.potOddsRequiredEquity)
         val p = prompt(live(call = 10L), short)!!
         assertTrue(json(p).getJSONObject("poker_math").isNull("pot_odds_required_equity"))
     }
