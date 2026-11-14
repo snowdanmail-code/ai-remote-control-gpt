@@ -1,11 +1,8 @@
 name: T053 lobby OCR diagnostic — signed Code99
 
-# Owner-requested one-shot signed test build; disabled again after publication.
+# Manual-only signed test candidate. One-shot push trigger disabled after verified publication.
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/t043-gpt-decision-contract]
-    paths: [.github/t053-build-request.txt]
 
 permissions:
   contents: read
@@ -19,9 +16,7 @@ jobs:
     if: >-
       ${{ github.repository == 'snowdanmail-code/ai-remote-control-gpt' &&
           github.ref == 'refs/heads/feature/t043-gpt-decision-contract' &&
-          (github.event_name == 'workflow_dispatch' ||
-           (github.event_name == 'push' &&
-            github.event.head_commit.message == 'T053 BUILD REQUEST: signed Samsung Code99')) }}
+          github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
