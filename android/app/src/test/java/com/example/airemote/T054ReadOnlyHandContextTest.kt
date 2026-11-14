@@ -135,4 +135,28 @@ class T054ReadOnlyHandContextTest {
         assertNull(result.minimumEffectiveRemainingSpr)
         assertTrue(result.unknownFields.contains("SPR_ZERO_POT"))
     }
+
+    @Test fun shortAllInCallCannotUseWholeDisplayedPotForOdds() {
+        val short = observation().copy(seats = seats().map {
+            if (it.seatIndex == 0) it.copy(stackChips = 10L) else it
+        })
+        // HERO owes 25 but only has 10 chips left.
+        val result = T054ReadOnlyHandContextBuilder.build(
+            short, betting().copy(costToCallChips = 10L))!!
+        assertEquals(10L, result.heroRemainingStackChips)
+        assertNull("hero eligibility in side pots unknown", result.potOddsRequiredEquity)
+        assertTrue(result.unknownFields.contains("ALL_IN_ELIGIBLE_POT"))
+        assertNull(result.mathematicalRaiseBounds!!.fullRaiseMinimumTo)
+    }
+
+    @Test fun insufficientStackCannotJustifyPartiallyShortCall() {
+        val short = observation().copy(seats = seats().map {
+            if (it.seatIndex == 0) it.copy(stackChips = 10L) else it
+        })
+        assertNull(T054ReadOnlyHandContextBuilder.build(
+            short, betting().copy(costToCallChips = 15L)))
+        assertNull(T054ReadOnlyHandContextBuilder.build(
+            observation(), betting().copy(costToCallChips = 10L)))
+    }
+
 }
