@@ -52,4 +52,40 @@ class LiveOpponentAwarenessJvmTest {
         assertNull(observer.prepareForVerifiedTerminal(receipt(), 4))
         assertEquals(OpponentEvidenceResult.REJECTED, observer.observe(confirmed("b", 104, 1600)))
     }
+
+    @Test fun singleVerifiedCallFacingBetCountsAsNotFolding() {
+        val observer = LiveOpponentAwareness()
+        assertEquals(OpponentEvidenceResult.ACCEPTED, observer.begin(start()))
+        val call = confirmed("facing_call", 102, 1300).copy(
+            street = "FLOP", action = "CALL", facingBetVerified = true)
+        assertEquals(OpponentEvidenceResult.ACCEPTED, observer.observe(call))
+        val result = observer.snapshot().single()
+        assertEquals(true, result.facedBet)
+        assertEquals(false, result.foldedFacingBet)
+        assertNull(result.voluntarilyEnteredPreflop)
+    }
+
+    @Test fun singleVerifiedFoldFacingBetCountsAsFold() {
+        val observer = LiveOpponentAwareness()
+        assertEquals(OpponentEvidenceResult.ACCEPTED, observer.begin(start()))
+        val fold = confirmed("facing_fold", 102, 1300).copy(
+            street = "FLOP", action = "FOLD", facingBetVerified = true)
+        assertEquals(OpponentEvidenceResult.ACCEPTED, observer.observe(fold))
+        assertEquals(true, observer.snapshot().single().foldedFacingBet)
+    }
+
+    @Test fun multipleFacingBetEventsCannotBeCompressedToOneHandBoolean() {
+        val observer = LiveOpponentAwareness()
+        assertEquals(OpponentEvidenceResult.ACCEPTED, observer.begin(start()))
+        val call = confirmed("facing_call", 102, 1300).copy(
+            street = "FLOP", action = "CALL", facingBetVerified = true)
+        val fold = confirmed("facing_fold", 104, 1600).copy(
+            street = "TURN", action = "FOLD", facingBetVerified = true)
+        assertEquals(OpponentEvidenceResult.ACCEPTED, observer.observe(call))
+        assertEquals(OpponentEvidenceResult.ACCEPTED, observer.observe(fold))
+        val result = observer.snapshot().single()
+        assertEquals(true, result.facedBet)
+        assertNull("v2 Boolean cannot store both events", result.foldedFacingBet)
+    }
+
 }
