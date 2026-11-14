@@ -769,8 +769,6 @@ class MainActivity : Activity() {
         button("ПРОВЕРИТЬ ГОТОВНОСТЬ АВТО-РЕЖИМА") {
             val state = OnDeviceAutonomousRuntime.status()
             status.text = "AUTO: ${state.state} — ${state.explanation}. " +
-                "Реальные пробные CHECK: ${LocalPlayerCheckPilot.status().checkCount}; " +
-                "состояние: ${LocalPlayerCheckPilot.status().state}. " +
                 "Готовность: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
         }
         button("ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)") {
