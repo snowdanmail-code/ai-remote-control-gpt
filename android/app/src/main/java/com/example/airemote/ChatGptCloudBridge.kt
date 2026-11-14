@@ -762,12 +762,14 @@ object ChatGptCloudBridge {
         sessionPopupStatistics: String = "",
         verifiedHandParticipation: String = "",
         verifiedOpponentSeatRefs: Map<String, Int> = emptyMap(),
+        // Future authenticated provider only; current device sends null.
+        turnContext: T054GptTurnBoundContext? = null,
         report: (T043GptDecisionContract.Review) -> Unit
     ) {
         val prompt = T043GptDecisionContract.buildPrompt(observation, cards,
             android.os.SystemClock.elapsedRealtime(), verifiedOpponentProfiles,
             sessionPopupStatistics, verifiedHandParticipation,
-            verifiedOpponentSeatRefs)
+            verifiedOpponentSeatRefs, turnContext)
         if (prompt == null) {
             report(T043GptDecisionContract.Review(false, "UNVERIFIED_OR_STALE_TURN"))
             return
