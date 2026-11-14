@@ -29,7 +29,7 @@ object T051LabSession {
     @Synchronized fun register(token: Long, area: Rect): Boolean {
         if (!visible || machine.currentToken() != token ||
             machine.currentPhase() != T051LabPhase.READY_TO_TAP ||
-            area.isEmpty || area.width() < 48 || area.height() < 48) return false
+            area.isEmpty() || area.width() < 48 || area.height() < 48) return false
         destination = Rect(area)
         registeredToken = token
         registeredAtMs = SystemClock.elapsedRealtime()
@@ -51,7 +51,7 @@ object T051LabSession {
         if (current < registeredAtMs || current - registeredAtMs > 1_500L)
             return "INVALID_TARGET"
         val rect = destination
-        if (rect == null || rect.isEmpty || !rect.contains(screenX, screenY))
+        if (rect == null || rect.isEmpty() || !rect.contains(screenX, screenY))
             return "INVALID_TARGET"
         return null
     }
