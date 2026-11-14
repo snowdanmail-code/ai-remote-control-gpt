@@ -20,6 +20,12 @@ data class T054IndependentBettingSnapshot(
     val currentBetToChips: Long? = null,
     val heroCommittedOnStreetChips: Long? = null,
     val lastFullRaiseSizeChips: Long? = null,
+    /**
+     * Canonical 'stackChips' has no defined snapshot timing.
+     * The provider must separately attest that every stack is remaining
+     * behind at this exact decision, not pre-hand or before prior wagers.
+     */
+    val stacksAreRemainingBehind: Boolean = false,
     val evidence: PokerEvidence = PokerEvidence.UNKNOWN
 ) {
     fun numericallyValid(): Boolean =
@@ -122,7 +128,9 @@ object T054ReadOnlyHandContextBuilder {
         if (expectedBoard != null && observation.boardCards != null &&
             observation.boardCards.size != expectedBoard) return null
 
-        val pot = betting.potBeforeHeroActionChips ?: observation.potChips
+        // Observation.potChips has no pre-/post-action semantic contract;
+        // it may corroborate a supplied pre-action pot but cannot invent one.
+        val pot = betting.potBeforeHeroActionChips
         if (betting.potBeforeHeroActionChips != null &&
             observation.potChips != null &&
             betting.potBeforeHeroActionChips != observation.potChips) return null
@@ -136,7 +144,7 @@ object T054ReadOnlyHandContextBuilder {
         else emptyList()
         val count = if (knownRoster && seat.activeInHand == true) active.size else null
         val positions = observation.positions()
-        val heroStack = seat.stackChips
+        val heroStack = if (betting.stacksAreRemainingBehind) seat.stackChips else null
         val streetOutstanding = if (betting.currentBetToChips != null &&
             betting.heroCommittedOnStreetChips != null)
             betting.currentBetToChips - betting.heroCommittedOnStreetChips else null
@@ -154,12 +162,14 @@ object T054ReadOnlyHandContextBuilder {
             else chips.toDouble() / pot.toDouble()
 
         val opponentContexts = active.map {
-            val effective = if (heroStack != null && it.stackChips != null)
-                min(heroStack, it.stackChips) else null
+            val opponentBehind = if (betting.stacksAreRemainingBehind)
+                it.stackChips else null
+            val effective = if (heroStack != null && opponentBehind != null)
+                min(heroStack, opponentBehind) else null
             T054EffectiveOpponent(
                 seatIndex = it.seatIndex,
                 position = positions[it.seatIndex],
-                remainingStackChips = it.stackChips,
+                remainingStackChips = opponentBehind,
                 effectiveRemainingStackChips = effective,
                 effectiveRemainingStackBb = toBb(effective),
                 spr = spr(effective)
@@ -183,6 +193,7 @@ object T054ReadOnlyHandContextBuilder {
         val unknown = linkedSetOf<String>()
         if (positions[hero] == null) unknown.add("HERO_POSITION")
         if (count == null) unknown.add("ACTIVE_ROSTER")
+        if (!betting.stacksAreRemainingBehind) unknown.add("STACK_TIMING_SEMANTICS")
         if (heroStack == null) unknown.add("HERO_STACK")
         if (blind == null) unknown.add("BIG_BLIND")
         if (pot == null) unknown.add("POT")
