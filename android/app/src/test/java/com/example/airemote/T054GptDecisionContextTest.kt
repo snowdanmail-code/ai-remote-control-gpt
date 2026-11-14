@@ -73,7 +73,8 @@ class T054GptDecisionContextTest {
         observation, cards(), 2000L, turnContext = context)
 
     private fun json(prompt: String): JSONObject {
-        val start = prompt.indexOf("{\"schema\":")
+        val boundary = prompt.indexOf("never permission to tap.")
+        val start = if (boundary < 0) -1 else prompt.indexOf('{', boundary)
         require(start >= 0) { "Missing structured model packet" }
         return JSONObject(prompt.substring(start))
     }
