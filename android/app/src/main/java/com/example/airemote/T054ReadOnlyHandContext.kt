@@ -41,7 +41,6 @@ data class T054IndependentBettingSnapshot(
             (currentBetToChips == null || heroCommittedOnStreetChips == null ||
                 costToCallChips == null ||
                 costToCallChips <= currentBetToChips - heroCommittedOnStreetChips)
-    }
 
     fun stableHand(): Boolean =
         source.tableId != null && source.sessionId != null && source.handId != null
