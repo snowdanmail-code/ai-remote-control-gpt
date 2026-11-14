@@ -105,20 +105,33 @@ object OnDeviceOperatorLiveTrace {
         val auto = OnDeviceAutonomousRuntime.status()
         val cycle = OnDeviceAuthorizedPlayerCycle.status()
         val gpt = OnDeviceVerifiedGptTurnRequests.status()
+        // Only enum phases are read from screen navigation / profile workflows.
+        // Table titles, popup text and player nicknames never enter the timeline.
+        val lobbyPhase = OnDeviceCashLobbySelection.status().phase.name
+        val seatingPhase = OnDeviceOneWinPreSeatScanner.current().phase.name
+        val profilePhase = OnDeviceOpponentProfileSweep.status().phase.name
+        val studyPhase = OnDeviceOneWinPostSeatStudy.status().phase.name
         val autoLine = "${auto.state}: ${auto.explanation}"
         changed("STOP", if (stop) "Активен" else "Выключен", now)
         changed("Захват", if (capture) "Активен" else "Неактивен", now)
         changed("AUTO", autoLine, now)
         changed("GPT", gpt, now)
         changed("Проверка хода", "${cycle.stage}: ${cycle.description}", now)
+        changed("Поиск стола", lobbyPhase, now)
+        changed("Посадка", seatingPhase, now)
+        changed("Профили соперников", profilePhase, now)
+        changed("Изучение соперников", studyPhase, now)
         val overview = "STOP: ${if (stop) "ДА" else "нет"} · " +
             "Кадры: ${FrameStore.receivedImages} · " +
             "Захват: ${if (capture) "да" else "нет"}\n" +
             "ИИ: ${short(autoLine, 135)}\n" +
             "${short(gpt, 135)}\n" +
-            "Ход: ${short(cycle.stage.name + ": " + cycle.description, 135)}"
+            "Ход: ${short(cycle.stage.name + ": " + cycle.description, 135)}\n" +
+            "Стол: ${lobbyPhase} · Место: ${seatingPhase} · " +
+            "Профили: ${profilePhase} · Изучение: ${studyPhase}"
         val recent = timeline.toList().takeLast(limit.coerceIn(1, MAX_ENTRIES)).asReversed()
-        val compact = "ИИ: ${short(auto.state.toString(), 24)}\n" +
+        val compact = "Стол: ${short(lobbyPhase, 18)} · Место: ${short(seatingPhase, 22)}\n" +
+            "ИИ: ${short(autoLine, 65)}\n" +
             "${short(gpt, 78)}\n" +
             (recent.firstOrNull() ?: "Нет событий")
         return OperatorLiveSnapshot(overview, recent, compact)
