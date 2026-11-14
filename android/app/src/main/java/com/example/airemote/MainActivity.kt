@@ -133,7 +133,10 @@ class MainActivity : Activity() {
             "АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ",
             "НАЧАТЬ ЗАХВАТ ЭКРАНА",
             "ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)",
-            "1WIN — АВТОВЫБОР СТОЛА ПО ЛИМИТАМ"
+            "1WIN — АВТОВЫБОР СТОЛА ПО ЛИМИТАМ",
+            "1WIN — ТОЛЬКО OCR СТОЛОВ (БЕЗ НАЖАТИЙ)",
+            "1WIN — РЕЗУЛЬТАТ OCR СТОЛОВ",
+            "1WIN — ОСТАНОВИТЬ OCR СТОЛОВ"
         )
         fun label(text: String) {
             val target = if (text.startsWith("AI Remote Control v")) content else advanced
