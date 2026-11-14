@@ -2,3 +2,4 @@ Signed Samsung Code98 — diagnostic passive OCR of 1win Cash Games lobby.
 Owner requested investigation of Code97's never-started Cyrillic OCR.
 Source branch: feature/t043-gpt-decision-contract.
 No real-game gestures or buy-ins are authorized by this build.
+Retry after Kotlin visibility fix in OnDeviceCashLobbyReadOnlyProbe; signer still pinned.
