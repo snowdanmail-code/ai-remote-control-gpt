@@ -34,6 +34,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
     // Purely informational, transparent labels above the user's cards.
     // It cannot intercept touches or grant control privileges.
     private val cardOverlay by lazy { VisibleCardOverlayController(this) }
+    private val diagnosticOverlay by lazy { OperatorLiveOverlayController(this) }
     // Root identity is sampled periodically, not inferred from AccessibilityEvent.packageName.
     private val rootSampler = object : Runnable {
         override fun run() {
@@ -72,6 +73,12 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 val dm = resources.displayMetrics
                 cardOverlay.show(visible, dm.widthPixels, dm.heightPixels)
             } else cardOverlay.hide()
+            // Opt-in visual feedback; no touch interception or game authority.
+            if (screenTrusted && OnDeviceOperatorLiveTrace.overlayEnabled(applicationContext)) {
+                val dm = resources.displayMetrics
+                val summary = OnDeviceOperatorLiveTrace.snapshot(applicationContext, 3)
+                diagnosticOverlay.show(summary.compact, dm.widthPixels, dm.heightPixels)
+            } else diagnosticOverlay.hide()
             main.postDelayed(this, 350L)
         }
     }
@@ -267,6 +274,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         cardOverlay.hide()
+        diagnosticOverlay.hide()
         main.removeCallbacks(rootSampler)
         OnDevicePlayerNativeControls.clear()
         // An interrupted accessibility source must never retain armed gestures.
@@ -1020,6 +1028,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         cardOverlay.dispose()
+        diagnosticOverlay.dispose()
         main.removeCallbacks(rootSampler)
         OnDevicePlayerNativeControls.clear()
         OnDeviceAutonomousRuntime.stop("Служба доступности отключена")
