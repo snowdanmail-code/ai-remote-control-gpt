@@ -53,8 +53,10 @@ object OnDeviceOneWinCashLobby {
     private var priorSort: SortCandidate? = null
     @Volatile private var confirmedSort: OneWinCashLobbySortMenuSnapshot? = null
     @Volatile private var result: OneWinCashLobbySnapshot? = null
+    @Volatile private var parseDiagnostic: String = "OCR ещё не анализировался"
 
     @Synchronized fun latest(): OneWinCashLobbySnapshot? = result
+    fun diagnosticStatus(): String = parseDiagnostic
     @Synchronized fun latestSortMenu(): OneWinCashLobbySortMenuSnapshot? = confirmedSort
 
     @Synchronized fun reset() {
@@ -65,6 +67,7 @@ object OnDeviceOneWinCashLobby {
         confirmedSort = null
         result = null
         lastStartedAtMs = -INTERVAL_MS
+        parseDiagnostic = "Ожидаем первый OCR-кадр"
     }
 
     private fun sameTables(a: List<OneWinCashLobbyTable>,
@@ -125,11 +128,16 @@ object OnDeviceOneWinCashLobby {
                     endMs - nowMs !in 0..MAX_AGE_MS) {
                     previous = null
                     result = null
+                    parseDiagnostic = "OCR-кадр отклонён: STOP, смена окна или устаревшие данные"
                     return@inspectStructured
                 }
                 val lines = outcome.getOrNull()?.lines
+                if (lines == null) {
+                    parseDiagnostic = "OCR не дал структурированных строк"
+                }
                 val menu = lines?.let(OneWinCashLobbySortParser::read)
                 if (menu != null) {
+                    parseDiagnostic = "Распознано меню сортировки, список столов закрыт"
                     // Open sort dropdown overlays table rows: never retain any
                     // outdated "Войти" location while sorting is visible.
                     previous = null
@@ -159,6 +167,10 @@ object OnDeviceOneWinCashLobby {
                 priorSort = null
                 confirmedSort = null
                 val scan = lines?.let(OneWinCashLobbyParser::read)
+                val counters = if (lines != null && scan != null)
+                    OneWinCashLobbyReadOnlyDiagnostics.summarize(lines, scan)
+                else "OCR: нет строк для парсера"
+                parseDiagnostic = counters
                 if (scan?.headerVerified != true || scan.tables.isEmpty()) {
                     previous = null
                     result = null
@@ -178,6 +190,10 @@ object OnDeviceOneWinCashLobby {
                 else null
                 result = confirmedNew
                 previous = candidate
+                parseDiagnostic = counters + "; кадры=" +
+                    (if (confirmedNew != null) "ДВА СОВПАЛИ" else
+                        if (p == null) "ожидаем второй" else "НЕ СОВПАЛИ") +
+                    "; подтверждено=${confirmedNew?.tables?.size ?: 0}"
             }
             // T052 passive OCR must never notify any selection/navigation state machine.
             if (allowSelection) {
