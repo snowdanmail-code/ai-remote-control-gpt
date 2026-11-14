@@ -30,7 +30,7 @@ class OperatorLiveOverlayController(private val service: AccessibilityService) {
                     setTextColor(Color.WHITE)
                     setPadding((8 * density).toInt(), (5 * density).toInt(),
                         (8 * density).toInt(), (5 * density).toInt())
-                    maxLines = 3
+                    maxLines = 4
                     gravity = Gravity.START or Gravity.CENTER_VERTICAL
                     background = GradientDrawable().apply {
                         setColor(Color.argb(176, 12, 20, 34))
