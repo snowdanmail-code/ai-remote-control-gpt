@@ -7,8 +7,10 @@ class PostHandLearningJvmTest {
     private class TestStore : HandLearningStore {
         val receipts = mutableSetOf<String>()
         var count = 0
+        var lastSaved: VerifiedFinishedHand? = null
         override fun commitHandAtomically(hand: VerifiedFinishedHand): HandLearningResult {
             if (!receipts.add(hand.tableKey + "/" + hand.handKey)) return HandLearningResult.ALREADY_SEEN
+            lastSaved = hand
             count++
             return HandLearningResult.APPLIED
         }
@@ -44,4 +46,74 @@ class PostHandLearningJvmTest {
         assertEquals(HandLearningResult.APPLIED, PostHandLearner(TestStore()).onHandFinished(
             hand().copy(opponents=listOf(OpponentHandFacts("seat-2", false)))))
     }
+
+    private fun transcript(complete: Boolean = true) =
+        T054OpponentOpportunityTranscript(
+            "verified-player", true, true, complete, complete,
+            listOf(T054VerifiedPreflopEvent("posted", T054PreflopEventKind.POST_BLIND, true),
+                T054VerifiedPreflopEvent("folded", T054PreflopEventKind.FOLD, true)),
+            emptyList()
+        )
+
+    @Test fun completeIndependentlyVerifiedPreflopAddsNegativeVpipDenominator() {
+        val store = TestStore()
+        val full = hand().copy(
+            opponents = listOf(OpponentHandFacts("verified-player", true)),
+            verifiedOpponentOpportunities = listOf(transcript()))
+        assertEquals(HandLearningResult.APPLIED, PostHandLearner(store).onHandFinished(full))
+        assertEquals(false, store.lastSaved!!.opponents.single().vpip)
+        assertEquals(false, store.lastSaved!!.opponents.single().preflopRaise)
+        assertTrue(store.lastSaved!!.verifiedOpponentOpportunities.isEmpty())
+    }
+
+    @Test fun incompletePreflopDoesNotInventNegativeVpip() {
+        val store = TestStore()
+        val partial = hand().copy(
+            opponents = listOf(OpponentHandFacts("verified-player", true)),
+            verifiedOpponentOpportunities = listOf(transcript(complete = false)))
+        assertEquals(HandLearningResult.APPLIED, PostHandLearner(store).onHandFinished(partial))
+        assertNull(store.lastSaved!!.opponents.single().vpip)
+        assertNull(store.lastSaved!!.opponents.single().preflopRaise)
+    }
+
+    @Test fun conflictingAuthenticatedPreflopDoesNotCorruptOpponentHistory() {
+        val store = TestStore()
+        val inconsistent = hand().copy(
+            opponents = listOf(OpponentHandFacts("verified-player", true, vpip = true)),
+            verifiedOpponentOpportunities = listOf(transcript()))
+        assertEquals(HandLearningResult.REJECTED,
+            PostHandLearner(store).onHandFinished(inconsistent))
+        assertEquals(0, store.completedHandsCount())
+    }
+
+    @Test fun unsignedOrUnlinkedOpportunitiesCannotWriteToHistory() {
+        val store = TestStore()
+        val missing = hand().copy(
+            opponents = listOf(OpponentHandFacts("verified-player", true)),
+            verifiedOpponentOpportunities = listOf(
+                transcript().copy(sourceIndependentlyVerified = false)))
+        assertEquals(HandLearningResult.REJECTED,
+            PostHandLearner(store).onHandFinished(missing))
+        assertEquals(0, store.completedHandsCount())
+        assertEquals(HandLearningResult.REJECTED,
+            PostHandLearner(store).onHandFinished(
+                missing.copy(verifiedOpponentOpportunities = listOf(
+                    transcript().copy(opponentKey = "another-actor")))))
+    }
+
+    @Test fun multipleBetFacingEventsCannotOverwriteSingleHandFoldRate() {
+        val store = TestStore()
+        val dual = transcript().copy(facingBet = listOf(
+            T054VerifiedFacingBetDecision("o1", T054FacingBetChoice.CALL, true),
+            T054VerifiedFacingBetDecision("o2", T054FacingBetChoice.FOLD, true)
+        ))
+        val input = hand().copy(
+            opponents = listOf(OpponentHandFacts(
+                "verified-player", true, foldedWhenFacingBet = true, facedBet = true)),
+            verifiedOpponentOpportunities = listOf(dual))
+        assertEquals(HandLearningResult.REJECTED,
+            PostHandLearner(store).onHandFinished(input))
+        assertEquals(0, store.completedHandsCount())
+    }
+
 }
