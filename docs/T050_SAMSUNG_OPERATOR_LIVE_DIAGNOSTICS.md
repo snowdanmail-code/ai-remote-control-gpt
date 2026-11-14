@@ -44,15 +44,17 @@
 
 ## Ручная защищённая сборка
 
-GitHub Actions -> `T050 protected Samsung live-diagnostics APK` ->
+GitHub Actions -> `T050 Samsung live diagnostics — signed Code97` ->
 `Run workflow` -> branch `feature/t043-gpt-decision-contract` ->
-`samsung_prototype=true`, `promote_t042=false`.
+`Run workflow`. Это отдельный ручной workflow
+`.github/workflows/t050-samsung-live-code97.yml` (также зарегистрирован
+на основной ветке GitHub, чтобы появлялся в меню Actions).
 
 Workflow доступен для запуска вручную, использует `android-signing`
 и **ранее подтверждённый сертификат**. Проверяет сборку и unit-тесты,
 верифицирует подпись, package id, monotonic `versionCode>=97`, и лишь
 после успеха публикует artifact
-`ai-remote-control-t050-live-diagnostics-code97`.
+`ai-remote-control-t050-live-code97`.
 Если защищённые signing secrets недоступны, задача должна завершиться
 ошибкой без публикации несовместимой APK.
 
