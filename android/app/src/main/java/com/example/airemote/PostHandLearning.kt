@@ -105,12 +105,17 @@ class PostHandLearner(private val store: HandLearningStore) {
         val original = hand.opponents.associateBy { it.opponentKey }
         val verified = transcripts.map { evidence ->
             val prior = original[evidence.opponentKey] ?: return null
-            val derived = T054VerifiedOpponentOpportunities.derive(evidence)?.handFacts
+            val calculated = T054VerifiedOpponentOpportunities.derive(evidence)
                 ?: return null
+            val derived = calculated.handFacts
             if (!prior.identityVerified || !derived.identityVerified ||
                 (prior.vpip != null && derived.vpip != null && prior.vpip != derived.vpip) ||
                 (prior.preflopRaise != null && derived.preflopRaise != null &&
                     prior.preflopRaise != derived.preflopRaise) ||
+                (prior.facedBet != null && derived.facedBet != null &&
+                    prior.facedBet != derived.facedBet) ||
+                (calculated.verifiedFacingBetOpportunities > 1 &&
+                    prior.foldedWhenFacingBet != null) ||
                 (prior.foldedWhenFacingBet != null && derived.foldedWhenFacingBet != null &&
                     prior.foldedWhenFacingBet != derived.foldedWhenFacingBet))
                 return null
