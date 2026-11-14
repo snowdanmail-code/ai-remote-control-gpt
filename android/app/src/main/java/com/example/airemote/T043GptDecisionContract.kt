@@ -24,7 +24,9 @@ object T043GptDecisionContract {
         verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList(),
         sessionPopupStatistics: String = "",
         verifiedHandParticipation: String = "",
-        verifiedOpponentSeatRefs: Map<String, Int> = emptyMap()
+        verifiedOpponentSeatRefs: Map<String, Int> = emptyMap(),
+        /** T054 optional read-only, current-frame-bound context; never a gesture grant. */
+        turnContext: T054GptTurnBoundContext? = null
     ): String? {
         val view = observation.view
         if (observation.tableId.isBlank() || observation.handId.isBlank() ||
@@ -48,6 +50,8 @@ object T043GptDecisionContract {
             else -> HandStage.UNKNOWN
         }
         if (expectedStreet != observation.phase) return null
+        // A fabricated/mismatched study envelope must never enter a model request.
+        if (turnContext != null && !turnContext.matches(observation)) return null
         val normalizedCards = try {
             (cards.hole + cards.community).map { PokerCard.parse(it).toString() }
         } catch (_: IllegalArgumentException) { return null }
@@ -73,7 +77,9 @@ object T043GptDecisionContract {
         val mathJson = JSONObject()
             .put("made_hand", math.bestHand?.category?.name ?: JSONObject.NULL)
             .put("made_hand_kickers", math.bestHand?.let { JSONArray(it.tiebreak) } ?: JSONObject.NULL)
-            .put("pot_odds_required_equity", math.potOddsRequiredEquity ?: JSONObject.NULL)
+            .put("pot_odds_required_equity",
+                (if (turnContext == null) math.potOddsRequiredEquity
+                 else turnContext.hand.potOddsRequiredEquity) ?: JSONObject.NULL)
             .put("verified_pot_share_equity", trustedEquity?.potShare ?: JSONObject.NULL)
             .put("equity_basis", trustedEquity?.provenance ?: "UNKNOWN")
 
@@ -88,13 +94,66 @@ object T043GptDecisionContract {
             .put("hole_cards", JSONArray(normalizedCards.take(2)))
             .put("board_cards", JSONArray(normalizedCards.drop(2)))
             .put("legal_actions", JSONArray(view.legalActions.map { it.name }.sorted()))
-            .put("pot_chips", observation.potChips ?: JSONObject.NULL)
-            .put("call_chips", observation.callChips ?: JSONObject.NULL)
+            // T054 pre-action pot and call have explicit semantics. If the
+            // bound context lacks them, old generic labels cannot fill gaps.
+            .put("pot_chips", (if (turnContext == null) observation.potChips
+                else turnContext.hand.potBeforeHeroActionChips) ?: JSONObject.NULL)
+            .put("call_chips", (if (turnContext == null) observation.callChips
+                else turnContext.hand.costToCallChips) ?: JSONObject.NULL)
             .put("timer_ms", observation.timerRemainingMs ?: JSONObject.NULL)
             .put("min_bet_chips", observation.minVerifiedBetChips ?: JSONObject.NULL)
             .put("max_bet_chips", observation.maxVerifiedBetChips ?: JSONObject.NULL)
             .put("selected_bet_chips", observation.selectedBetChips ?: JSONObject.NULL)
             .put("poker_math", mathJson)
+        if (turnContext != null) {
+            val h = turnContext.hand
+            fun streetCode(value: PokerStreet): String = when (value) {
+                PokerStreet.PREFLOP -> "P"
+                PokerStreet.FLOP -> "F"
+                PokerStreet.TURN -> "T"
+                PokerStreet.RIVER -> "R"
+                else -> "?"
+            }
+            // Never echo raw event IDs, nicknames, source text, or unverified
+            // bet amounts into a model prompt. Individual actions can be
+            // represented only if ALL have independent evidence. Even then,
+            // full-history completeness is NOT attested by the canonical model.
+            val eventsIndividuallyVerified = h.history.all {
+                it.evidence == PokerEvidence.INDEPENDENT
+            }
+            val events = JSONArray()
+            if (eventsIndividuallyVerified) h.history.forEach { ev ->
+                events.put(JSONArray()
+                    .put(ev.sequence)
+                    .put(streetCode(ev.street))
+                    .put(ev.actorSeat ?: JSONObject.NULL)
+                    .put(ev.action.name))
+            }
+            val opponents = JSONArray()
+            h.opponents.forEach { p ->
+                opponents.put(JSONArray()
+                    .put(p.seatIndex)
+                    .put(p.position?.name ?: JSONObject.NULL)
+                    .put(p.effectiveRemainingStackChips ?: JSONObject.NULL)
+                    .put(p.spr ?: JSONObject.NULL))
+            }
+            val study = JSONObject()
+                .put("type", "READ_ONLY_PARTIAL")
+                .put("hero_pos", h.heroPosition?.name ?: JSONObject.NULL)
+                .put("hero_bb", h.heroRemainingStackBb ?: JSONObject.NULL)
+                .put("hero_stack", h.heroRemainingStackChips ?: JSONObject.NULL)
+                .put("active", h.activeOpponents ?: JSONObject.NULL)
+                .put("min_eff_stack", h.minimumEffectiveRemainingStackChips ?: JSONObject.NULL)
+                .put("min_spr", h.minimumEffectiveRemainingSpr ?: JSONObject.NULL)
+                .put("opponents", opponents)
+                .put("event_count", h.history.size)
+                .put("events_complete", false)
+                .put("event_amounts", "UNKNOWN")
+                .put("event_evidence",
+                    if (eventsIndividuallyVerified) "INDEPENDENT_PARTIAL" else "MIXED")
+                .put("events", events)
+            packet.put("t054_read_only_hand", study)
+        }
         // Authenticated historic statistics are useful only when independently
         // bound to the SAME visible seat and ACTIVE participant of this hand.
         // Ordinal "opponent_1" is NEVER a live player identity.
@@ -157,6 +216,8 @@ object T043GptDecisionContract {
         val directive = "Texas Hold'em virtual chips: assess legal actions using known cards, " +
             "verified math and pot odds; weigh opponent ranges, tendencies and sample sizes. " +
             "Unknown cards, seats and equity remain unknown. OCR stats are provisional. " +
+            "T054 context, if present, is partial; event codes P/F/T/R mean street, " +
+            "events=[seq,street,seat,action], amounts UNKNOWN. " +
             "Return ONLY JSON {schema,action,amount_chips}, schema=$SCHEMA, " +
             "action in legal_actions. BET/RAISE must use an already selected verified " +
             "amount; otherwise null. Recommendation only, never permission to tap.\\n"
