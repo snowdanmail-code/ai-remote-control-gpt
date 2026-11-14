@@ -216,11 +216,12 @@ object T043GptDecisionContract {
         val directive = "Texas Hold'em virtual chips: assess legal actions using known cards, " +
             "verified math and pot odds; weigh opponent ranges, tendencies and sample sizes. " +
             "Unknown cards, seats and equity remain unknown. OCR stats are provisional. " +
-            "T054 context, if present, is partial; event codes P/F/T/R mean street, " +
-            "events=[seq,street,seat,action], amounts UNKNOWN. " +
             "Return ONLY JSON {schema,action,amount_chips}, schema=$SCHEMA, " +
             "action in legal_actions. BET/RAISE must use an already selected verified " +
-            "amount; otherwise null. Recommendation only, never permission to tap.\\n"
+            "amount; otherwise null. Recommendation only, never permission to tap.\\n" +
+            if (turnContext == null) "" else
+                "T054 partial context: events=[seq,P/F/T/R street,seat,action]; " +
+                "history NOT complete; bet amounts UNKNOWN.\\n"
         var prompt = directive + packet.toString()
         // Nonessential unverified popup fields must be the FIRST to drop
         // when a bounded decision prompt would exceed the transport size.
