@@ -1,12 +1,8 @@
 name: T052 passive lobby OCR — signed Code98
 
-# Owner-requested one-shot signed diagnostic APK. Not a production release.
+# Manual test candidate only; the one-shot signing trigger has been disabled.
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/t043-gpt-decision-contract]
-    paths:
-      - .github/t052-build-request.txt
 
 permissions:
   contents: read
@@ -20,9 +16,7 @@ jobs:
     if: >-
       ${{ github.repository == 'snowdanmail-code/ai-remote-control-gpt' &&
           github.ref == 'refs/heads/feature/t043-gpt-decision-contract' &&
-          (github.event_name == 'workflow_dispatch' ||
-           (github.event_name == 'push' &&
-            github.event.head_commit.message == 'T052 BUILD REQUEST: signed Samsung Code98')) }}
+          github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
