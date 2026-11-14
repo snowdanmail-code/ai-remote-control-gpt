@@ -1,15 +1,8 @@
 name: T050 Samsung live diagnostics — signed Code97
 
-# Laboratory prototype only. Owner-requested one-shot push trigger
-# exists to create an APK without GitHub workflow_dispatch connector support.
-# This is NOT a production release. Signing continues through protected secrets.
+# This is a manual prototype only, never a release workflow.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/t043-gpt-decision-contract
-    paths:
-      - .github/t051-samsung-apk-trigger.txt
 
 permissions:
   contents: read
@@ -22,10 +15,8 @@ jobs:
   signed-samsung-prototype:
     if: >-
       ${{ github.repository == 'snowdanmail-code/ai-remote-control-gpt' &&
-          github.ref == 'refs/heads/feature/t043-gpt-decision-contract' &&
-          (github.event_name == 'workflow_dispatch' ||
-           (github.event_name == 'push' &&
-            github.event.head_commit.message == 'T051 BUILD REQUEST: signed Samsung Code97')) }}
+          github.event_name == 'workflow_dispatch' &&
+          github.ref == 'refs/heads/feature/t043-gpt-decision-contract' }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
