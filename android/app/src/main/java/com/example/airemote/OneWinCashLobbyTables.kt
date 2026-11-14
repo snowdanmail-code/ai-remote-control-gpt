@@ -36,6 +36,44 @@ data class OneWinCashLobbyReading(
     val authorizesWager: Boolean get() = false
 }
 
+
+/**
+ * T053: counters only, never raw OCR text, player names or sensitive data.
+ * A zero-table result must be attributable to a parsing gate or to missing
+ * second-frame consensus. This is NOT game-state authority.
+ */
+object OneWinCashLobbyReadOnlyDiagnostics {
+    private val buyIn = Regex("""(?iu)(?:бай\s*[- ]?\s*ин|buy\s*[- ]?\s*in|войти)""")
+    private val seatPattern = Regex("""(?<!\d)\d{1,2}\s*/\s*\d{1,2}(?!\d)""")
+    private val pricePattern = Regex("""\d+(?:[.,]\d{1,2})?\s*\$\s*/\s*\d+(?:[.,]\d{1,2})?\s*\$?""")
+
+    fun summarize(lines: List<PositionedOcrLine>,
+                  scan: OneWinCashLobbyReading): String {
+        // Count evidence at each gate, without returning any extracted content.
+        val valid = lines.filter { it.box.valid() && it.text.length in 1..70 }
+        val anchors = valid.count {
+            it.box.centerX() in 690..970 &&
+                it.box.centerY() in 180..940 &&
+                buyIn.containsMatchIn(it.text)
+        }
+        val holdEmTags = valid.count {
+            it.box.centerX() in 40..470 &&
+                (it.text.contains("холдем", ignoreCase = true) ||
+                 it.text.contains("holdem", ignoreCase = true) ||
+                 it.text.contains("hold'em", ignoreCase = true))
+        }
+        val seatCounters = valid.count {
+            it.box.centerX() in 440..725 && seatPattern.containsMatchIn(it.text)
+        }
+        val pricePairs = valid.count { pricePattern.containsMatchIn(it.text) }
+        return "проверка: заголовок=${if (scan.headerVerified) "ДА" else "НЕТ"}; " +
+            "метки Бай-ин=$anchors; Холдем=$holdEmTags; " +
+            "счётчики мест=$seatCounters; денежные пары=$pricePairs; " +
+            "строк=${lines.size}; кандидатов=${scan.tables.size}; " +
+            "причина=${scan.reason}"
+    }
+}
+
 object OneWinCashLobbyParser {
     private val ws = Regex("""\s+""")
     private val buyinLabel = Regex("""(?iu)(?:бай\s*[- ]?\s*ин|buy\s*[- ]?\s*in|войти)""")
