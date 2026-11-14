@@ -151,19 +151,15 @@ object T043GptDecisionContract {
             packet.put("hand_participation_verified_only", safeParticipation)
         // JSON-escape every external field. No free-text player names or OCR
         // instructions are interpolated into the system directive.
-        val directive = "Analyze this Texas Hold'em turn with virtual chips. " +
-            "Model plausible opponent responses and ranges from observed play, " +
-            "but weight small samples weakly. Combine verified pot odds, " +
-            "current legal options, risk and uncertain opponent tendencies; " +
-            "avoid mechanical repetition and invented hidden cards. " +
-            "Unknown fields stay unknown: never assume unknown seats folded. " +
-            "Verified poker_math is exact for known cards only; null equity " +
-            "is unknown. Popup statistics are provisional OCR, not identities. " +
-            "Return ONLY a JSON object with keys schema, action, amount_chips. " +
-            "schema must be $SCHEMA; action must be one of legal_actions. " +
-            "For BET/RAISE use the already selected and verified amount, " +
-            "otherwise amount_chips must be null. " +
-            "This is advice, not permission to tap.\\n"
+        // Keep the full verified player context within the 1600-char bound.
+        // The old verbose instruction repeated fields already encoded in JSON
+        // and caused valid seat-bound opponent profiles to be dropped.
+        val directive = "Texas Hold'em virtual chips: assess legal actions using known cards, " +
+            "verified math and pot odds; weigh opponent ranges, tendencies and sample sizes. " +
+            "Unknown cards, seats and equity remain unknown. OCR stats are provisional. " +
+            "Return ONLY JSON {schema,action,amount_chips}, schema=$SCHEMA, " +
+            "action in legal_actions. BET/RAISE must use an already selected verified " +
+            "amount; otherwise null. Recommendation only, never permission to tap.\\n"
         var prompt = directive + packet.toString()
         // Nonessential unverified popup fields must be the FIRST to drop
         // when a bounded decision prompt would exceed the transport size.
