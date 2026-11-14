@@ -335,12 +335,28 @@ class MainActivity : Activity() {
             else "Не удалось запустить выбор стола: нужны сохранённые лимиты, " +
                 "активный захват, ARM, разрешение касаний и отсутствие другого игрового действия."
         }
+        // T052: passive diagnostic with no auto-selection or touch actions.
+        button("1WIN — ТОЛЬКО OCR СТОЛОВ (БЕЗ НАЖАТИЙ)") {
+            val started = OnDeviceCashLobbyReadOnlyProbe.start(this@MainActivity)
+            status.text = if (started)
+                "Только OCR включён. Перейдите в 1win на экран Кэш-Игры, " +
+                    "после чтения вернитесь и нажмите РЕЗУЛЬТАТ OCR."
+            else OnDeviceCashLobbyReadOnlyProbe.summary()
+        }
+        button("1WIN — РЕЗУЛЬТАТ OCR СТОЛОВ") {
+            status.text = OnDeviceCashLobbyReadOnlyProbe.summary()
+        }
+        button("1WIN — ОСТАНОВИТЬ OCR СТОЛОВ") {
+            OnDeviceCashLobbyReadOnlyProbe.stop()
+            status.text = OnDeviceCashLobbyReadOnlyProbe.summary()
+        }
         button("1WIN — СТАТУС И РЕКОМЕНДАЦИЯ СТОЛА") {
             val state = OnDeviceCashLobbySelection.status()
             val lobby = OnDeviceOneWinCashLobby.latest()
             status.text = "Автовыбор: ${state.phase}. ${state.message}. " +
                 "Распознано видимых столов: ${lobby?.tables?.size ?: 0}. " +
                 "Русский OCR: ${OnDeviceCashLobbyTextRecognition.lastStatus}. " +
+                "Пассивный OCR: ${OnDeviceCashLobbyReadOnlyProbe.summary()}. " +
                 (state.recommended?.let {
                     "Выбор: ${it.table.label}, занято ${it.table.occupiedSeats}/${it.table.totalSeats}; " +
                     "блайнды ${moneyInDollars(it.table.smallBlindCents)} / ${moneyInDollars(it.table.bigBlindCents)} $, " +
