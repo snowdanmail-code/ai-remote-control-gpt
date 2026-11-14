@@ -87,6 +87,7 @@ object OnDeviceOneWinCashLobby {
      */
     fun offer(context: Context, frame: Bitmap,
               origin: WindowOriginAssessment, nowMs: Long,
+              allowSelection: Boolean = true,
               rootStillSame: () -> Boolean) {
         if (!origin.safeForLocalDiagnostics || origin.windowGeneration == null ||
             origin.observedPackage.isNullOrBlank() ||
@@ -178,8 +179,11 @@ object OnDeviceOneWinCashLobby {
                 result = confirmedNew
                 previous = candidate
             }
-            confirmedMenu?.let { OnDeviceCashLobbySelection.onSortMenuConfirmed(context, it) }
-            confirmedNew?.let { OnDeviceCashLobbySelection.onConfirmed(context, it) }
+            // T052 passive OCR must never notify any selection/navigation state machine.
+            if (allowSelection) {
+                confirmedMenu?.let { OnDeviceCashLobbySelection.onSortMenuConfirmed(context, it) }
+                confirmedNew?.let { OnDeviceCashLobbySelection.onConfirmed(context, it) }
+            }
         }
     }
 }
