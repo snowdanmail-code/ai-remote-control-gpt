@@ -213,9 +213,14 @@ object T043GptDecisionContract {
         // Keep the full verified player context within the 1600-char bound.
         // The old verbose instruction repeated fields already encoded in JSON
         // and caused valid seat-bound opponent profiles to be dropped.
-        val directive = "Texas Hold'em virtual chips: assess legal actions using known cards, " +
-            "verified math and pot odds; weigh opponent ranges, tendencies and sample sizes. " +
-            "Unknown cards, seats and equity remain unknown. OCR stats are provisional. " +
+        // T056 interview synthesis (Galfond/Chidwick/Negreanu/Mateos):
+        // Reason in ranges, consider rival hypotheses and distinguish theory
+        // from evidence-backed exploitation. Research is NOT model training.
+        // The replacement is shorter than the old prefix, keeping 1600-char
+        // prompt budget and the existing response/gesture safety contract.
+        val directive = "NLHE virtual chips: reason by street, position, ranges, verified math and odds. " +
+            "Compare baseline and value/bluff lines; exploit only supported leaks with enough samples. " +
+            "Unknown facts stay UNKNOWN; OCR provisional. " +
             "Return ONLY JSON {schema,action,amount_chips}, schema=$SCHEMA, " +
             "action in legal_actions. BET/RAISE must use an already selected verified " +
             "amount; otherwise null. Recommendation only, never permission to tap.\\n" +
