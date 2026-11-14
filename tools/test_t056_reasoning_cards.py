@@ -60,6 +60,18 @@ class PokerInterviewReasoningLibraryTest(unittest.TestCase):
             self.assertIn(restriction, self.document)
         self.assertNotIn("authorizesLiveAction\": true", CARD_FILE.read_text())
 
+    def test_existing_gpt_advice_includes_compact_reasoning_without_changing_permissions(self):
+        path = ROOT / "android/app/src/main/java/com/example/airemote/T043GptDecisionContract.kt"
+        source = path.read_text(encoding="utf-8")
+        self.assertIn("NLHE virtual chips: reason by street, position, ranges", source)
+        self.assertIn("Compare baseline and value/bluff lines;", source)
+        self.assertIn("exploit only supported leaks with enough samples.", source)
+        self.assertIn("Unknown facts stay UNKNOWN; OCR provisional.", source)
+        self.assertIn("Return ONLY JSON {schema,action,amount_chips}", source)
+        self.assertIn("never permission to tap.", source)
+        self.assertIn("if (turnContext == null)", source)
+        self.assertIn("return prompt.takeIf { it.length <= 1600 }", source)
+
     def test_no_unconditional_bet_prescriptions(self):
         flat = json.dumps(self.library, ensure_ascii=False).lower()
         self.assertNotIn("always raise", flat)
