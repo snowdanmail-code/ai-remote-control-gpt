@@ -35,7 +35,7 @@ class T054ReadOnlyHandContextTest {
         potBeforeHeroActionChips = 100L, costToCallChips = 25L,
         bigBlindChips = 10L, currentBetToChips = 100L,
         heroCommittedOnStreetChips = 75L, lastFullRaiseSizeChips = 50L,
-        evidence = PokerEvidence.INDEPENDENT
+        stacksAreRemainingBehind = true, evidence = PokerEvidence.INDEPENDENT
     )
 
     @Test fun derivesMultiwayEffectiveStacksAndSprPerOpponent() {
