@@ -9,6 +9,15 @@ on:
 permissions:
   contents: read
 
+# T051: Avoid billing for obsolete 5-7 minute validations when multiple
+# incremental commits arrive on the same PR. GitHub Actions on PRIVATE
+# repositories consumes the owner's included monthly compute allowance.
+# Cancelling superseded runs will not bypass an exhausted billing budget;
+# the owner must resolve that in GitHub Billing and licensing.
+concurrency:
+  group: t042-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   unit-validation:
     runs-on: ubuntu-latest
