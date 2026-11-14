@@ -1,4 +1,4 @@
-name: T050 protected Samsung live-diagnostics APK
+name: T042 protected Android 16 validation and compatible APK
 # Owner-authorized Code96 user-verified table-three rank corner regression; manual dispatch remains supported.
 # Signing remains protected by the existing android-signing environment and legacy certificate.
 on:
@@ -28,10 +28,8 @@ jobs:
   verify-android:
     # The PUSH path is authorized ONLY for this exact update commit; edits to
     # the workflow later will not silently run a signing job.
-    # Prototype only, pinned to the owner's working feature branch. Release
-    # promotion and push-triggered signing are disabled on this draft branch.
     if: >-
-      ${{ github.repository == 'snowdanmail-code/ai-remote-control-gpt' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/feature/t043-gpt-decision-contract' && inputs.samsung_prototype == true && inputs.promote_t042 != true }}
+      ${{ inputs.promote_t042 == true || inputs.samsung_prototype == true || (github.event_name == 'push' && github.event.head_commit.message == 'T042 signed code96 verified three pilot') }}
     runs-on: ubuntu-latest
     environment: android-signing
     timeout-minutes: 100
@@ -182,18 +180,18 @@ jobs:
           s = p.read_text()
           assert s.count('versionCode = 75') == 1
           assert s.count('versionName = "2.14.41-in-app-oauth-hardening"') == 1
-          s = s.replace('versionCode = 75', 'versionCode = 97', 1)
-          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t050-live-diagnostics-code97"', 1)
+          s = s.replace('versionCode = 75', 'versionCode = 96', 1)
+          s = s.replace('versionName = "2.14.41-in-app-oauth-hardening"', 'versionName = "2.14.41-t042-code96-board-three"', 1)
           p.write_text(s)
           Path('artifacts/T042-device-test-status.json').write_text(json.dumps({
-              'status': 'EXPERIMENTAL_DEVICE_TEST_CANDIDATE_T050',
+              'status': 'EXPERIMENTAL_DEVICE_TEST_CANDIDATE',
               'android16_instrumentation': 'NOT_RUN_IN_THIS_PROTOTYPE_BUILD',
               'samsung_oauth': 'NOT_TESTED',
               'full_poker_player_live_test': 'NOT_RUN',
               'independent_real_1win_provider': 'NOT_CONNECTED',
               'player_gestures_beyond_check': 'REQUIRE_TRUSTED_STATE_AND_DEVICE_VERIFICATION',
               'not_final_v2_14_42': True,
-              'reason': 'T050 Samsung live diagnostics prototype only; operator STOP and verified action gates remain enforced'
+              'reason': 'Owner authorized Code96 narrow rank 3 glyph from current screenshot, suits STOP and autonomous actions unchanged'
           }, indent=2) + '\n')
           PYCODE
           git diff --check
@@ -220,21 +218,21 @@ jobs:
           from pathlib import Path
           p = Path('artifacts/T042-upgrade-verification.json')
           v = json.loads(p.read_text())
-          assert v['version_code'] >= 97, 'Code96 may be installed; refuse downgrade/equal update'
+          assert v['version_code'] >= 96, 'Code95 previously distributed; refuse downgrade/equal update'
           assert v['package'] == 'com.example.airemote.dev'
-          v['additional_verified_baseline_version_code'] = 96
+          v['additional_verified_baseline_version_code'] = 95
           p.write_text(json.dumps(v, indent=2) + '\n')
           PYCODE
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T050-LiveDiagnostics-Code97.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AI-Remote-Control-GPT-T042-Board-Three-Code96.apk
           cd artifacts
           sha256sum AI-Remote-Control-GPT-T042-Board-Three-Code96.apk > AI-Remote-Control-GPT-T042-Board-Three-Code96.apk.sha256
       - name: Save candidate only after signature, package, version and integrity gates
         uses: actions/upload-artifact@v4
         with:
-          name: ai-remote-control-t050-live-diagnostics-code97
+          name: ai-remote-control-t042-board-three-code96
           path: |
-            artifacts/AI-Remote-Control-GPT-T050-LiveDiagnostics-Code97.apk
-            artifacts/AI-Remote-Control-GPT-T050-LiveDiagnostics-Code97.apk.sha256
+            artifacts/AI-Remote-Control-GPT-T042-Board-Three-Code96.apk
+            artifacts/AI-Remote-Control-GPT-T042-Board-Three-Code96.apk.sha256
             artifacts/T042-upgrade-verification.json
             artifacts/T042-device-test-status.json
           retention-days: 14
