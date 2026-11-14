@@ -63,6 +63,28 @@ object T054HandContextScenarios {
         verify("unverified call cost does not match street total",
             T054ReadOnlyHandContextBuilder.build(observation(6),
                 bets.copy(costToCallChips = 30L)) == null)
+        val shortStack = observation(6).copy(seats = seats(6).map {
+            if (it.seatIndex == 0) it.copy(stackChips = 10L) else it
+        })
+        val missingStreetBet = bets.copy(currentBetToChips = null, costToCallChips = 10L)
+        val possibleShort = T054ReadOnlyHandContextBuilder.build(shortStack, missingStreetBet)!!
+        verify("an all-in call with unknown street bet cannot use the whole pot",
+            possibleShort.costToCallChips == 10L && possibleShort.potOddsRequiredEquity == null &&
+                "ALL_IN_ELIGIBLE_POT" in possibleShort.unknownFields)
+        verify("a call above the verified stack is contradictory even without a street bet",
+            T054ReadOnlyHandContextBuilder.build(shortStack,
+                missingStreetBet.copy(costToCallChips = 11L)) == null)
+        val unknownStackAndBet = T054ReadOnlyHandContextBuilder.build(shortStack,
+            missingStreetBet.copy(stacksAreRemainingBehind = false))!!
+        verify("missing stack timing and street bet cannot rule out a short call",
+            unknownStackAndBet.potOddsRequiredEquity == null)
+        val fullCall = T054ReadOnlyHandContextBuilder.build(observation(6), missingStreetBet)!!
+        verify("a call below the verified stack still uses the attested pot",
+            fullCall.potOddsRequiredEquity == PokerMath.potOddsRequiredEquity(100L, 10L))
+        val exactAllIn = T054ReadOnlyHandContextBuilder.build(shortStack,
+            missingStreetBet.copy(currentBetToChips = 85L))!!
+        verify("a verified full call can exactly match the hero stack",
+            exactAllIn.potOddsRequiredEquity == PokerMath.potOddsRequiredEquity(100L, 10L))
         println("Passed $checks T054 hand-context JVM scenarios")
     }
 }

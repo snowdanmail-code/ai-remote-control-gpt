@@ -50,14 +50,14 @@ class T054GptDecisionContextTest {
         pot: Long? = 400L, call: Long? = 0L,
         stack: Long? = 1000L,
         stackTiming: Boolean = true,
-        outstanding: Long? = null,
+        outstanding: Long? = call,
         events: List<CanonicalPokerAction> = canonical().actions
     ): T054GptTurnBoundContext {
         val base = canonical(pot, stack, events)
         val bets = T054IndependentBettingSnapshot(
             source = source, street = PokerStreet.PREFLOP,
             potBeforeHeroActionChips = pot, costToCallChips = call,
-            bigBlindChips = 10L, currentBetToChips = outstanding ?: call,
+            bigBlindChips = 10L, currentBetToChips = outstanding,
             heroCommittedOnStreetChips = 0L,
             lastFullRaiseSizeChips = 10L,
             stacksAreRemainingBehind = stackTiming,
@@ -135,8 +135,13 @@ class T054GptDecisionContextTest {
         val short = bound(pot = 400L, call = 10L, stack = 10L, outstanding = 25L)
         assertTrue(short.hand.unknownFields.contains("ALL_IN_ELIGIBLE_POT"))
         assertNull(short.hand.potOddsRequiredEquity)
-        val p = prompt(live(call = 10L), short)!!
-        assertTrue(json(p).getJSONObject("poker_math").isNull("pot_odds_required_equity"))
+        val possiblyShort = bound(pot = 400L, call = 10L, stack = 10L, outstanding = null)
+        for (context in listOf(short, possiblyShort)) {
+            val packet = json(prompt(live(call = 10L), context)!!)
+            assertTrue(packet.isNull("pot_chips"))
+            assertEquals(10L, packet.getLong("call_chips"))
+            assertTrue(packet.getJSONObject("poker_math").isNull("pot_odds_required_equity"))
+        }
     }
 
     @Test fun unverifiedIndividualActionsAreNotSentAsVerifiedHistory() {
