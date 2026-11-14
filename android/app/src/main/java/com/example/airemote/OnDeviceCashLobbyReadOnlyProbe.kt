@@ -44,6 +44,7 @@ object OnDeviceCashLobbyReadOnlyProbe {
         } ?: "нет двух согласованных кадров списка"
         return "${if (enabled) "READ_ONLY_RUNNING" else "READ_ONLY_OFF"}; " +
             "$lastStatus; ${OnDeviceCashLobbyTextRecognition.lastStatus}; " +
-            "подтверждено столов: $count; $names"
+            "подтверждено столов: $count; $names; " +
+            "РАЗБОР: ${OnDeviceOneWinCashLobby.diagnosticStatus()}"
     }
 }
