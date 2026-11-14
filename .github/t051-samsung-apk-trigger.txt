@@ -1,0 +1,5 @@
+T051 Samsung live action lab APK build — owner's requested Code97 candidate.
+Commit must match the exact gated workflow trigger message.
+Signing: existing android-signing environment only; check package, cert and version.
+GitHub Actions artifacts: ai-remote-control-t050-live-code97
+No changes to production main APK or real 1win behavior are authorized.
