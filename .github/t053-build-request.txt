@@ -1,0 +1,4 @@
+Owner-requested signed Samsung Code99 for T053 read-only OCR failure diagnosis.
+No new automation permissions or financial actions.
+GitHub must verify original certificate, compile Android and unit tests,
+check exact versionCode 99 and package, then publish artifact.
