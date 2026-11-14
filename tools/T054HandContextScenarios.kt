@@ -102,6 +102,39 @@ object T054HandContextScenarios {
         verify("partial but consistent action history retains unknown street evidence",
             validPartial.history.map { it.street } ==
                 listOf(PokerStreet.PREFLOP, PokerStreet.FLOP, PokerStreet.UNKNOWN))
+        val allInObservation = observation(6).copy(potChips = 350L, seats = seats(6).map {
+            when (it.seatIndex) {
+                0 -> it.copy(stackChips = 50L)
+                3, 4, 5 -> it.copy(dealtIn = false)
+                else -> it
+            }
+        })
+        val allInBets = bets.copy(potBeforeHeroActionChips = 350L, costToCallChips = 50L,
+            currentBetToChips = 150L, heroCommittedOnStreetChips = 50L,
+            contributionsBeforeCallBySeat = mapOf(0 to 50L, 1 to 150L, 2 to 150L))
+        val allocated = T054ReadOnlyHandContextBuilder.build(allInObservation, allInBets)!!
+        verify("short call prices only the pot HERO can win",
+            allocated.potBeforeHeroActionChips == 350L &&
+                allocated.potForCallChips == 250L &&
+                allocated.potOddsRequiredEquity == 1.0 / 6.0)
+        verify("every dealt-in seat is required for side-pot math",
+            T054ReadOnlyHandContextBuilder.build(allInObservation, allInBets.copy(
+                contributionsBeforeCallBySeat = mapOf(0 to 50L, 1 to 300L))) == null)
+        verify("contributions must reconcile with the attested pre-call pot",
+            T054ReadOnlyHandContextBuilder.build(allInObservation, allInBets.copy(
+                contributionsBeforeCallBySeat = mapOf(0 to 50L, 1 to 150L, 2 to 151L))) == null)
+        verify("total contribution cannot be smaller than HERO's current street commitment",
+            T054ReadOnlyHandContextBuilder.build(allInObservation, allInBets.copy(
+                contributionsBeforeCallBySeat = mapOf(0 to 40L, 1 to 160L, 2 to 150L))) == null)
+        val withFolded = allInObservation.copy(potChips = 375L,
+            seats = allInObservation.seats.map {
+                if (it.seatIndex == 3) it.copy(dealtIn = true) else it
+            })
+        val withDeadMoney = T054ReadOnlyHandContextBuilder.build(withFolded, allInBets.copy(
+            potBeforeHeroActionChips = 375L,
+            contributionsBeforeCallBySeat = mapOf(0 to 50L, 1 to 150L, 2 to 150L, 3 to 25L)))!!
+        verify("folded chips count towards the pot but never towards eligibility",
+            withDeadMoney.potForCallChips == 275L)
         println("Passed $checks T054 hand-context JVM scenarios")
     }
 }

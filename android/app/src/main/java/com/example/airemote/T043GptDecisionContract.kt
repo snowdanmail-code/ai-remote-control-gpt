@@ -96,10 +96,8 @@ object T043GptDecisionContract {
             .put("legal_actions", JSONArray(view.legalActions.map { it.name }.sorted()))
             // T054 pre-action pot and call have explicit semantics. If the
             // bound context lacks them, old generic labels cannot fill gaps.
-            // A total that may include inaccessible chips is not a pot for pricing the call.
             .put("pot_chips", (if (turnContext == null) observation.potChips
-                else turnContext.hand.takeUnless { "ALL_IN_ELIGIBLE_POT" in it.unknownFields }
-                    ?.potBeforeHeroActionChips) ?: JSONObject.NULL)
+                else turnContext.hand.potForCallChips) ?: JSONObject.NULL)
             .put("call_chips", (if (turnContext == null) observation.callChips
                 else turnContext.hand.costToCallChips) ?: JSONObject.NULL)
             .put("timer_ms", observation.timerRemainingMs ?: JSONObject.NULL)

@@ -51,7 +51,8 @@ class T054GptDecisionContextTest {
         stack: Long? = 1000L,
         stackTiming: Boolean = true,
         outstanding: Long? = call,
-        events: List<CanonicalPokerAction> = canonical().actions
+        events: List<CanonicalPokerAction> = canonical().actions,
+        contributions: Map<Int, Long>? = null
     ): T054GptTurnBoundContext {
         val base = canonical(pot, stack, events)
         val bets = T054IndependentBettingSnapshot(
@@ -61,7 +62,8 @@ class T054GptDecisionContextTest {
             heroCommittedOnStreetChips = 0L,
             lastFullRaiseSizeChips = 10L,
             stacksAreRemainingBehind = stackTiming,
-            evidence = PokerEvidence.INDEPENDENT
+            evidence = PokerEvidence.INDEPENDENT,
+            contributionsBeforeCallBySeat = contributions
         )
         val hand = T054ReadOnlyHandContextBuilder.build(base, bets)!!
         return T054GptTurnBoundContext(hand, "turn-3", 5L, 21L, 7L, 1500L)
@@ -142,6 +144,21 @@ class T054GptDecisionContextTest {
             assertEquals(10L, packet.getLong("call_chips"))
             assertTrue(packet.getJSONObject("poker_math").isNull("pot_odds_required_equity"))
         }
+    }
+
+    @Test fun confirmedContributionsPriceOnlyTheHeroEligiblePot() {
+        val observation = live(call = 50L, pot = 350L)
+        val context = bound(pot = 350L, call = 50L, stack = 50L, outstanding = 100L,
+            contributions = mapOf(0 to 50L, 1 to 150L, 2 to 150L, 3 to 0L, 4 to 0L, 5 to 0L))
+        val packet = json(prompt(observation, context)!!)
+        assertEquals(250L, packet.getLong("pot_chips"))
+        assertEquals(50L, packet.getLong("call_chips"))
+        assertEquals(1.0 / 6.0,
+            packet.getJSONObject("poker_math").getDouble("pot_odds_required_equity"), 0.00001)
+        assertNull(prompt(observation, context.copy(
+            hand = context.hand.copy(heroEligiblePotBeforeCallChips = 351L))))
+        assertNull(prompt(observation, context.copy(
+            hand = context.hand.copy(potOddsRequiredEquity = 0.125))))
     }
 
     @Test fun unverifiedIndividualActionsAreNotSentAsVerifiedHistory() {

@@ -46,6 +46,13 @@ data class T054GptTurnBoundContext(
         if (observation.callChips != null &&
             hand.costToCallChips != null &&
             observation.callChips != hand.costToCallChips) return false
+        hand.heroEligiblePotBeforeCallChips?.let { eligible ->
+            val total = hand.potBeforeHeroActionChips ?: return false
+            val call = hand.costToCallChips ?: return false
+            if (eligible !in 0L..total || call <= 0L ||
+                hand.potOddsRequiredEquity != PokerMath.potOddsRequiredEquity(eligible, call))
+                return false
+        }
         // The canonical pipeline cannot assert a complete history yet.
         // Never accept an "all known" snapshot if it hides missing actions.
         if ("ACTION_HISTORY_COMPLETENESS" !in hand.unknownFields) return false

@@ -26,7 +26,9 @@ data class T054IndependentBettingSnapshot(
      * behind at this exact decision, not pre-hand or before prior wagers.
      */
     val stacksAreRemainingBehind: Boolean = false,
-    val evidence: PokerEvidence = PokerEvidence.UNKNOWN
+    val evidence: PokerEvidence = PokerEvidence.UNKNOWN,
+    /** Net contributions over all streets, including folded seats, before HERO calls and before rake. */
+    val contributionsBeforeCallBySeat: Map<Int, Long>? = null
 ) {
     fun numericallyValid(): Boolean =
         listOf(potBeforeHeroActionChips, costToCallChips, bigBlindChips,
@@ -85,8 +87,13 @@ data class T054ReadOnlyHandContext(
     /** Pure mathematical bound. No proof that the action is reopened/allowed. */
     val mathematicalRaiseBounds: PokerMath.RaiseBounds?,
     val history: List<T054ReadOnlyAction>,
-    val unknownFields: Set<String>
+    val unknownFields: Set<String>,
+    val heroEligiblePotBeforeCallChips: Long? = null
 ) {
+    val potForCallChips: Long?
+        get() = heroEligiblePotBeforeCallChips
+            ?: potBeforeHeroActionChips?.takeUnless { "ALL_IN_ELIGIBLE_POT" in unknownFields }
+
     fun diagnosticLine(): String =
         "T054_READ_ONLY; position=${heroPosition ?: "UNKNOWN"}; " +
         "active_opponents=${activeOpponents ?: "UNKNOWN"}; " +
@@ -171,6 +178,14 @@ object T054ReadOnlyHandContextBuilder {
         val eligiblePotUnknown = call != null &&
             if (streetOutstanding != null) call < streetOutstanding
             else call > 0L && (heroStack == null || call == heroStack)
+        val contributions = betting.contributionsBeforeCallBySeat
+        val eligiblePot = if (contributions != null) {
+            if (pot == null || call == null || call <= 0L || count == null ||
+                contributions.getOrDefault(hero, -1L) < (betting.heroCommittedOnStreetChips ?: 0L) ||
+                contributions.values.none { it >= (betting.currentBetToChips ?: 0L) }) return null
+            eligiblePotBeforeCall(stacks.filter { it.dealtIn == true }, hero, contributions, pot, call)
+                ?: return null
+        } else null
         fun toBb(chips: Long?): Double? =
             if (chips == null || blind == null) null else chips.toDouble() / blind.toDouble()
         fun spr(chips: Long?): Double? =
@@ -214,7 +229,7 @@ object T054ReadOnlyHandContextBuilder {
         if (blind == null) unknown.add("BIG_BLIND")
         if (pot == null) unknown.add("POT")
         if (call == null) unknown.add("CALL_COST")
-        if (eligiblePotUnknown) unknown.add("ALL_IN_ELIGIBLE_POT")
+        if (eligiblePotUnknown && eligiblePot == null) unknown.add("ALL_IN_ELIGIBLE_POT")
         if (observation.boardCards == null) unknown.add("BOARD")
         if (count != null && count > 0 && minimumEffective == null)
             unknown.add("ACTIVE_OPPONENT_STACK")
@@ -228,10 +243,9 @@ object T054ReadOnlyHandContextBuilder {
         if (observation.actions.any { it.amountChips != null })
             unknown.add("HISTORY_AMOUNT_SEMANTICS")
 
-        // A displayed total pot can contain side pots a short-all-in HERO
-        // cannot win. Never offer misleading pot odds for that case.
-        val odds = if (pot != null && call != null && !eligiblePotUnknown)
-            PokerMath.potOddsRequiredEquity(pot, call) else null
+        val potForCall = eligiblePot ?: pot?.takeUnless { eligiblePotUnknown }
+        val odds = if (potForCall != null && call != null)
+            PokerMath.potOddsRequiredEquity(potForCall, call) else null
         return T054ReadOnlyHandContext(
             source = observation.source,
             heroSeat = hero,
@@ -253,7 +267,34 @@ object T054ReadOnlyHandContextBuilder {
                 T054ReadOnlyAction(it.eventId, it.sequence, it.actorSeat, it.street,
                     it.kind, it.amountChips, it.evidence)
             },
-            unknownFields = unknown
+            unknownFields = unknown,
+            heroEligiblePotBeforeCallChips = eligiblePot
         )
+    }
+
+    private fun eligiblePotBeforeCall(
+        dealtSeats: List<CanonicalPokerSeat>,
+        hero: Int,
+        contributions: Map<Int, Long>,
+        pot: Long,
+        call: Long
+    ): Long? {
+        if (contributions.keys != dealtSeats.map { it.seatIndex }.toSet() ||
+            contributions.values.any { it < 0L }) return null
+        val heroKey = hero.toString()
+        val folded = dealtSeats.filter { it.activeInHand == false }.map { it.seatIndex.toString() }.toSet()
+        return try {
+            if (contributions.values.fold(0L, Math::addExact) != pot) return null
+            val afterCall = contributions.mapKeys { it.key.toString() }.toMutableMap()
+            afterCall[heroKey] = Math.addExact(afterCall.getValue(heroKey), call)
+            val layers = PokerMath.sidePots(afterCall, folded)
+            if (heroKey in layers.uncalledReturns) return null
+            val eligibleAfterCall = layers.pots.filter { heroKey in it.eligiblePlayers }.sumOf { it.amount }
+            (eligibleAfterCall - call).takeIf { it in 0L..pot }
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: ArithmeticException) {
+            null
+        }
     }
 }
