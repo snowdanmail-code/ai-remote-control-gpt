@@ -19,6 +19,8 @@ object OperatorStopStore {
         LiveGamePermissionGate.revoke()
         LiveForegroundProbe.invalidate()
         OnDeviceAutonomousRuntime.stop("Аварийный STOP")
+        // T051 isolated gesture-lab callbacks must never outlive global STOP.
+        T051LabSession.machine.stop()
         // Erase unfinished in-hand evidence but NEVER erase learned SQLite data.
         OnDeviceVerifiedHandCompletion.resetTransientEvidence()
         OnDeviceRealFrameRegions.clear()
