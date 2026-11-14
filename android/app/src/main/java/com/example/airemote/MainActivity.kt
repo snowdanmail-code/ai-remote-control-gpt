@@ -241,6 +241,19 @@ class MainActivity : Activity() {
                     else "ПОКАЗЫВАТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
             }
         })
+        content.addView(Button(this).apply {
+            text = "T051 — ИСПЫТАТЬ ДЕЙСТВИЯ (БЕЗ 1WIN И СТАВОК)"
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, T051ActionLabActivity::class.java))
+            }
+        })
+        content.addView(TextView(this).apply {
+            text = "Тест сначала проверяет реальный контракт JSON-решения, " +
+                "затем один системный жест Android и подтверждение своей тестовой кнопки. " +
+                "Для запуска должны быть включены STOP и служба Accessibility, " +
+                "а захват экрана остановлен."
+            textSize = 13f
+        })
         operatorLiveText = TextView(this).apply {
             textSize = 12f
             typeface = android.graphics.Typeface.MONOSPACE
