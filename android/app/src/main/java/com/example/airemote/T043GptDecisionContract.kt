@@ -14,7 +14,7 @@ import org.json.JSONObject
 object T043GptDecisionContract {
     const val SCHEMA = "t043.gpt.decision.v1"
     const val MAX_RESPONSE_CHARS = 1024
-    const val MAX_FRAME_AGE_MS = 1_000L
+    const val MAX_FRAME_AGE_MS = ModelDecisionFrameContext.FRAME_MAX_AGE_MS
 
     /** Null means there is no sufficiently current, independently verified game state. */
     fun buildPrompt(
@@ -50,6 +50,9 @@ object T043GptDecisionContract {
             else -> HandStage.UNKNOWN
         }
         if (expectedStreet != observation.phase) return null
+        val signedCards = observation.independentlyMatchedCards
+        if (signedCards != null && signedCards != VerifiedDecisionCards(cards.hole, cards.community))
+            return null
         // A fabricated/mismatched study envelope must never enter a model request.
         if (turnContext != null && !turnContext.matches(observation)) return null
         val normalizedCards = try {
@@ -259,7 +262,8 @@ object T043GptDecisionContract {
     fun review(
         response: String,
         observation: AutonomousObservation,
-        nowMs: Long
+        nowMs: Long,
+        allowMatchingLaterFrame: Boolean = false
     ): Review {
         if (response.length !in 2..MAX_RESPONSE_CHARS ||
             response.firstOrNull() != '{' || response.lastOrNull() != '}')
@@ -294,7 +298,8 @@ object T043GptDecisionContract {
             return Review(false, "STALE_FRAME")
         val proposal = PlayerModelProposal(action, observation.handId,
             observation.turnId, view.captureEpoch, view.frameSequence,
-            observation.windowGeneration, nowMs, nowMs + 200L, amount)
+            observation.windowGeneration, nowMs, nowMs + 200L, amount,
+            if (allowMatchingLaterFrame) ModelDecisionFrameContext.from(observation) else null)
         val outcome = PlayerModelDecisionGuard.inspect(observation, proposal, nowMs)
         return if (outcome.status == PlayerProposalStatus.ACCEPTABLE_CANDIDATE)
             Review(true, "ACCEPTABLE_CANDIDATE_NOT_A_GESTURE", proposal)

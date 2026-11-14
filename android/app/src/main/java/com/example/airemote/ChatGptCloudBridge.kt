@@ -780,7 +780,8 @@ object ChatGptCloudBridge {
                 return@requestModelText
             }
             val review = T043GptDecisionContract.review(reply.text, observation,
-                android.os.SystemClock.elapsedRealtime())
+                android.os.SystemClock.elapsedRealtime(),
+                allowMatchingLaterFrame = turnContext == null)
             if (!review.accepted || review.proposal == null) {
                 report(review)
                 return@requestModelText

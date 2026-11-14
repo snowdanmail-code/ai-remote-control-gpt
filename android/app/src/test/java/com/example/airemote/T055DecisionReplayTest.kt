@@ -91,6 +91,54 @@ class T055DecisionReplayTest {
             obs,cards(HandStage.RIVER),2501L))
     }
 
+    @Test fun chatGptCandidateSurvivesOnlyAnEquivalentNewerVerifiedFrame() {
+        val reading = cards(HandStage.TURN)
+        val first = observation(HandStage.TURN, setOf(LiveAction.CALL, LiveAction.FOLD)).copy(
+            independentlyMatchedCards = VerifiedDecisionCards(reading.hole, reading.community),
+            equityEvidence = FrameBoundEquity("hand-55", "turn-3", 5L, 21L, 0.5, 300, true))
+        val later = first.copy(
+            view = first.view.copy(frameSequence = 22L, capturedAtMs = 1800L),
+            timerRemainingMs = 6700L,
+            equityEvidence = first.equityEvidence!!.copy(frameSequence = 22L))
+        assertNotNull(T043GptDecisionContract.buildPrompt(first, reading, 1600L))
+        val wrongReading = reading.copy(hole = listOf("Ah", "Qs"))
+        assertNull(T043GptDecisionContract.buildPrompt(first, wrongReading, 1600L))
+
+        val reply = model("CALL")
+        val candidate = T043GptDecisionContract.review(
+            reply, first, 1900L, allowMatchingLaterFrame = true).proposal!!
+        val inbox = TurnScopedProposalMailbox()
+        val strategy = ValidatedPlayerStrategy(AutonomousStrategy { null }, inbox) { 1950L }
+        assertTrue(inbox.offer(candidate))
+        assertEquals(LiveAction.CALL, strategy.decide(later)?.action)
+        assertNull(strategy.decide(later))
+
+        val changed = listOf(
+            later.copy(tableId = "other-table"),
+            later.copy(turnId = "turn-4"),
+            later.copy(windowIndependentlyVerified = false),
+            later.copy(potChips = 401L),
+            later.copy(callChips = 101L),
+            later.copy(selectedBetChips = 151L),
+            later.copy(independentlyMatchedCards = VerifiedDecisionCards(listOf("Ah", "Qs"), reading.community)),
+            later.copy(independentlyMatchedCards = null),
+            later.copy(equityEvidence = later.equityEvidence!!.copy(potShare = 0.51)),
+            later.copy(view = later.view.copy(stateFingerprint = "another-state")),
+            later.copy(view = later.view.copy(frameSequence = 20L)),
+            later.copy(availableTaps = emptyMap()))
+        for (observation in changed) {
+            assertTrue(inbox.offer(candidate))
+            assertNull(strategy.decide(observation))
+        }
+        val frameOnly = T043GptDecisionContract.review(reply, first, 1900L).proposal!!
+        assertTrue(inbox.offer(frameOnly))
+        assertNull(strategy.decide(later))
+
+        val late = T043GptDecisionContract.review(
+            reply, first, 2450L, allowMatchingLaterFrame = true).proposal!!
+        assertNull(PlayerModelDecisionGuard.inspect(later, late, 2501L).candidate)
+    }
+
     @Test fun timelineAuditRecordsLatencyAndTurnSafetyMargins() {
         val timely = T055ReplayDeadlineAudit.assess(T055ReplayTimeline(
             1500L,1700L,1900L,7000L))

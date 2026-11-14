@@ -164,7 +164,8 @@ class AuthenticatedPlayerFrameJoiner(
             p.packageName, p.windowGeneration, true, true,
             authenticated.stage, authenticated.timerRemainingMs,
             authenticated.potHundredths, authenticated.callHundredths,
-            taps, selected, boundEquity, min, max)
+            taps, selected, boundEquity, min, max,
+            VerifiedDecisionCards(cards.hole.toList(), cards.community.toList()))
         return VerifiedPlayerJoinResult(obs, p, "Согласованы независимое состояние, карты и кнопки")
     }
 }

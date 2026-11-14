@@ -34,7 +34,8 @@ data class AutonomousObservation(
     val equityEvidence: FrameBoundEquity? = null,
     /** Strict pre-verified raise range; unknown bounds prohibit BET/RAISE. */
     val minVerifiedBetChips: Long? = null,
-    val maxVerifiedBetChips: Long? = null
+    val maxVerifiedBetChips: Long? = null,
+    val independentlyMatchedCards: VerifiedDecisionCards? = null
 )
 
 data class AutonomousDecision(

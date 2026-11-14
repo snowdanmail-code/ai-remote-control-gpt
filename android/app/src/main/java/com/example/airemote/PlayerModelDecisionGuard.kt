@@ -1,5 +1,49 @@
 package com.example.airemote
 
+data class VerifiedDecisionCards(val hole: List<String>, val board: List<String>)
+
+/** Facts sent to GPT that must still hold on a subsequent authenticated frame. */
+data class ModelDecisionFrameContext(
+    val capturedAtMs: Long,
+    val tableId: String,
+    val foregroundPackage: String,
+    val fingerprint: String,
+    val stage: HandStage,
+    val cards: VerifiedDecisionCards,
+    val legalActions: Set<LiveAction>,
+    val potChips: Long?,
+    val callChips: Long?,
+    val selectedBetChips: Long?,
+    val minBetChips: Long?,
+    val maxBetChips: Long?,
+    val equity: FrameBoundEquity?
+) {
+    companion object {
+        const val FRAME_MAX_AGE_MS = 1_000L
+
+        fun from(observation: AutonomousObservation): ModelDecisionFrameContext? {
+            val cards = observation.independentlyMatchedCards ?: return null
+            val view = observation.view
+            if (view.capturedAtMs < 0L || view.stateFingerprint.isBlank()) return null
+            return ModelDecisionFrameContext(view.capturedAtMs, observation.tableId,
+                observation.foregroundPackage, view.stateFingerprint, observation.phase,
+                VerifiedDecisionCards(cards.hole.toList(), cards.board.toList()),
+                view.legalActions.toSet(), observation.potChips, observation.callChips,
+                observation.selectedBetChips, observation.minVerifiedBetChips,
+                observation.maxVerifiedBetChips,
+                observation.equityEvidence?.takeIf { it.matches(observation) }
+                    ?.copy(frameSequence = 0L))
+        }
+    }
+
+    fun matchesNext(observation: AutonomousObservation, nowMs: Long): Boolean {
+        val current = from(observation) ?: return false
+        if (current.capturedAtMs <= capturedAtMs || current.capturedAtMs > nowMs ||
+            nowMs - capturedAtMs > FRAME_MAX_AGE_MS) return false
+        return current.copy(capturedAtMs = capturedAtMs) == this
+    }
+}
+
 /**
  * Future GPT player suggestions can only enter the existing trusted decision
  * loop after frame/hand/turn/amount validation. This gate has NO network
@@ -15,7 +59,8 @@ data class PlayerModelProposal(
     val windowGeneration: Long,
     val proposedAtMs: Long,
     val expiresAtMs: Long,
-    val amountChips: Long? = null
+    val amountChips: Long? = null,
+    val originalFrameContext: ModelDecisionFrameContext? = null
 )
 
 enum class PlayerProposalStatus {
@@ -41,9 +86,12 @@ object PlayerModelDecisionGuard {
             return refuse(PlayerProposalStatus.UNVERIFIED_SOURCE)
         if (proposed.handId != obs.handId || proposed.turnId != obs.turnId ||
             proposed.captureEpoch != view.captureEpoch ||
-            proposed.frameSequence != view.frameSequence ||
             proposed.windowGeneration != obs.windowGeneration ||
             view.handKey != obs.handId)
+            return refuse(PlayerProposalStatus.WRONG_HAND_OR_TURN)
+        if (proposed.frameSequence != view.frameSequence &&
+            (view.frameSequence <= proposed.frameSequence ||
+                proposed.originalFrameContext?.matchesNext(obs, nowMs) != true))
             return refuse(PlayerProposalStatus.WRONG_HAND_OR_TURN)
         if (nowMs < 0L || proposed.proposedAtMs > nowMs ||
             proposed.expiresAtMs <= nowMs ||
