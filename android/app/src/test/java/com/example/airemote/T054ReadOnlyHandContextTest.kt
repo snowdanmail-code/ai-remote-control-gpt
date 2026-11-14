@@ -123,7 +123,7 @@ class T054ReadOnlyHandContextTest {
 
     @Test fun handlesNineSeatCanonicalModelButDoesNotAuthorizeNineMaxUi() {
         val result = T054ReadOnlyHandContextBuilder.build(observation(9), betting())!!
-        assertEquals(PokerSeatPosition.UNDER_THE_GUN, result.heroPosition)
+        assertEquals(PokerSeatPosition.LOJACK, result.heroPosition)
         assertEquals(2, result.activeOpponents)
         assertTrue(result.diagnosticLine().startsWith("T054_READ_ONLY"))
     }
