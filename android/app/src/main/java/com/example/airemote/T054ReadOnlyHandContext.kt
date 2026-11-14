@@ -48,6 +48,7 @@ data class T054ReadOnlyAction(
     val street: PokerStreet,
     val action: PokerActionKind,
     val sourceReportedAmountChips: Long?,
+    val evidence: PokerEvidence,
     val amountSemanticsVerified: Boolean = false
 )
 data class T054EffectiveOpponent(
@@ -180,6 +181,11 @@ object T054ReadOnlyHandContextBuilder {
             unknown.add("ACTIVE_OPPONENT_STACK")
         if (pot == 0L) unknown.add("SPR_ZERO_POT")
         if (raiseBounds == null) unknown.add("RAISE_BOUNDS")
+        // CanonicalPokerObservation never asserts that no actions are omitted.
+        // Even an empty event list is not evidence that nobody acted.
+        unknown.add("ACTION_HISTORY_COMPLETENESS")
+        if (observation.actions.any { it.evidence != PokerEvidence.INDEPENDENT })
+            unknown.add("ACTION_HISTORY_UNVERIFIED_EVENTS")
         if (observation.actions.any { it.amountChips != null })
             unknown.add("HISTORY_AMOUNT_SEMANTICS")
 
@@ -204,7 +210,7 @@ object T054ReadOnlyHandContextBuilder {
             mathematicalRaiseBounds = raiseBounds,
             history = observation.actions.map {
                 T054ReadOnlyAction(it.eventId, it.sequence, it.actorSeat, it.street,
-                    it.kind, it.amountChips)
+                    it.kind, it.amountChips, it.evidence)
             },
             unknownFields = unknown
         )
