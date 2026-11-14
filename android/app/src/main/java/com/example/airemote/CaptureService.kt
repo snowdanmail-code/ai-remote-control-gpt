@@ -179,11 +179,13 @@ class CaptureService : Service() {
                                 // separately armed, budget-capped lobby selector
                                 // receives read-only OCR frames. Card recognition
                                 // and hero-turn logic are unchanged.
-                                if (OnDeviceCashLobbySelection.scanning() &&
+                                val choosingLobby = OnDeviceCashLobbySelection.scanning()
+                                if ((choosingLobby || OnDeviceCashLobbyReadOnlyProbe.enabled()) &&
                                     origin.safeForLocalDiagnostics &&
                                     !OperatorStopStore.isStopped(applicationContext)) {
                                     OnDeviceOneWinCashLobby.offer(
-                                        applicationContext, screen, origin, now
+                                        applicationContext, screen, origin, now,
+                                        allowSelection = choosingLobby
                                     ) {
                                         !closing && FrameStore.isCapturing &&
                                         FrameStore.captureEpoch == captureEpoch &&
@@ -589,6 +591,7 @@ class CaptureService : Service() {
         OnDeviceOneWinPostSeatStudy.reset("Захват завершён")
         OnDeviceOpponentProfileSweep.reset("Захват завершён")
         OnDeviceOneWinCashLobby.reset()
+        OnDeviceCashLobbyReadOnlyProbe.stop()
         OnDeviceOneWinPreSeatScanner.stop("Захват завершён")
         OnDeviceOneWinRecordedTableUi.reset()
         OnDeviceOneWinTableAutoExit.stop("Захват завершён")
