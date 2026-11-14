@@ -145,7 +145,8 @@ object OnDeviceCashLobbySelection {
 
     /** Explicitly start a single table-navigation session; no repeated joins. */
     @Synchronized fun start(context: Context): Boolean {
-        if (armed || OperatorStopStore.isStopped(context) ||
+        if (armed || OnDeviceCashLobbyReadOnlyProbe.enabled() ||
+            OperatorStopStore.isStopped(context) ||
             !FrameStore.isCapturing || CaptureObservationMode.isSpectator() ||
             !LiveGamePermissionGate.permitted() ||
             OneWinCashLobbyLimitsStore.read(context) == null ||
