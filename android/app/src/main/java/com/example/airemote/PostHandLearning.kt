@@ -40,7 +40,13 @@ data class VerifiedFinishedHand(
     val opponents: List<OpponentHandFacts>,
     val verifiedHeroActions: List<VerifiedExecutedAction> = emptyList(),
     /** Null means that the result was not reliably observed. */
-    val heroNetChips: Double? = null
+    val heroNetChips: Double? = null,
+    /**
+     * Optional, separately authenticated complete opponent opportunity histories.
+     * No OCR collector can supply these; caller must bind them to this
+     * already verified table/hand receipt before invoking the learner.
+     */
+    val verifiedOpponentOpportunities: List<T054OpponentOpportunityTranscript> = emptyList()
 )
 
 data class OpponentLearningSummary(
@@ -83,8 +89,47 @@ class PostHandLearner(private val store: HandLearningStore) {
     /** Called IMMEDIATELY on a verified terminal observation, not from a scheduled job. */
     @Synchronized fun onHandFinished(hand: VerifiedFinishedHand): HandLearningResult {
         if (!valid(hand)) return HandLearningResult.REJECTED
-        return try { store.commitHandAtomically(hand) }
+        val normalized = incorporateVerifiedOpportunities(hand)
+            ?: return HandLearningResult.REJECTED
+        if (!valid(normalized)) return HandLearningResult.REJECTED
+        return try { store.commitHandAtomically(normalized) }
         catch (_: Exception) { HandLearningResult.STORAGE_ERROR }
+    }
+
+    private fun incorporateVerifiedOpportunities(hand: VerifiedFinishedHand): VerifiedFinishedHand? {
+        val transcripts = hand.verifiedOpponentOpportunities
+        if (transcripts.isEmpty()) return hand
+        if (transcripts.size > hand.opponents.size ||
+            transcripts.map { it.opponentKey }.distinct().size != transcripts.size)
+            return null
+        val original = hand.opponents.associateBy { it.opponentKey }
+        val verified = transcripts.map { evidence ->
+            val prior = original[evidence.opponentKey] ?: return null
+            val derived = T054VerifiedOpponentOpportunities.derive(evidence)?.handFacts
+                ?: return null
+            if (!prior.identityVerified || !derived.identityVerified ||
+                (prior.vpip != null && derived.vpip != null && prior.vpip != derived.vpip) ||
+                (prior.preflopRaise != null && derived.preflopRaise != null &&
+                    prior.preflopRaise != derived.preflopRaise) ||
+                (prior.foldedWhenFacingBet != null && derived.foldedWhenFacingBet != null &&
+                    prior.foldedWhenFacingBet != derived.foldedWhenFacingBet))
+                return null
+            evidence.opponentKey to derived
+        }.toMap()
+        return hand.copy(
+            opponents = hand.opponents.map { prior ->
+                val d = verified[prior.opponentKey] ?: return@map prior
+                prior.copy(
+                    vpip = prior.vpip ?: d.vpip,
+                    preflopRaise = prior.preflopRaise ?: d.preflopRaise,
+                    facedBet = prior.facedBet ?: d.facedBet,
+                    foldedWhenFacingBet = prior.foldedWhenFacingBet ?: d.foldedWhenFacingBet
+                )
+            },
+            // Signed evidence is applied once into v2 facts. Keep the old
+            // database and its exact once-per-hand transaction unchanged.
+            verifiedOpponentOpportunities = emptyList()
+        )
     }
 
     @Synchronized fun profileForNextDecision(opponentKey: String): OpponentLearningSummary? =
@@ -107,7 +152,8 @@ class PostHandLearner(private val store: HandLearningStore) {
             hand.firstFrame < 0 || hand.terminalFrame <= hand.firstFrame ||
             hand.finishedAtElapsedMs < 0 || hand.tableKey.length > 128 || hand.handKey.length > 128 ||
             !hand.heroNetChips.let { it == null || (it.isFinite() && kotlin.math.abs(it) <= 1e12) } ||
-            hand.opponents.size > 12 || hand.verifiedHeroActions.size > 24) return false
+            hand.opponents.size > 12 || hand.verifiedHeroActions.size > 24 ||
+            hand.verifiedOpponentOpportunities.size > 12) return false
         if (hand.opponents.map { it.opponentKey }.distinct().size != hand.opponents.size) return false
         if (hand.verifiedHeroActions.map { it.actionKey }.distinct().size != hand.verifiedHeroActions.size) return false
         if (!hand.verifiedHeroActions.all { d ->
