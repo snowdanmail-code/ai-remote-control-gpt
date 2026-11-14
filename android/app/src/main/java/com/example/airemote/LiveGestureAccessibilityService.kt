@@ -252,6 +252,46 @@ class LiveGestureAccessibilityService : AccessibilityService() {
         main.post { dispatchScopedLocalCheck(ticket) }
     }
 
+    /**
+     * T051 isolated laboratory gesture. NEVER accepts a model or game-action
+     * ticket: it can touch only the fresh CHECK test control inside the
+     * non-exported own Activity, with global STOP ON and capture OFF.
+     */
+    internal fun dispatchT051LabGesture(
+        ticket: Long, x: Int, y: Int, result: (Boolean) -> Unit
+    ) {
+        main.post {
+            val refusal = T051LabSession.denyReason(
+                applicationContext, ticket, x, y,
+                rootInActiveWindow?.packageName?.toString())
+            if (refusal != null) {
+                T051LabSession.machine.reject(ticket, refusal)
+                return@post
+            }
+            // The persistent STOP overlay must not intercept the lab target.
+            val stopArea = params
+            if (stopOverlay != null && stopArea != null &&
+                x in stopArea.x until (stopArea.x + stopArea.width) &&
+                y in stopArea.y until (stopArea.y + stopArea.height)) {
+                T051LabSession.machine.reject(ticket, "INVALID_TARGET")
+                return@post
+            }
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 75L)).build()
+            val accepted = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    result(true) // Test button still must produce its own receipt.
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    result(false)
+                }
+            }, main)
+            if (!accepted)
+                T051LabSession.machine.reject(ticket, "DISPATCH_RETURNED_FALSE")
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         LiveForegroundProbe.attach(this)
