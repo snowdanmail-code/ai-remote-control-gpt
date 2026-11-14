@@ -146,10 +146,12 @@ class T054GptDecisionContextTest {
         }
     }
 
+    private fun sidePotContext() = bound(pot = 350L, call = 50L, stack = 50L, outstanding = 100L,
+        contributions = mapOf(0 to 50L, 1 to 150L, 2 to 150L, 3 to 0L, 4 to 0L, 5 to 0L))
+
     @Test fun confirmedContributionsPriceOnlyTheHeroEligiblePot() {
         val observation = live(call = 50L, pot = 350L)
-        val context = bound(pot = 350L, call = 50L, stack = 50L, outstanding = 100L,
-            contributions = mapOf(0 to 50L, 1 to 150L, 2 to 150L, 3 to 0L, 4 to 0L, 5 to 0L))
+        val context = sidePotContext()
         val packet = json(prompt(observation, context)!!)
         assertEquals(250L, packet.getLong("pot_chips"))
         assertEquals(50L, packet.getLong("call_chips"))
@@ -159,6 +161,48 @@ class T054GptDecisionContextTest {
             hand = context.hand.copy(heroEligiblePotBeforeCallChips = 351L))))
         assertNull(prompt(observation, context.copy(
             hand = context.hand.copy(potOddsRequiredEquity = 0.125))))
+    }
+
+    @Test fun sidePotReplayComparesCallAndFoldThenChecksTheResponseDeadline() {
+        val base = live(call = 50L, pot = 350L)
+        val taps = setOf(LiveAction.CALL, LiveAction.FOLD).associateWith { action ->
+            VerifiedTapArea(100, 900, 200, 950, 150, 925, 1080, 2340, action, action.name,
+                base.foregroundPackage, base.windowGeneration)
+        }
+        val context = sidePotContext()
+        val requestAt = 2000L
+        val responseAt = 2400L
+        val lateResponseAt = 2501L
+        fun timeline(observation: AutonomousObservation, receivedAt: Long) =
+            T055ReplayDeadlineAudit.assess(T055ReplayTimeline(
+                observation.view.capturedAtMs, requestAt, receivedAt, observation.timerRemainingMs))
+
+        // The test assigns pot shares to isolate the decision boundary.
+        // FOLD has zero incremental value; CALL assumes immediate showdown.
+        for ((equity, expected) in listOf(0.15 to LiveAction.FOLD, 0.20 to LiveAction.CALL)) {
+            val observation = base.copy(availableTaps = taps, equityEvidence = FrameBoundEquity(
+                base.handId, base.turnId, base.view.captureEpoch, base.view.frameSequence,
+                equity, independentSampleCount = 100, externallyVerified = true,
+                exactEnumeration = true, provenance = "SYNTHETIC_REPLAY"))
+            val math = json(prompt(observation, context)!!).getJSONObject("poker_math")
+            val modelEquity = math.getDouble("verified_pot_share_equity")
+            val required = math.getDouble("pot_odds_required_equity")
+            assertTrue(modelEquity > PokerMath.potOddsRequiredEquity(350L, 50L))
+            val benchmark = if (modelEquity >= required) LiveAction.CALL else LiveAction.FOLD
+            assertEquals(expected, benchmark)
+
+            val stubResponse = JSONObject().put("schema", T043GptDecisionContract.SCHEMA)
+                .put("action", benchmark.name).put("amount_chips", JSONObject.NULL).toString()
+            assertTrue(timeline(observation, responseAt).eligibleForContractReview)
+            val timely = T043GptDecisionContract.review(stubResponse, observation, responseAt)
+            assertEquals(expected, timely.proposal?.action)
+            assertEquals("ACCEPTABLE_CANDIDATE_NOT_A_GESTURE", timely.reason)
+            assertEquals(T055ReplayTimingVerdict.STALE_ON_RESPONSE,
+                timeline(observation, lateResponseAt).verdict)
+            val stale = T043GptDecisionContract.review(stubResponse, observation, lateResponseAt)
+            assertNull(stale.proposal)
+            assertEquals("STALE_FRAME", stale.reason)
+        }
     }
 
     @Test fun unverifiedIndividualActionsAreNotSentAsVerifiedHistory() {
