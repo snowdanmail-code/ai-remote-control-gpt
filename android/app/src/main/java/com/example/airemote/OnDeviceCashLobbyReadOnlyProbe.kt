@@ -25,7 +25,6 @@ object OnDeviceCashLobbyReadOnlyProbe {
             return false
         }
         OnDeviceOneWinCashLobby.reset()
-        OnDeviceCashLobbyTextRecognition.lastStatus = "OCR: ожидание внешнего экрана 1win"
         enabled = true
         lastStatus = "Только OCR: включен; откройте экран «Кэш-Игры» в 1win"
         return true
