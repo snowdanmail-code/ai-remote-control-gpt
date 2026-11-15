@@ -83,6 +83,47 @@ object OneWinCashLobbyParser {
     private val meanPot = Regex("""(?iu)(?:средний\s+банк|average\s+pot)\s*[:=]?\s*([0-9]{1,7}(?:[.,][0-9]{1,2})?)\s*\$""")
     private val tableLabel = Regex("""(?iu)[\p{L}\p{N}][\p{L}\p{N}\s#_.-]{2,44}""")
 
+    /** Find right-column OCR regions from independently read game labels on this frame. */
+    fun missingBuyInRegions(lines: List<PositionedOcrLine>): List<NormalizedTextBox> {
+        if (!read(lines).headerVerified) return emptyList()
+        val valid = lines.filter { it.box.valid() && it.text.length in 1..70 }
+        val rows = valid.filter { it.box.centerX() in 40..470 &&
+            it.box.centerY() in 180..880 && gameTag.matches(it.text.trim()) }
+            .sortedBy { it.box.centerY() }
+        return rows.mapIndexedNotNull { index, row ->
+            if (!holdEmTag.matches(row.text.trim())) return@mapIndexedNotNull null
+            val y = row.box.centerY()
+            if (index > 0 && y - rows[index - 1].box.centerY() < 52)
+                return@mapIndexedNotNull null
+            val bottom = minOf(y + 46, rows.getOrNull(index + 1)?.box?.centerY()?.minus(18) ?: 926, 926)
+            if (bottom < y + 35) return@mapIndexedNotNull null
+            val region = NormalizedTextBox(730, y - 7, 968, bottom)
+            if (valid.any { region.containsCenter(it.box) && buyinLabel.containsMatchIn(it.text) })
+                null else region
+        }.take(8)
+    }
+
+    fun mergeBuyInRegion(
+        primary: List<PositionedOcrLine>,
+        region: NormalizedTextBox,
+        recovered: List<PositionedOcrLine>
+    ): List<PositionedOcrLine> {
+        val lines = recovered.filter { it.box.valid() && region.containsCenter(it.box) &&
+            (buyinLabel.containsMatchIn(it.text) || amountPair(it.text, buyinRange) != null) }
+        if (lines.count { buyinLabel.containsMatchIn(it.text) } != 1 ||
+            lines.count { amountPair(it.text, buyinRange) != null } != 1) return primary
+        val additions = lines.filterNot { line -> primary.any {
+            region.containsCenter(it.box) && it.text.replace(ws, "") == line.text.replace(ws, "")
+        } }
+        return if (primary.size + additions.size <= 130) primary + additions else primary
+    }
+
+    private fun NormalizedTextBox.containsCenter(other: NormalizedTextBox): Boolean =
+        other.centerX() in left..right && other.centerY() in top..bottom
+
+    private val holdEmTag = Regex("""(?iu)(?:холдем|hold.?em)(?:\s+NL)?""")
+    private val gameTag = Regex("""(?iu)(?:холдем|hold.?em|омаха|omaha)(?:\s+(?:NL|PL))?""")
+
     private fun money(raw: String): Long? {
         if (!Regex("""[0-9]{1,7}(?:[.,][0-9]{1,2})?""").matches(raw)) return null
         val parts = raw.replace(',', '.').split('.')

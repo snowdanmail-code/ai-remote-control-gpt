@@ -17,7 +17,8 @@ data class OneWinMinBuyInDecision(
 object OneWinMinimumBuyInPolicy {
     fun evaluate(reading: OneWinBuyInDialogReading?,
                  limits: OneWinCashTableLimits?,
-                 minimumAlreadyTapped: Boolean): OneWinMinBuyInDecision {
+                 minimumAlreadyTapped: Boolean,
+                 selectedTable: OneWinCashLobbyTable? = null): OneWinMinBuyInDecision {
         fun unknown(reason: String) = OneWinMinBuyInDecision(
             OneWinMinBuyInStep.RECHECK_OCR, explanation = reason)
         if (reading?.status != OneWinBuyInReadingStatus.VERIFIED ||
@@ -26,6 +27,9 @@ object OneWinMinimumBuyInPolicy {
         val max = reading.maximumCents ?: return unknown("Максимальная сумма не прочитана")
         val big = reading.bigBlindCents ?: return unknown("Блайнды не прочитаны")
         val small = reading.smallBlindCents ?: return unknown("Блайнды не прочитаны")
+        if (selectedTable != null && (small != selectedTable.smallBlindCents ||
+                big != selectedTable.bigBlindCents || min != selectedTable.minBuyInCents))
+            return unknown("Блайнды или минимум отличаются от выбранного стола")
         val balance = reading.availableCents ?: return unknown("Баланс не прочитан")
         val actual = reading.inputCents ?: return unknown("Поле бай-ина не прочитано")
         val debit = reading.debitCents ?: return unknown("Списание не прочитано")

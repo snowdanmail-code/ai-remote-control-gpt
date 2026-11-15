@@ -31,6 +31,19 @@ class OneWinSeatedHeroEvidenceTest {
             buyInPreviouslyVerified = true, dialogStillVisible = false))
     }
 
+    @Test fun seatingRequiresTwoNewCardReadingsAfterAutomaticOk() {
+        val gate = OneWinBottomHeroAfterBuyInAgreement()
+        val okAt = 1000L
+        assertFalse(gate.observe(observation(1, 1100L, cardTime = 950L), 1150L,
+            true, false, afterBuyInCompletedAtMs = okAt))
+        assertFalse(gate.observe(observation(2, 2000L, cardTime = 1900L), 2050L,
+            true, false, afterBuyInCompletedAtMs = okAt))
+        assertFalse(gate.observe(observation(3, 2800L, cardTime = 1900L), 2850L,
+            true, false, afterBuyInCompletedAtMs = okAt))
+        assertTrue(gate.observe(observation(4, 3600L, cardTime = 3500L), 3650L,
+            true, false, afterBuyInCompletedAtMs = okAt))
+    }
+
     @Test fun windowChangeOrDifferentCardsResetAgreement() {
         val gate = OneWinBottomHeroAfterBuyInAgreement()
         assertFalse(gate.observe(observation(1,1_000L), 1_100L, true, false))

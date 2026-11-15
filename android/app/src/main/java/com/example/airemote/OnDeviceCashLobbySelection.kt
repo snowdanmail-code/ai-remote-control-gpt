@@ -365,17 +365,16 @@ object OnDeviceCashLobbySelection {
                 pending = null
                 dispatched = true
                 armed = false
-                if (accepted) {
-                    // Table entry is not seating. After navigation, observe
-                    // free arrows and the buy-in window without touching funds.
-                    OnDeviceOneWinPreSeatScanner.start(context, chooseSeat = true)
-                }
+                val seatingStarted = accepted && OnDeviceOneWinPreSeatScanner.start(
+                    context, chooseSeat = true, expectedTable = choice.table)
                 current = CashLobbySelectionStatus(
-                    if (accepted) CashLobbySelectionPhase.ENTRY_SUBMITTED
+                    if (seatingStarted) CashLobbySelectionPhase.ENTRY_SUBMITTED
                     else CashLobbySelectionPhase.REJECTED,
-                    if (accepted) "Нажат вход в ${choice.table.label}. " +
-                        "Бай-ин не подтверждался. Требуется проверка нового экрана."
-                    else "Android отклонил вход в стол; повторного касания нет",
+                    when {
+                        seatingStarted -> "Открываем ${choice.table.label}; ищем свободное место"
+                        accepted -> "Стол открыт, но проверку посадки запустить не удалось"
+                        else -> "Android отклонил вход в стол; повторного касания нет"
+                    },
                     choice)
             }
         }

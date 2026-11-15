@@ -56,6 +56,18 @@ class OneWinPreSeatJoinEvidenceTest {
         assertEquals(6_036L, result.availableCents)
     }
 
+    @Test fun russianMinimumAndMaximumLabelsMatchWordsOnly() {
+        val lines = buyInLines()
+        val punctuation = lines.map { it.copy(text = it.text.replace("Мин ", "Мин: ")
+            .replace("Макс ", "Макс. ")) }
+        assertEquals(OneWinBuyInReadingStatus.VERIFIED,
+            OneWinBuyInDialogParser.read(punctuation).status)
+        val lookalikes = lines.map { it.copy(text = it.text.replace("Мин ", "Минуты ")
+            .replace("Макс ", "МаксимумЛимита ")) }
+        assertEquals(OneWinBuyInReadingStatus.INCOMPLETE,
+            OneWinBuyInDialogParser.read(lookalikes).status)
+    }
+
     @Test fun rechecksUnreadableOrUnexpectedBuyInInsteadOfAssumingApproved() {
         val raw = buyInLines()
         assertEquals(OneWinBuyInReadingStatus.NOT_DIALOG,

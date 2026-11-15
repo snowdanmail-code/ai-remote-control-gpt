@@ -63,6 +63,28 @@ class OneWinCashLobbyTablesTest {
         assertEquals(400L, b.maxBuyInCents)
     }
 
+    @Test fun missingBuyInButtonsCanBeRecoveredFromTheirOwnRows() {
+        val lines = screenshotOcr()
+        val withoutButtons = lines.filterNot { it.box.centerX() >= 730 &&
+            (it.box.centerY() - 200) % 100 in 20..65 }
+        assertTrue(OneWinCashLobbyParser.read(withoutButtons).tables.isEmpty())
+        val regions = OneWinCashLobbyParser.missingBuyInRegions(withoutButtons)
+        assertEquals(4, regions.size)
+        assertTrue(OneWinCashLobbyParser.missingBuyInRegions(lines).isEmpty())
+        assertTrue(OneWinCashLobbyParser.missingBuyInRegions(
+            withoutButtons.filterNot { it.text == "Кэш-Игры" }).isEmpty())
+        var merged = withoutButtons
+        for (region in regions) {
+            val cropped = lines.filter { it.box.centerX() in region.left..region.right &&
+                it.box.centerY() in region.top..region.bottom }
+            assertEquals(2, cropped.size)
+            assertEquals(merged, OneWinCashLobbyParser.mergeBuyInRegion(
+                merged, region, cropped.drop(1)))
+            merged = OneWinCashLobbyParser.mergeBuyInRegion(merged, region, cropped)
+        }
+        assertEquals(OneWinCashLobbyParser.read(lines), OneWinCashLobbyParser.read(merged))
+    }
+
     @Test fun holdemIsVerifiedPerRowNotFromTheTopBar() {
         val lines = screenshotOcr()
         // The actual lobby top bar says 'Кэш-Игры', not 'Холдем'.

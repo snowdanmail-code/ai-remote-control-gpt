@@ -43,9 +43,13 @@ class OneWinBottomHeroAfterBuyInAgreement {
 
     @Synchronized fun observe(sample: OneWinHeroAfterBuyInFrame?,
                               nowMs: Long, buyInPreviouslyVerified: Boolean,
-                              dialogStillVisible: Boolean): Boolean {
+                              dialogStillVisible: Boolean,
+                              afterBuyInCompletedAtMs: Long? = null): Boolean {
         if (!buyInPreviouslyVerified || dialogStillVisible ||
-            sample == null || !sample.valid(nowMs)) {
+            sample == null || !sample.valid(nowMs) ||
+            (afterBuyInCompletedAtMs != null &&
+                (sample.capturedAtMs <= afterBuyInCompletedAtMs ||
+                    sample.cardCapturedAtMs <= afterBuyInCompletedAtMs))) {
             reset()
             return false
         }
@@ -58,7 +62,7 @@ class OneWinBottomHeroAfterBuyInAgreement {
             sample.capturedAtMs > old.capturedAtMs &&
             sample.capturedAtMs - old.capturedAtMs in 500L..5_000L &&
             old.holeCards == sample.holeCards &&
-            sample.cardCapturedAtMs >= old.cardCapturedAtMs
+            sample.cardCapturedAtMs > old.cardCapturedAtMs
         previous = sample
         return stable
     }

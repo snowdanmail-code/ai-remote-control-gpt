@@ -30,6 +30,59 @@ class OneWinMinimumBuyInPolicyTest {
         assertTrue(d.explanation.contains("Минимум"))
     }
 
+    @Test fun differentBlindsOrMinimumAbortTheSelectedTableBuyIn() {
+        val table = OneWinCashLobbyTable("Viana MJP #5", 5, 6, 2L, 4L,
+            160L, 400L, null, box(740,230), 230)
+        assertEquals(OneWinMinBuyInStep.PRESS_OK,
+            OneWinMinimumBuyInPolicy.evaluate(reading(), limits, false, table).step)
+        assertEquals(OneWinMinBuyInStep.RECHECK_OCR,
+            OneWinMinimumBuyInPolicy.evaluate(reading(), limits, false,
+                table.copy(minBuyInCents = 80L)).step)
+        assertEquals(OneWinMinBuyInStep.RECHECK_OCR,
+            OneWinMinimumBuyInPolicy.evaluate(reading(value = 250L), limits, false,
+                table.copy(smallBlindCents = 1L)).step)
+    }
+
+    @Test fun replayFromTableChoiceThroughSeatMinimumAndConfirmedArrival() {
+        val table = OneWinCashLobbyTable("Viana MJP #5", 5, 6, 2L, 4L,
+            160L, 400L, null, box(740,230), 230)
+        val full = table.copy(label = "Full", occupiedSeats = 6)
+        val expected = OneWinCashLobbySelector.choose(listOf(full, table), limits)!!.table
+        assertEquals(table, expected)
+
+        val first = OcrFrameTicket(7L, 1L, 1000L, "com.example.game", 3L)
+        val vacancy = OneWinVacantSeatMarker(NormalizedTextBox(100,355,168,405), 0.96)
+        val seats = OneWinFreeSeatAgreement()
+        assertTrue(seats.observe(first, listOf(vacancy)).isEmpty())
+        val second = first.copy(frameSequence = 2L, capturedAtMs = 1600L)
+        assertEquals(OneWinPreSeatSlot.LEFT_UPPER,
+            OneWinVacantSeatGeometry.choose(seats.observe(second, listOf(vacancy)))?.slot)
+
+        val dialog = OneWinBuyInAgreement()
+        val aboveMinimum = reading(value = 240L)
+        val third = second.copy(frameSequence = 3L, capturedAtMs = 2600L)
+        val fourth = third.copy(frameSequence = 4L, capturedAtMs = 3800L)
+        assertNull(dialog.observe(third, aboveMinimum))
+        val agreed = dialog.observe(fourth, aboveMinimum)
+        assertEquals(OneWinMinBuyInStep.PRESS_MIN,
+            OneWinMinimumBuyInPolicy.evaluate(agreed, limits, false, expected).step)
+        dialog.reset()
+        val fifth = fourth.copy(frameSequence = 5L, capturedAtMs = 5200L)
+        val sixth = fifth.copy(frameSequence = 6L, capturedAtMs = 6600L)
+        assertNull(dialog.observe(fifth, reading()))
+        val minimum = OneWinMinimumBuyInPolicy.evaluate(
+            dialog.observe(sixth, reading()), limits, true, expected)
+        assertEquals(OneWinMinBuyInStep.PRESS_OK, minimum.step)
+        assertEquals(160L, minimum.amountCents)
+
+        val seated = OneWinBottomHeroAfterBuyInAgreement()
+        val hero = OneWinHeroAfterBuyInFrame("com.example.game", 7L, 3L, 7L,
+            8000L, 7L, 7900L, listOf("AH", "KD"))
+        assertFalse(seated.observe(hero, 8100L, true, false, 6700L))
+        assertTrue(seated.observe(hero.copy(frameSequence = 8L, capturedAtMs = 9500L,
+            cardCapturedAtMs = 9400L), 9600L, true, false, 6700L))
+    }
+
     @Test fun higherDefaultChoosesMinThenRechecksBeforeOk() {
         val high = reading(value = 250L)
         val initial = OneWinMinimumBuyInPolicy.evaluate(high, limits, false)

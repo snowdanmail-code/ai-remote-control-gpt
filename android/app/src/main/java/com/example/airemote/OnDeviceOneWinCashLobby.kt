@@ -85,7 +85,7 @@ object OnDeviceOneWinCashLobby {
         }
 
     /**
-     * Call ONLY for a non-playing screen. Reuses on-device ML Kit and is not
+     * Call only for the lobby. This observer uses local Tesseract and is not
      * permitted to send a gesture, set a buy-in, or commit account funds.
      */
     fun offer(context: Context, frame: Bitmap,
@@ -117,7 +117,8 @@ object OnDeviceOneWinCashLobby {
             synchronized(this) { if (currentToken == generation) busy = false }
             return
         }
-        OnDeviceCashLobbyTextRecognition.inspectStructured(context, jpeg) { outcome ->
+        OnDeviceCashLobbyTextRecognition.inspectStructured(context, jpeg,
+            recoverLobbyButtons = true) { outcome ->
             val endMs = SystemClock.elapsedRealtime()
             var confirmedNew: OneWinCashLobbySnapshot? = null
             var confirmedMenu: OneWinCashLobbySortMenuSnapshot? = null

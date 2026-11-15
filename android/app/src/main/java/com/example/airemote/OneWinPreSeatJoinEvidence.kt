@@ -146,6 +146,8 @@ object OneWinBuyInDialogParser {
     private val moneyToken = Regex("""(?iu)(\d{1,6}(?:[.,]\d{1,2})?)\s*\$""")
     private val blinds = Regex(
         """(?iu)(\d{1,5}(?:[.,]\d{1,2})?)\s*\$?\s*/\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*\$""")
+    private val minLabel = Regex("""^(?:мин|min)(?![\p{L}\p{N}_])""")
+    private val maxLabel = Regex("""^(?:макс|max)(?![\p{L}\p{N}_])""")
     private fun norm(raw: String): String = raw.lowercase()
         .replace('ё','е').replace(Regex("""\s+"""), " ").trim()
     /** Pure Kotlin amount parsing; JVM scenario builds do not link Android preferences. */
@@ -199,11 +201,11 @@ object OneWinBuyInDialogParser {
         }
         val minLabels = buttons.filter {
             it.box.centerX() in 30..340 &&
-                Regex("""^мин\b|^min\b""").containsMatchIn(norm(it.text))
+                minLabel.containsMatchIn(norm(it.text))
         }
-        val minimum = labeledValue(Regex("""^мин\b|^min\b"""), 30..340)
+        val minimum = labeledValue(minLabel, 30..340)
         val minBox = minLabels.singleOrNull()?.box
-        val maximum = labeledValue(Regex("""^макс\b|^max\b"""), 680..980)
+        val maximum = labeledValue(maxLabel, 680..980)
         val input = buttons.filter { it.box.centerX() in 350..675 &&
             !norm(it.text).contains("мин") && !norm(it.text).contains("макс") }
             .flatMap { values(it.text) }.singleOrNull()

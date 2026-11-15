@@ -24,8 +24,7 @@ data class OneWinPreSeatDiagnostic(
 )
 
 /**
- * User's 1win seating screenshots, local read-only observation.
- * No automatic seat tapping, buy-in confirmation, balance transfer or gameplay.
+ * Observes seating and supports a one-shot, explicitly armed seat and minimum buy-in.
  * Screens of other applications, STOP and an invalid capture reset evidence.
  */
 object OnDeviceOneWinPreSeatScanner {
@@ -40,10 +39,11 @@ object OnDeviceOneWinPreSeatScanner {
     private var knownVacancies = emptyList<OneWinVacantSeatMarker>()
     private var armSeatEntry = false
     private var autoConfirmMinimum = false
+    private var selectedTable: OneWinCashLobbyTable? = null
     private var minimumTapAttempted = false
     private var minimumTapCompletedAtMs = -1L
     private var okTapAttempted = false
-    private var okTapCompleted = false
+    private var okTapCompletedAtMs: Long? = null
     private var pendingBuyInTap: OneWinBuyInTapTicket? = null
     private var lastBuyInTouchMs = -1L
     private var seatTapAttempted = false
@@ -82,10 +82,11 @@ object OnDeviceOneWinPreSeatScanner {
         knownVacancies = emptyList()
         armSeatEntry = false
         autoConfirmMinimum = false
+        selectedTable = null
         minimumTapAttempted = false
         minimumTapCompletedAtMs = -1L
         okTapAttempted = false
-        okTapCompleted = false
+        okTapCompletedAtMs = null
         pendingBuyInTap = null
         pendingBuyInContext = null
         lastBuyInTouchMs = -1L
@@ -103,7 +104,8 @@ object OnDeviceOneWinPreSeatScanner {
         status = OneWinPreSeatDiagnostic(OneWinPreSeatPhase.OFF, reason)
     }
 
-    @Synchronized fun start(context: Context, chooseSeat: Boolean = false): Boolean {
+    @Synchronized fun start(context: Context, chooseSeat: Boolean = false,
+                            expectedTable: OneWinCashLobbyTable? = null): Boolean {
         if (OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
             CaptureObservationMode.isSpectator() ||
             !LiveGamePermissionGate.permitted() ||
@@ -117,6 +119,7 @@ object OnDeviceOneWinPreSeatScanner {
         epoch = FrameStore.captureEpoch
         armSeatEntry = chooseSeat
         autoConfirmMinimum = chooseSeat
+        selectedTable = expectedTable
         status = OneWinPreSeatDiagnostic(OneWinPreSeatPhase.SEARCHING,
             "Ищем стрелки свободных мест по изображению и окно «Бай-Ин» по OCR")
         return true
@@ -212,7 +215,7 @@ object OnDeviceOneWinPreSeatScanner {
             pendingBuyInContext ?: return false)
         val decision = OneWinMinimumBuyInPolicy.evaluate(ticket.expected, limits,
             ticket.purpose == OneWinBuyInTapPurpose.CONFIRM_OK &&
-                minimumTapAttempted)
+                minimumTapAttempted, selectedTable)
         return when (ticket.purpose) {
             OneWinBuyInTapPurpose.CHOOSE_MIN ->
                 status.phase == OneWinPreSeatPhase.MIN_TAP_PENDING &&
@@ -258,7 +261,7 @@ object OnDeviceOneWinPreSeatScanner {
                         status = status.copy(phase = OneWinPreSeatPhase.WAITING_MIN_RECHECK,
                             description = "Нажали «Мин»; проверяем новое значение и списание")
                 } else {
-                    okTapCompleted = true
+                    okTapCompletedAtMs = SystemClock.elapsedRealtime()
                     if (status.phase == OneWinPreSeatPhase.OK_TAP_PENDING)
                         status = status.copy(phase = OneWinPreSeatPhase.WAITING_SEATED_AFTER_OK,
                             description = "Android завершил нажатие «ОК»; " +
@@ -491,7 +494,7 @@ object OnDeviceOneWinPreSeatScanner {
                 if (reading.status == OneWinBuyInReadingStatus.NOT_DIALOG) {
                     buyInAgreement.reset()
                     if (buyInVerifiedOnce &&
-                        (!autoConfirmMinimum || (okTapAttempted && okTapCompleted))) {
+                        (!autoConfirmMinimum || (okTapAttempted && okTapCompletedAtMs != null))) {
                         // A completed minimum buy-in must now be followed
                         // by current, independently recognized bottom cards.
                         // Closing with X will never satisfy this requirement.
@@ -505,7 +508,8 @@ object OnDeviceOneWinPreSeatScanner {
                         }
                         val seated = postBuyInHero.observe(evidence, now,
                             buyInPreviouslyVerified = true,
-                            dialogStillVisible = false)
+                            dialogStillVisible = false,
+                            afterBuyInCompletedAtMs = okTapCompletedAtMs)
                         if (seated) confirmedSeatedWindow = ticket.windowGeneration
                         status = status.copy(
                             phase = if (seated) OneWinPreSeatPhase.SEATED
@@ -610,7 +614,7 @@ object OnDeviceOneWinPreSeatScanner {
                     !OnDeviceLiveActionControl.guard.hasUnconfirmedAction() &&
                     !LocalPlayerCheckPilot.isActive()) {
                     val decision = OneWinMinimumBuyInPolicy.evaluate(
-                        agreed, limits, minimumTapAttempted)
+                        agreed, limits, minimumTapAttempted, selectedTable)
                     when (decision.step) {
                         OneWinMinBuyInStep.PRESS_MIN, OneWinMinBuyInStep.PRESS_OK ->
                             dispatchMinimumBuyInDecision(context, now, ticket,

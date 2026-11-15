@@ -1,6 +1,7 @@
 package com.example.airemote
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.SystemClock
 import com.googlecode.tesseract.android.TessBaseAPI
@@ -75,7 +76,66 @@ object OnDeviceCashLobbyTextRecognition {
         }
     }
 
+    private fun readLines(
+        tess: TessBaseAPI, bitmap: Bitmap,
+        frameWidth: Int = bitmap.width, frameHeight: Int = bitmap.height,
+        offsetX: Int = 0, offsetY: Int = 0
+    ): List<PositionedOcrLine> {
+        try {
+            tess.setImage(bitmap)
+            tess.getUTF8Text()
+            val iterator = tess.getResultIterator() ?: return emptyList()
+            try {
+                val lines = mutableListOf<PositionedOcrLine>()
+                val level = TessBaseAPI.PageIteratorLevel.RIL_TEXTLINE
+                iterator.begin()
+                do {
+                    val text = iterator.getUTF8Text(level)?.trim().orEmpty()
+                    if (text.isEmpty() || text.length > 90 || iterator.confidence(level) < 38f)
+                        continue
+                    val box = iterator.getBoundingRect(level)
+                    val normalized = NormalizedTextBox(
+                        ((box.left + offsetX) * 1000L / frameWidth).toInt(),
+                        ((box.top + offsetY) * 1000L / frameHeight).toInt(),
+                        ((box.right + offsetX) * 1000L / frameWidth).toInt(),
+                        ((box.bottom + offsetY) * 1000L / frameHeight).toInt())
+                    if (normalized.valid()) lines.add(PositionedOcrLine(text, normalized))
+                } while (lines.size < 120 && iterator.next(level))
+                return lines
+            } finally { iterator.delete() }
+        } finally { tess.clear() }
+    }
+
+    private fun recoverBuyInButtons(
+        tess: TessBaseAPI, bitmap: Bitmap,
+        primary: List<PositionedOcrLine>
+    ): List<PositionedOcrLine> {
+        if (bitmap.width >= bitmap.height) return primary
+        val regions = OneWinCashLobbyParser.missingBuyInRegions(primary)
+        if (regions.isEmpty()) return primary
+        tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_BLOCK)
+        try {
+            var lines = primary
+            for (region in regions) {
+                val left = region.left * bitmap.width / 1000
+                val top = region.top * bitmap.height / 1000
+                val width = region.right * bitmap.width / 1000 - left
+                val height = region.bottom * bitmap.height / 1000 - top
+                if (width <= 0 || height <= 0) continue
+                val button = Bitmap.createBitmap(bitmap, left, top, width, height)
+                try {
+                    val recovered = readLines(tess, button, bitmap.width, bitmap.height, left, top)
+                    lines = OneWinCashLobbyParser.mergeBuyInRegion(lines, region, recovered)
+                } finally { button.recycle() }
+            }
+            return lines
+        } finally {
+            tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SPARSE_TEXT)
+        }
+    }
+
     fun inspectStructured(context: Context, jpeg: ByteArray,
+                          recoverLobbyButtons: Boolean = false,
                           callback: (Result<LocalOcrSnapshot>) -> Unit) {
         val app = context.applicationContext
         worker.execute {
@@ -85,37 +145,10 @@ object OnDeviceCashLobbyTextRecognition {
                     ?: error("Cannot decode cash lobby screenshot")
                 try {
                     val tess = engineFor(app)
-                    try {
-                        tess.setImage(bitmap)
-                        tess.getUTF8Text() // initialize result iterator
-                        val iterator = tess.getResultIterator()
-                        val lines = mutableListOf<PositionedOcrLine>()
-                        if (iterator != null) {
-                            try {
-                                val level = TessBaseAPI.PageIteratorLevel.RIL_TEXTLINE
-                                iterator.begin()
-                                do {
-                                    val text = iterator.getUTF8Text(level)?.trim().orEmpty()
-                                    val conf = iterator.confidence(level)
-                                    val box = iterator.getBoundingRect(level)
-                                    if (text.isNotEmpty() && text.length <= 90 &&
-                                        conf >= 38f && bitmap.width > 0 && bitmap.height > 0) {
-                                        val normalized = NormalizedTextBox(
-                                            (box.left * 1000L / bitmap.width).toInt(),
-                                            (box.top * 1000L / bitmap.height).toInt(),
-                                            (box.right * 1000L / bitmap.width).toInt(),
-                                            (box.bottom * 1000L / bitmap.height).toInt())
-                                        if (normalized.valid())
-                                            lines.add(PositionedOcrLine(text, normalized))
-                                    }
-                                } while (lines.size < 120 && iterator.next(level))
-                            } finally { iterator.delete() }
-                        }
-                        LocalOcrSnapshot(lines, SystemClock.elapsedRealtime() - started)
-                    } finally {
-                        // Keep the engine warm; only drop the per-frame data.
-                        tess.clear()
-                    }
+                    val primary = readLines(tess, bitmap)
+                    val lines = if (recoverLobbyButtons) recoverBuyInButtons(tess, bitmap, primary)
+                        else primary
+                    LocalOcrSnapshot(lines, SystemClock.elapsedRealtime() - started)
                 } finally { bitmap.recycle() }
             }
             lastStatus = result.fold(
