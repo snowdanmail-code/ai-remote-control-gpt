@@ -52,7 +52,7 @@ object OnDeviceAuthorizedPlayerFeed {
         OnDeviceEffectAuthority.install(IndependentEffectVerifier { receipt ->
             authorized.verifyEffectProof(receipt)
         })
-        OnDeviceAutonomousRuntime.ensureLocalStrategy()
+        OnDeviceAutonomousRuntime.ensureGptOnlyStrategy()
         return true
     }
 
@@ -122,6 +122,11 @@ object OnDeviceAuthorizedPlayerFeed {
             return PlayerFeedResult(PlayerFeedStatus.REJECTED, result.error)
         val loop = OnDeviceAutonomousRuntime.acceptVerifiedObservation(
             context.applicationContext, result.observation, result.sourceProof)
+        if (loop.state == AutoLoopState.WAITING_FOR_DECISION)
+            result.observation?.let {
+                OnDeviceVerifiedGptTurnRequests.schedule(context, it,
+                    f.playerCardsAtCapture)
+            }
         return PlayerFeedResult(PlayerFeedStatus.ACCEPTED_TO_EXISTING_AUTONOMOUS_LOOP,
             loop.explanation, loop.state)
     }

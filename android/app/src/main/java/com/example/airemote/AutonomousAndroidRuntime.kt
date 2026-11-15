@@ -63,8 +63,18 @@ object OnDeviceAutonomousRuntime {
             nowMs = { SystemClock.elapsedRealtime() })
     }
 
-    /** Optional structured model advice. NEVER a gesture or a replacement
-     * for an independent provider. Absence of cloud simply uses local math. */
+    /**
+     * The project's primary strategy is ChatGPT-only. Unlike the old
+     * local-math adapter, missing/rejected cloud advice means NO decision,
+     * never a guessed or silent local fallback.
+     */
+    @Synchronized fun ensureGptOnlyStrategy() {
+        if (strategy == null && controller == null) strategy = ValidatedPlayerStrategy(
+            local = AutonomousStrategy { null }, proposals = modelProposals,
+            nowMs = { SystemClock.elapsedRealtime() })
+    }
+
+    /** Queue model advice for a later independently verified observation. */
     fun offerFrameBoundModelAdvice(context: Context, candidate: PlayerModelProposal): Boolean {
         if (CaptureObservationMode.isSpectator() || OperatorStopStore.isStopped(context) ||
             !FrameStore.isCapturing || !LiveGamePermissionGate.permitted() ||
@@ -78,20 +88,10 @@ object OnDeviceAutonomousRuntime {
             OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
             !LiveGamePermissionGate.permitted() || !LiveForegroundProbe.connected() ||
             strategy == null) return false
-        // Auth to ChatGPT and visually reading a button are NOT an
-        // authenticated 1win hand/turn source. Fail closed instead of
-        // presenting AUTO as running when every gesture would be rejected.
         if (identityBinding == null) {
-            // Actual but strictly limited fallback using independent native
-            // Android CHECK + fresh on-device cards. Does NOT claim full
-            // autonomy or allow CALL/FOLD/BET/RAISE without attestation.
-            val started = LocalPlayerCheckPilot.start()
-            lastStatus = AutonomousLoopResult(
-                if (started) AutoLoopState.WAITING_FOR_PROOF else AutoLoopState.BLOCKED_CONTEXT,
-                if (started) "Ограниченный ИИ-игрок: только бесплатный CHECK, " +
-                    "после 2 подтверждений Android-кнопки и свежих карт; нет CALL/BET/RAISE."
-                else "Режим CHECK уже активен; для нового сеанса нужен STOP и ARM")
-            return started
+            lastStatus = AutonomousLoopResult(AutoLoopState.BLOCKED_CONTEXT,
+                "AUTO ждёт подтверждённый источник раздачи и хода для ChatGPT")
+            return false
         }
         // Full autonomy is possible ONLY through the installed provider
         // bridge that verifies the entire state + action effect signatures.
@@ -249,6 +249,12 @@ object OnDeviceAutonomousRuntime {
     fun stop(reason: String = "STOP"): AutonomousLoopResult {
         LocalPlayerCheckPilot.stop(reason)
         modelProposals.clear()
+        OnDeviceVerifiedGptTurnRequests.reset()
+        OnDeviceOpponentPopupOcr.reset()
+        OnDeviceOpponentProfileSweep.reset(reason)
+        OnDeviceOneWinPostSeatStudy.reset(reason)
+        OnDeviceCashLobbySelection.reset(reason)
+        OnDeviceOneWinCashLobby.reset()
         OnDevicePlayerContextBuffer.memory.clear()
         OnDeviceAuthorizedPlayerCycle.clear(reason)
         OnDeviceAuthorizedPlayerFeed.invalidateOnStop()
@@ -284,7 +290,7 @@ object OnDeviceAutonomousRuntime {
         !FrameStore.isCapturing -> "Нет действующего захвата MediaProjection"
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
         !LiveGamePermissionGate.permitted() -> "Разрешите касания для недавно открытого 1win в панели оператора"
-        strategy == null -> "Локальная стратегия не подключена"
+        strategy == null -> "Стратегия GPT не подключена"
         identityBinding != null &&
             TrustedPlayerInputPolicy.route(OnDeviceAuthorizedPlayerCycle.providerConnected(),
                 OnDeviceAuthorizedPlayerFeed.available()) == TrustedPlayerInputRoute.CONFLICT ->
@@ -295,10 +301,8 @@ object OnDeviceAutonomousRuntime {
             "Не подключён подтверждённый поток полного состояния игры; действия заблокированы"
         identityBinding != null && !OnDeviceEffectAuthority.configured() ->
             "После STOP требуется повторно подключить доверенное подтверждение результатов"
-        identityBinding == null && LocalPlayerCheckPilot.isActive() ->
-            "Ограниченный CHECK активен: только бесплатный ход через настоящую кнопку Android, не полноценная игра"
         identityBinding == null ->
-            "Нет удостоверенного источника раздачи; разрешён только ограниченный CHECK при новом ARM"
+            "ChatGPT нужен подтверждённый источник раздачи и хода"
         else -> "Касания разрешены; автоцикл ждёт независимое подтверждение стола, раздачи, хода и точных кнопок"
     }
 

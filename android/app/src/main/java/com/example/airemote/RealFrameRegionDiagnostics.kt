@@ -5,7 +5,9 @@ package com.example.airemote
  * Coordinates are per-JPEG normalized [0,1000], NEVER tap coordinates.
  * The operator must measure these on an authentic frame; no baked-in 1win layout.
  */
-enum class RealFieldRole { SEAT_ACTION, SEAT_STACK, SEAT_CONTRIBUTION, SEAT_TURN, POT, TIMER, HERO_FOLD, HERO_CHECK_CALL, HERO_BET_RAISE }
+enum class RealFieldRole { SEAT_ACTION, SEAT_STACK, SEAT_CONTRIBUTION, SEAT_TURN,
+    SEAT_AVATAR, SEAT_CARD_BACK,
+    PROFILE_DISMISS, POT, TIMER, HERO_FOLD, HERO_CHECK_CALL, HERO_BET_RAISE }
 
 data class RealFrameZone(
     val role: RealFieldRole,
@@ -30,6 +32,40 @@ data class RealFrameCalibration(
         val actionSeats = zones.filter { it.role == RealFieldRole.SEAT_ACTION }.mapNotNull { it.seatIndex }
         if (actionSeats.size !in 2..10 || actionSeats.distinct().size != actionSeats.size) return false
         if (zones.groupBy { it.role to it.seatIndex }.any { it.value.size != 1 }) return false
+        // Optional non-gameplay navigation targets, imported only from a
+        // manually measured original frame. A seat action rectangle is NOT
+        // an avatar target; an empty-table dismiss target is not a bet button.
+        val avatars = zones.filter { it.role == RealFieldRole.SEAT_AVATAR }
+        // Blue facedown cards live NEXT TO an avatar and need their own
+        // measured region; using the avatar's teal fill gives false positives.
+        val backs = zones.filter { it.role == RealFieldRole.SEAT_CARD_BACK }
+        if (backs.any {
+                it.seatIndex !in actionSeats ||
+                it.box.centerX() !in 30..970 ||
+                it.box.centerY() !in 90..880 ||
+                it.box.right - it.box.left !in 18..175 ||
+                it.box.bottom - it.box.top !in 12..145
+            }) return false
+        val dismiss = zones.filter { it.role == RealFieldRole.PROFILE_DISMISS }
+        if (avatars.any { a ->
+                a.seatIndex !in actionSeats ||
+                a.box.centerY() !in 100..820 ||
+                a.box.centerX() !in 35..950 ||
+                a.box.right - a.box.left !in 20..170 ||
+                a.box.bottom - a.box.top !in 20..170
+            }) return false
+        if (dismiss.size > 1 || dismiss.any { d ->
+                d.box.centerX() !in 30..285 || d.box.centerY() !in 170..820 ||
+                d.box.right - d.box.left !in 25..210 ||
+                d.box.bottom - d.box.top !in 25..210 ||
+                zones.any { z ->
+                    z.role in setOf(RealFieldRole.SEAT_AVATAR, RealFieldRole.SEAT_ACTION,
+                        RealFieldRole.SEAT_STACK, RealFieldRole.HERO_FOLD,
+                        RealFieldRole.HERO_CHECK_CALL, RealFieldRole.HERO_BET_RAISE) &&
+                    d.box.left < z.box.right && z.box.left < d.box.right &&
+                    d.box.top < z.box.bottom && z.box.top < d.box.bottom
+                }
+            }) return false
         val hero = zones.filter { it.role.name.startsWith("HERO_") }
         if (hero.size != 0 && (hero.size != 3 || hero.map { it.role }.distinct().size != 3)) return false
         if (hero.any { z ->
@@ -197,6 +233,7 @@ object OnDeviceRealFrameRegions {
     @Synchronized fun clear() { reader.clear(); OnDeviceSeatVisualDiagnostics.reset(); OnDeviceActionStripDiagnostics.clear() }
     @Synchronized fun resetSession() { reader.resetSession(); OnDeviceActionStripDiagnostics.resetSession() }
     @Synchronized fun configured(): Boolean = reader.configured()
+    @Synchronized fun activeProfile(): RealFrameCalibration? = reader.activeProfile()
     @Synchronized fun inspect(ticket: OcrFrameTicket, w: Int, h: Int, now: Long,
         lines: List<PositionedOcrLine>, stopped: Boolean): RegionObservationReport {
         // A capture reset cleared the two-frame tracker. Restore only the

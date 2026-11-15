@@ -50,6 +50,16 @@ class ChatGptCloudIntegrationSource(unittest.TestCase):
         for unsupported in ('"temperature"', '"previous_response_id"', '"background"'):
             self.assertNotIn(unsupported, self.cloud)
 
+    def test_unstarted_decision_does_not_spend_the_turn_request(self):
+        sender = self.cloud.split('private fun requestModelText(', 1)[1].split('fun askPrompt(', 1)[0]
+        decision = self.cloud.split('fun askVerifiedTurnDecision(', 1)[1].split('fun readCompletedResponse(', 1)[0]
+        schedule = (S/'OnDeviceVerifiedGptTurnRequests.kt').read_text()
+        self.assertIn('completed(null, "AUTH_IN_PROGRESS_OR_CLOUD_BUSY")\n            return false', sender)
+        self.assertIn('.start()\n        return true', sender)
+        self.assertIn('return requestModelText(context, prompt)', decision)
+        self.assertIn('if (key == requested) return false', schedule)
+        self.assertIn('if (!started) requested = null\n        return started', schedule)
+
     def test_cloud_does_not_tap_or_publish_ocr(self):
         for method in ('requestVerifiedAction(', 'dispatchGesture(', 'dispatchVerifiedTap(',
                        'FrameStore.latest', 'OnDeviceVerifiedDispatchAdmission'):

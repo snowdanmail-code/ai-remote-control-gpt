@@ -7,6 +7,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -81,6 +82,15 @@ object ChatGptCloudBridge {
     fun isAuthorizing(): Boolean = operations.isSigningIn()
 
     fun connected(context: Context): Boolean = try { readRecord(context)?.let { !it.optBoolean("refresh_pending") } ?: false } catch (_: Exception) { false }
+
+    /** Identity-only OAuth is not enough. The user must grant plan allowance. */
+    fun planUsageAuthorized(context: Context): Boolean = try {
+        readRecord(context)?.let {
+            !it.optBoolean("refresh_pending") &&
+                ChatGptAuthProtocol.scopeAllowsInference(it.optString("scope", "")) &&
+                it.optString("access_token", "").isNotBlank()
+        } ?: false
+    } catch (_: Exception) { false }
     fun connectionLabel(context: Context): String {
         if (operations.isSigningIn()) return "ChatGPT: вход выполняется; дождитесь AUTH_OK в приложении"
         val record = try { readRecord(context) } catch (ex: Exception) { return describe(ex, ChatGptCloudStep.STORE) }
@@ -625,30 +635,67 @@ object ChatGptCloudBridge {
             report)
     }
 
-    /** Manual cloud advisor test. Never provides a LiveCommand or verified game observation. */
-    fun askPrompt(context: Context, prompt: String, report: (String) -> Unit) {
+    fun testDecisionContract(context: Context, report: (String) -> Unit) {
+        if (!planUsageAuthorized(context)) {
+            report("Разрешите использование подписки ChatGPT для тестового запроса")
+            return
+        }
+        val probe = T055GptConnectionProbe(SystemClock.elapsedRealtime())
+        val prompt = probe.prompt(SystemClock.elapsedRealtime())
+        if (prompt == null) {
+            report("Тестовая раздача не прошла проверку контракта")
+            return
+        }
+        requestModelText(context, prompt) { reply, error ->
+            if (reply == null) report("Тестовая раздача · ${error ?: "CLOUD_UNAVAILABLE"}")
+            else report("Тестовая раздача · ${reply.model} · " +
+                probe.report(reply.text, reply.receivedAtMs) + " · ${reply.timing}")
+        }
+    }
+
+    private data class CloudTextReply(
+        val model: String, val text: String, val receivedAtMs: Long, val timing: String
+    )
+
+    /**
+     * One existing OAuth/Responses request path for both manual advisory text
+     * and a typed decision. This never dispatches an Android gesture.
+     */
+    private fun requestModelText(context: Context, prompt: String,
+                                 completed: (CloudTextReply?, String?) -> Unit): Boolean {
         appContext = context.applicationContext
-        if (prompt.isBlank() || prompt.length > 1600) { report("Введите запрос до 1600 символов"); return }
-        if (!operations.tryBeginRequest()) { report("AUTH_IN_PROGRESS_OR_CLOUD_BUSY: дождитесь завершения текущей операции в приложении"); return }
+        if (prompt.isBlank() || prompt.length > 1600) {
+            completed(null, "Введите запрос до 1600 символов")
+            return false
+        }
+        if (!operations.tryBeginRequest()) {
+            completed(null, "AUTH_IN_PROGRESS_OR_CLOUD_BUSY")
+            return false
+        }
         val generation = operations.generation()
+        val startedAt = SystemClock.elapsedRealtime()
         Thread({
             var phase = ChatGptCloudStep.SESSION
             cloudDiagnostic(generation, "CLOUD_SESSION: проверяется сеанс")
             try {
-                val bearer = validAccessToken(context) { phase = ChatGptCloudStep.REFRESH; cloudDiagnostic(generation, "AUTH_REFRESH: обновление сеанса") }
+                val bearer = validAccessToken(context) {
+                    phase = ChatGptCloudStep.REFRESH
+                    cloudDiagnostic(generation, "AUTH_REFRESH: обновление сеанса")
+                }
                 check(generation == operations.generation()) { "Session changed" }
+                val tokenReadyAt = SystemClock.elapsedRealtime()
                 phase = ChatGptCloudStep.MODELS
                 cloudDiagnostic(generation, "CLOUD_MODELS: загрузка моделей")
                 lastModelsUsedDoh = false
                 val slug = chooseModel(getJson("https://api.openai.com/v1/models", bearer))
+                val modelReadyAt = SystemClock.elapsedRealtime()
                 phase = ChatGptCloudStep.RESPONSES
                 cloudDiagnostic(generation, "CLOUD_RESPONSE: ожидается завершённый ответ")
-                val input = JSONArray().put(JSONObject().put("role", "user").put("content",
-                    prompt))
-                val body = JSONObject().put("model", slug).put("store", false).put("stream", true).put("input", input)
+                val input = JSONArray().put(JSONObject().put("role", "user").put("content", prompt))
+                val body = JSONObject().put("model", slug).put("store", false)
+                    .put("stream", true).put("input", input)
                 check(generation == operations.generation()) { "Session changed" }
                 val answer = if (lastModelsUsedDoh) {
-                    // DNS chosen by the preceding safe GET, not after a failed POST.
                     val response = ChatGptDohTransport.call("https://api.openai.com/v1/responses",
                         "POST", bearer, "application/json", body.toString().toByteArray(Charsets.UTF_8))
                     if (response.status !in 200..299)
@@ -663,8 +710,13 @@ object ChatGptCloudBridge {
                     } finally { c.disconnect() }
                 }
                 if (generation == operations.generation()) {
-                    cloudDiagnostic(generation, "CLOUD_OK: подтверждён завершённый ответ модели $slug")
-                    report("CLOUD_OK · модель $slug · ответ: ${answer.take(1500)}")
+                    val receivedAt = SystemClock.elapsedRealtime()
+                    val timing = "всего ${receivedAt - startedAt} мс · " +
+                        "сеанс ${tokenReadyAt - startedAt} мс · " +
+                        "модель ${modelReadyAt - tokenReadyAt} мс · " +
+                        "ответ ${receivedAt - modelReadyAt} мс"
+                    cloudDiagnostic(generation, "CLOUD_OK: завершён ответ модели $slug · $timing")
+                    completed(CloudTextReply(slug, answer, receivedAt, timing), null)
                 }
             } catch (ex: Exception) {
                 if (generation == operations.generation()) {
@@ -672,12 +724,105 @@ object ChatGptCloudBridge {
                     val priorAuth = if (phase == ChatGptCloudStep.SESSION &&
                         (ex as? CloudProblemError)?.problem == ChatGptCloudProblem.NO_SESSION &&
                         lastLoginDiagnostic.contains("AUTH_")) lastLoginDiagnostic else null
-                    val usefulMessage = if (priorAuth != null) "$message | Последняя ошибка входа: $priorAuth" else message
-                    cloudDiagnostic(generation, usefulMessage)
-                    report("Проверка облачного ИИ не пройдена: $usefulMessage")
+                    val usefulMessage = if (priorAuth == null) message
+                        else "$message | Последняя ошибка входа: $priorAuth"
+                    val elapsed = SystemClock.elapsedRealtime() - startedAt
+                    val diagnostic = "$usefulMessage · ${elapsed} мс"
+                    cloudDiagnostic(generation, diagnostic)
+                    completed(null, diagnostic)
                 }
-            } finally { operations.finishRequest() }
-        }, "chatgpt-test").start()
+            } finally {
+                operations.finishRequest()
+            }
+        }, "chatgpt-inference").start()
+        return true
+    }
+
+    /** Manual cloud advisor test. The response remains display-only. */
+    fun askPrompt(context: Context, prompt: String, report: (String) -> Unit) {
+        requestModelText(context, prompt) { reply, error ->
+            if (reply != null)
+                report("CLOUD_OK · модель ${reply.model} · ${reply.timing} · ответ: ${reply.text.take(1500)}")
+            else
+                report("Проверка облачного ИИ не пройдена: ${error ?: "UNKNOWN"}")
+        }
+    }
+
+    /**
+     * Non-playing diagnostic: send already captured opponent stats using
+     * the EXISTING Sign in with ChatGPT OAuth access token and the user's
+     * granted ChatGPT plan allowance. No API key, separate billing account
+     * or ChatGPT web-session scraping. One acknowledged request is NOT model
+     * memory; each actual turn request sends its context again.
+     */
+    fun sendSessionContext(context: Context, stats: String,
+                           report: (String) -> Unit) {
+        if (!planUsageAuthorized(context)) {
+            report("CHATGPT_PLAN_NOT_AUTHORIZED: подключите разрешение на использование подписки")
+            return
+        }
+        val nonce = ChatGptAuthProtocol.randomUrlSafe(16)
+        val handoff = ChatGptPlanHandoffProtocol.prepare(stats, nonce)
+        if (handoff == null) {
+            report("CONTEXT_NOT_READY: нет проверенных числовых наблюдений этого стола")
+            return
+        }
+        requestModelText(context, handoff.prompt) { reply, error ->
+            if (reply == null) {
+                report("CONTEXT_NOT_DELIVERED: " + (error ?: "CLOUD_UNAVAILABLE"))
+            } else if (ChatGptPlanHandoffProtocol.verifyAck(reply.text, handoff)) {
+                report("CONTEXT_ACK: передано мест " + handoff.seatCount +
+                    " через ChatGPT OAuth, модель " + reply.model +
+                    ". Подтверждён один запрос; история модели не сохраняется.")
+            } else {
+                report("CONTEXT_UNVERIFIED: ответ получен, но контрольный ACK не совпал; " +
+                    "повторного запроса нет")
+            }
+        }
+    }
+
+    /**
+     * Typed GPT decision path. Only independently verified, fresh observations
+     * may generate requests. A returned candidate is placed in the existing
+     * mailbox; the game-source, rules, amount, STOP and gesture gates still
+     * decide if it can ever be acted on. There is no blind action on a callback.
+     */
+    fun askVerifiedTurnDecision(
+        context: Context, observation: AutonomousObservation,
+        cards: StableCardReading,
+        verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList(),
+        sessionPopupStatistics: String = "",
+        verifiedHandParticipation: String = "",
+        verifiedOpponentSeatRefs: Map<String, Int> = emptyMap(),
+        // Future authenticated provider only; current device sends null.
+        turnContext: T054GptTurnBoundContext? = null,
+        report: (T043GptDecisionContract.Review) -> Unit
+    ): Boolean {
+        val prompt = T043GptDecisionContract.buildPrompt(observation, cards,
+            android.os.SystemClock.elapsedRealtime(), verifiedOpponentProfiles,
+            sessionPopupStatistics, verifiedHandParticipation,
+            verifiedOpponentSeatRefs, turnContext)
+        if (prompt == null) {
+            report(T043GptDecisionContract.Review(false, "UNVERIFIED_OR_STALE_TURN"))
+            return false
+        }
+        return requestModelText(context, prompt) { reply, error ->
+            if (reply == null) {
+                report(T043GptDecisionContract.Review(false, "CLOUD_FAILURE: ${error ?: "UNKNOWN"}"))
+                return@requestModelText
+            }
+            val review = T043GptDecisionContract.review(reply.text, observation,
+                android.os.SystemClock.elapsedRealtime(),
+                allowMatchingLaterFrame = turnContext == null)
+            if (!review.accepted || review.proposal == null) {
+                report(review)
+                return@requestModelText
+            }
+            val offered = OnDeviceAutonomousRuntime.offerFrameBoundModelAdvice(
+                context.applicationContext, review.proposal)
+            report(if (offered) review else
+                T043GptDecisionContract.Review(false, "MODEL_MAILBOX_REJECTED"))
+        }
     }
 
     /** A completed terminal event is mandatory; never wait past it or accept partial output. */

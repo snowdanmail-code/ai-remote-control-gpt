@@ -45,6 +45,10 @@ object OnDeviceIncidentRecorder {
         }
     }
 
+    /** Read-only UI tail of already allow-listed events, without file I/O. */
+    @Synchronized fun liveLines(limit: Int = 30): List<String> =
+        journal.snapshot().takeLast(limit.coerceIn(1, MAX_EXPORT_EVENTS))
+
     @Synchronized fun exportReport(context: Context): String {
         val base = context.applicationContext.filesDir
         val lines = sequenceOf(OLD_LOG_NAME, LOG_NAME).flatMap { name ->

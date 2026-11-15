@@ -159,7 +159,13 @@ class LiveOpponentAwareness(
     private fun summarize(key: String, events: List<ConfirmedOpponentAction>): InHandOpponentSummary {
         val pre = events.filter { it.street == "PREFLOP" }
         val post = events.filter { it.street != "PREFLOP" }
-        val facing = events.filter { it.facingBetVerified == true }
+        val facing = events.filter { it.facingBetVerified == true &&
+            it.action in setOf("FOLD", "CALL", "RAISE") }
+        // The v1 SQLite summary represents at most ONE response per hand.
+        // With multiple independently confirmed facing-bet decisions we know
+        // there were opportunities, but cannot truthfully compress them to
+        // a single Boolean fold outcome. Do not inflate fold-vs-bet.
+        val singleFacingResponse = facing.singleOrNull()
         return InHandOpponentSummary(
             opponentKey = key,
             stableIdentityVerified = events.all { it.stableOpponentIdentityVerified },
@@ -168,7 +174,11 @@ class LiveOpponentAwareness(
             preflopRaised = if (pre.any { it.action == "RAISE" }) true else null,
             postflopBetsOrRaises = post.count { it.action == "BET" || it.action == "RAISE" }.takeIf { it > 0 },
             postflopCalls = post.count { it.action == "CALL" }.takeIf { it > 0 },
-            foldedFacingBet = if (facing.any { it.action == "FOLD" }) true else null,
+            foldedFacingBet = when (singleFacingResponse?.action) {
+                "FOLD" -> true
+                "CALL", "RAISE" -> false
+                else -> null
+            },
             facedBet = if (facing.isNotEmpty()) true else null
         )
     }

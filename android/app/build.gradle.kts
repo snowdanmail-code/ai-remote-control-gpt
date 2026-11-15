@@ -1,3 +1,6 @@
+import java.security.MessageDigest
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,10 +10,55 @@ plugins {
 // The keystore path and passwords are supplied by protected CI secrets, never committed.
 val compatibleKeystore = System.getenv("AI_REMOTE_SIGNING_KEYSTORE_PATH")
 
+// Build-time ONLY: bundle pinned Russian+English OCR language models.
+// APK needs no account, cloud OCR service, model installer or runtime download.
+// Explicit SHA-512s from the public tessdata_fast-4.1.0 distribution manifest.
+val lobbyOcrAssets = layout.buildDirectory.dir("generated/lobby-ocr-assets")
+val prepareLobbyOcrModels = tasks.register("prepareLobbyOcrModels") {
+    outputs.dir(lobbyOcrAssets)
+    doLast {
+        val dest = lobbyOcrAssets.get().asFile.resolve("tessdata")
+        check(dest.isDirectory || dest.mkdirs()) { "Cannot create OCR assets" }
+        val hashes = mapOf(
+            "rus" to "65254c36df8274cee0a2c32e9632f3c2c3c2c0032314bf0a99a4c23309e862da7c038ed85745d58697a814f44c656f22ef5a7815ae2bec33f80de1de8e1ea9dd",
+            "eng" to "90aadb5e0c368781f94add808f6b4dd31d8e244c9fecbe6a233070cac9a4fc071fd23a09e4a7e041db8e26880a6debbdf32a6b701c28687b2ed1cac81f4c1d14"
+        )
+        val sizes = mapOf("rus" to 3_861_738, "eng" to 4_113_088)
+        fun sha512(data: ByteArray) = MessageDigest.getInstance("SHA-512")
+            .digest(data).joinToString("") { "%02x".format(it) }
+        for ((lang, expectedSha) in hashes) {
+            val target = dest.resolve("$lang.traineddata")
+            if (target.exists() && target.length() == sizes.getValue(lang).toLong() &&
+                sha512(target.readBytes()) == expectedSha) continue
+            val url = URI(
+                "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/$lang.traineddata"
+            ).toURL()
+            val conn = url.openConnection().apply {
+                connectTimeout = 18_000
+                readTimeout = 35_000
+            }
+            val data = conn.getInputStream().use { it.readBytes() }
+            val actualSha = sha512(data)
+            check(data.size == sizes.getValue(lang) && actualSha == expectedSha) {
+                "Untrusted OCR model: $lang actual-size=${data.size} expected-size=${sizes.getValue(lang)} " +
+                    "actual-sha512=$actualSha expected-sha512=$expectedSha"
+            }
+            val tmp = dest.resolve("$lang.traineddata.part")
+            tmp.writeBytes(data)
+            check(tmp.renameTo(target)) { "Cannot install verified OCR model $lang" }
+        }
+    }
+}
+
+tasks.matching { it.name.matches(Regex("merge.+Assets")) }.configureEach {
+    dependsOn(prepareLobbyOcrModels)
+}
+
 android {
     namespace = "com.example.airemote"
     compileSdk = 35
     buildToolsVersion = "35.0.0"
+    sourceSets.getByName("main").assets.srcDir(lobbyOcrAssets)
     defaultConfig {
         applicationId = "com.example.airemote"
         minSdk = 29
@@ -77,6 +125,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
     // Offline OCR model; no Windows or Python service.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // OCR only for Russian/English CASH LOBBY labels and sort menu;
+    // existing card recognizer and game-street ML Kit remain unchanged.
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
     // T043 Stage 3: RFC 9180 HPKE + Ed25519; explicit FTPS only.
     implementation("org.bouncycastle:bcprov-jdk18on:1.85")
     implementation("commons-net:commons-net:3.13.0")

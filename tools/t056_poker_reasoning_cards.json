@@ -1,0 +1,238 @@
+{
+  "schema": "t056.interview-reasoning-cards.v1",
+  "generatedAt": "2026-11-15",
+  "lang": "ru",
+  "applicableTo": "NO_LIMIT_TEXAS_HOLDEM_CASH",
+  "replayOnly": true,
+  "notModelTraining": true,
+  "notGtoOracle": true,
+  "sourceLedger": "docs/T056_ELITE_POKER_INTERVIEWS_REASONING.md",
+  "cards": [
+    {
+      "id": "T056-01",
+      "code": "FACTS_VS_HYPOTHESES",
+      "sourceIds": [
+        "G2",
+        "C1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "hand_identity",
+        "source_provenance"
+      ],
+      "question": "Какие поля подтверждены независимо, а какие являются оценкой?",
+      "avoidInference": "Пропущенный кадр нельзя трактовать как FOLD/CHECK.",
+      "failClosedReason": "UNVERIFIED_SOURCE",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-02",
+      "code": "RANGE_NOT_EXACT_CARDS",
+      "sourceIds": [
+        "G1",
+        "C1",
+        "N1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "position",
+        "street",
+        "action_history"
+      ],
+      "question": "Какие несколько диапазонов соперника совместимы с наблюдаемыми действиями?",
+      "avoidInference": "Один сайзинг не позволяет установить конкретные карты.",
+      "failClosedReason": "RANGE_UNCALIBRATED",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-03",
+      "code": "STREET_BY_STREET_REVIEW",
+      "sourceIds": [
+        "G1",
+        "I2",
+        "P1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "street",
+        "action_history"
+      ],
+      "question": "Как предыдущая последовательность событий меняет интерпретацию текущего действия?",
+      "avoidInference": "Историю нельзя считать полной на основании одного экрана.",
+      "failClosedReason": "HISTORY_INCOMPLETE",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-04",
+      "code": "BASELINE_THEN_EXPLOIT",
+      "sourceIds": [
+        "C1",
+        "G3",
+        "N1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "game_format",
+        "position",
+        "ranges"
+      ],
+      "question": "Какова базовая теоретическая линия и что доказано о конкретном отклонении соперника?",
+      "avoidInference": "Отклонение от baseline не обосновывается внешним видом аватара.",
+      "failClosedReason": "NO_BASELINE",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-05",
+      "code": "CONDITIONAL_BET_SIZING",
+      "sourceIds": [
+        "G3"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "street",
+        "position",
+        "sizing_semantics",
+        "action_history"
+      ],
+      "question": "Какие сильные руки, слабые руки и блефы могли выбрать этот сайзинг?",
+      "avoidInference": "Большая ставка не обязательно означает исключительно сильный диапазон.",
+      "failClosedReason": "BET_SIZE_UNKNOWN",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-06",
+      "code": "OPPORTUNITY_DENOMINATORS",
+      "sourceIds": [
+        "G2",
+        "G1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "verified_actor",
+        "verified_opportunities"
+      ],
+      "question": "Сколько подтверждённых возможностей и положительных действий образуют статистику?",
+      "avoidInference": "Неизвестное действие не равно подтверждённому отрицательному событию.",
+      "failClosedReason": "SAMPLE_UNVERIFIED",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-07",
+      "code": "SHOWDOWN_CALIBRATION",
+      "sourceIds": [
+        "G2"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "showdown_cards",
+        "action_history"
+      ],
+      "question": "Сопоставимы ли показанные карты с предварительной оценкой диапазона?",
+      "avoidInference": "Одно вскрытие не даёт частоту блефа игрока.",
+      "failClosedReason": "ONE_HAND_ONLY",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-08",
+      "code": "ALTERNATIVE_HYPOTHESES",
+      "sourceIds": [
+        "G1",
+        "G2",
+        "H1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "action_history",
+        "range_evidence"
+      ],
+      "question": "Какие альтернативные объяснения текущей линии и что могло бы их опровергнуть?",
+      "avoidInference": "Уверенный тон не превращает предположение в факт.",
+      "failClosedReason": "LOW_CONFIDENCE",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-09",
+      "code": "QUALITY_NOT_OUTCOME",
+      "sourceIds": [
+        "I2",
+        "C1",
+        "N2"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "decision_context",
+        "outcome"
+      ],
+      "question": "Был ли выбор обоснован доступной на момент решения информацией, независимо от выигрыша?",
+      "avoidInference": "Выигрыш банка не доказывает +EV предыдущего решения.",
+      "failClosedReason": "OUTCOME_BIAS",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-10",
+      "code": "CASH_NOT_TOURNAMENT",
+      "sourceIds": [
+        "M1",
+        "C1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "game_format",
+        "cash_rules"
+      ],
+      "question": "Не перенесены ли ICM, пузырь или турнирные правила в cash NLHE?",
+      "avoidInference": "Турнирная эвристика не является правилом кэш-стола.",
+      "failClosedReason": "FORMAT_MISMATCH",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-11",
+      "code": "TIME_RESERVE",
+      "sourceIds": [
+        "K1",
+        "H1",
+        "I1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "turn_timer",
+        "frame_age",
+        "cloud_latency"
+      ],
+      "question": "Достаточно ли свежих данных и времени для безопасной оценки?",
+      "avoidInference": "Долгое рассуждение после истечения таймера запрещено.",
+      "failClosedReason": "STALE_TURN",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    },
+    {
+      "id": "T056-12",
+      "code": "ADAPT_ONLY_WITH_EVIDENCE",
+      "sourceIds": [
+        "I1",
+        "M1",
+        "N1"
+      ],
+      "scope": "NLHE_CASH_REPLAY_ONLY",
+      "requiresVerified": [
+        "opponent_sample",
+        "base_strategy"
+      ],
+      "question": "Какие наблюдения оправдывают конкретную смену стиля против этого соперника?",
+      "avoidInference": "Агрессия ради подражания профессионалу не является стратегией.",
+      "failClosedReason": "NO_EXPLOIT_EVIDENCE",
+      "authorizesLiveAction": false,
+      "derived": "synthesis_not_verbatim"
+    }
+  ]
+}

@@ -32,15 +32,22 @@ class VerifiedLocalStrategySourceTests(unittest.TestCase):
         self.assertIn('minBet != null && maxBet != null', self.strategy)
         self.assertIn('amount in minBet..maxBet', self.strategy)
 
-    def test_local_strategy_installed_without_auto_arming(self):
-        self.assertIn('ensureLocalStrategy()', self.activity)
+    def test_gpt_only_strategy_installed_without_auto_arming(self):
+        self.assertIn('ensureGptOnlyStrategy()', self.activity)
         self.assertIn('strategy = ValidatedPlayerStrategy(', self.runtime)
-        self.assertIn('local = VerifiedLocalPokerStrategy()', self.runtime)
+        self.assertIn('local = AutonomousStrategy { null }', self.runtime)
         router = (SRC / 'ValidatedPlayerStrategy.kt').read_text()
         self.assertIn('return localDecision', router)
         self.assertIn('PlayerModelDecisionGuard.inspect', router)
         self.assertIn('OperatorStopStore.isStopped(context)', self.runtime)
         self.assertIn('LiveGamePermissionGate.permitted()', self.runtime)
+
+    def test_gpt_auto_blocks_missing_source_without_starting_local_check(self):
+        start = self.runtime.split('fun startIfAuthorized(', 1)[1].split('fun ', 1)[0]
+        no_source = start.split('if (identityBinding == null) {', 1)[1].split('}', 1)[0]
+        self.assertIn('AutoLoopState.BLOCKED_CONTEXT', no_source)
+        self.assertIn('return false', no_source)
+        self.assertNotIn('LocalPlayerCheckPilot.start(', start)
 
     def test_missing_verified_observation_not_promoted(self):
         self.assertIn('onVerifiedObservation(if (tiedToCurrent && independentlyBound && permittedByTurn) obs else null, now,', self.runtime)

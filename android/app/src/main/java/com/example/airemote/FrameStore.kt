@@ -69,6 +69,8 @@ object FrameStore {
     }
     @Volatile var lastAutomaticOcr: AutomaticOcrEvidence? = null
     @Volatile var lastSeatVisual: SeatVisualReport? = null
+    @Volatile var lastSeatRound: T048Reading? = null
+    @Volatile var lastTransientSeatBadges: List<T050TransientBadgePulse> = emptyList()
     @Volatile var lastRealFrameRegions: RegionObservationReport? = null
     @Volatile var lastActionStrip: ActionStripReport? = null
     @Volatile var lastHeroTurnEpisode: HeroTurnLifecycleReport? = null
@@ -98,6 +100,10 @@ object FrameStore {
         latest = null
         lastAutomaticOcr = null
         lastSeatVisual = null
+        lastSeatRound = null
+        lastTransientSeatBadges = emptyList()
+        // Android-only signal tracker resets in capture/OCR service;
+        // FrameStore itself is JVM-source-testable without Android graphics.
         lastRealFrameRegions = null
         lastActionStrip = null
         lastHeroTurnEpisode = null
@@ -153,6 +159,10 @@ object FrameStore {
         latest = null
         lastAutomaticOcr = null
         lastSeatVisual = null
+        lastSeatRound = null
+        lastTransientSeatBadges = emptyList()
+        // Android-only signal tracker resets in capture/OCR service;
+        // FrameStore itself is JVM-source-testable without Android graphics.
         lastRealFrameRegions = null
         lastActionStrip = null
         lastHeroTurnEpisode = null

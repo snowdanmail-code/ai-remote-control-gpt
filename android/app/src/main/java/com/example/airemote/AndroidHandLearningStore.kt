@@ -198,6 +198,17 @@ object OnDeviceOpponentAwareness {
             OnDevicePostHandLearning.contextForNextDecision(verifiedKeys)
         }
 
+    /** Only long-lived profiles linked to verified current-hand identities. */
+    @Synchronized fun verifiedProfilesForTurn(): List<OpponentLearningSummary> =
+        observer.snapshot().asSequence()
+            .filter { it.stableIdentityVerified }
+            .map { it.opponentKey }
+            .distinct()
+            .take(3)
+            .mapNotNull { OnDevicePostHandLearning.profileForNextDecision(it) }
+            .toList()
+
+
     @Synchronized fun proposeVerifiedTerminal(frame: VerifiedHandBoundaryFrame): VerifiedFinishedHand? =
         observer.proposalFromTrustedTerminal(frame)
 

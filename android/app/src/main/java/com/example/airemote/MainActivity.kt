@@ -47,11 +47,19 @@ class MainActivity : Activity() {
             }
             if (::preview.isInitialized && OperatorStopStore.isStopped(this@MainActivity))
                 preview.setImageDrawable(null)
+            if (::operatorLiveText.isInitialized) {
+                val live = OnDeviceOperatorLiveTrace.snapshot(this@MainActivity, 8)
+                val message = live.overview + "\n\nПОСЛЕДНИЕ СОБЫТИЯ (новые сверху)\n" +
+                    live.recent.joinToString("\n")
+                if (operatorLiveText.text.toString() != message)
+                    operatorLiveText.text = message
+            }
             wasAuthorizing = authorizing
             cloudHandler.postDelayed(this, 400)
         }
     }
     private lateinit var status: TextView
+    private lateinit var operatorLiveText: TextView
     private lateinit var result: TextView
     private lateinit var preview: ImageView
     private lateinit var qualitySpinner: Spinner
@@ -63,7 +71,7 @@ class MainActivity : Activity() {
         AppVisibilityGate.onActivityVisible()
         // Persistent per-hand learning is local and available without Windows or cloud.
         OnDevicePostHandLearning.initialize(applicationContext)
-        OnDeviceAutonomousRuntime.ensureLocalStrategy()
+        OnDeviceAutonomousRuntime.ensureGptOnlyStrategy()
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         // Android 15+/target 35 draw edge-to-edge: keep emergency STOP below status icons.
         root.setOnApplyWindowInsetsListener { view, insets ->
@@ -124,7 +132,11 @@ class MainActivity : Activity() {
             "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ",
             "АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ",
             "НАЧАТЬ ЗАХВАТ ЭКРАНА",
-            "ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)"
+            "ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)",
+            "1WIN — АВТОВЫБОР СТОЛА ПО ЛИМИТАМ",
+            "1WIN — ТОЛЬКО OCR СТОЛОВ (БЕЗ НАЖАТИЙ)",
+            "1WIN — РЕЗУЛЬТАТ OCR СТОЛОВ",
+            "1WIN — ОСТАНОВИТЬ OCR СТОЛОВ"
         )
         fun label(text: String) {
             val target = if (text.startsWith("AI Remote Control v")) content else advanced
@@ -141,7 +153,7 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         label("AI Remote Control v${packageManager.getPackageInfo(packageName, 0).versionName} — Android + ChatGPT")
         label("Захват и OCR локально. Windows-сервер и его настройки удалены. " +
-            "Локальная стратегия сохранена. Подключение ChatGPT проверяется через защищённую вкладку OpenAI. " +
+            "Основная стратегия — ChatGPT; без подтверждённого ответа автоматический ход запрещён. Подключение ChatGPT проверяется через защищённую вкладку OpenAI. " +
             "Исполнитель Android-касаний доступен после разрешения оператора, проверки игрового состояния и кнопок.")
         label("ОБЛАЧНЫЙ ИИ / CHATGPT")
         label("Вход на официальном сайте OpenAI во вкладке приложения: пароль и 2FA не передаются приложению. " +
@@ -167,6 +179,12 @@ class MainActivity : Activity() {
         button("ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ") {
             cloudStatus.text = "Проверяю модель и выполняю тестовый запрос…"
             ChatGptCloudBridge.testInference(this@MainActivity) { message ->
+                runOnUiThread { cloudStatus.text = message }
+            }
+        }
+        button("ТЕСТ РЕШЕНИЯ CHATGPT НА УЧЕБНОЙ РАЗДАЧЕ") {
+            cloudStatus.text = "Отправляю учебную раздачу в ChatGPT…"
+            ChatGptCloudBridge.testDecisionContract(this@MainActivity) { message ->
                 runOnUiThread { cloudStatus.text = message }
             }
         }
@@ -215,6 +233,44 @@ class MainActivity : Activity() {
         label("Облачный ИИ подключается для испытаний и рекомендаций. " +
             "Реальные касания в 1win не разрешаются результатом тестового запроса.")
         status = TextView(this).apply { textSize = 16f; text = "Захват выключен"; content.addView(this) }
+        content.addView(TextView(this).apply {
+            text = "ЖИВОЙ ЖУРНАЛ ИИ · обновляется каждые 0,4 сек"
+            textSize = 15f
+            setTextColor(Color.rgb(33, 91, 145))
+            setPadding(0, 10, 0, 2)
+        })
+        content.addView(Button(this).apply {
+            text = if (OnDeviceOperatorLiveTrace.overlayEnabled(this@MainActivity))
+                "ВЫКЛЮЧИТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
+            else "ПОКАЗЫВАТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
+            setOnClickListener {
+                val enabled = !OnDeviceOperatorLiveTrace.overlayEnabled(this@MainActivity)
+                OnDeviceOperatorLiveTrace.setOverlayEnabled(this@MainActivity, enabled)
+                text = if (enabled) "ВЫКЛЮЧИТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
+                    else "ПОКАЗЫВАТЬ МИНИ-ЖУРНАЛ ПОВЕРХ ИГРЫ"
+            }
+        })
+        content.addView(Button(this).apply {
+            text = "T051 — ИСПЫТАТЬ ДЕЙСТВИЯ (БЕЗ 1WIN И СТАВОК)"
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, T051ActionLabActivity::class.java))
+            }
+        })
+        content.addView(TextView(this).apply {
+            text = "Тест сначала проверяет реальный контракт JSON-решения, " +
+                "затем один системный жест Android и подтверждение своей тестовой кнопки. " +
+                "Для запуска должны быть включены STOP и служба Accessibility, " +
+                "а захват экрана остановлен."
+            textSize = 13f
+        })
+        operatorLiveText = TextView(this).apply {
+            textSize = 12f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(Color.rgb(42, 50, 62))
+            setPadding(8, 8, 8, 12)
+            text = "Ожидание событий. События и причины блокировок появятся здесь."
+            content.addView(this)
+        }
         handStateText = TextView(this).apply { textSize = 15f; advanced.addView(this) }
         label("Режим по умолчанию — ИГРОК. Наблюдатель считывает только общие " +
             "карты и никогда не включает автоматические игровые касания.")
@@ -239,6 +295,341 @@ class MainActivity : Activity() {
         button("ОЧИСТИТЬ КАЛИБРОВКУ") {
             OnDeviceRealFrameRegions.clear()
             status.text = "Калибровка удалена, распознавание мест сброшено"
+        }
+        // Table selection is a separate pre-game step. Max blind/buy-in
+        // remain explicitly configured by the operator, never guessed from
+        // a bankroll screenshot or substituted by GPT.
+        label("1WIN — КЭШ-ИГРЫ: ВЫБОР СТОЛА ПО ЗАДАННЫМ ЛИМИТАМ")
+        val savedTableLimits = OneWinCashLobbyLimitsStore.read(this)
+        fun moneyInDollars(cents: Long): String =
+            "${cents / 100}.${(cents % 100).toString().padStart(2, '0')}"
+        val maxBigBlindEntry = EditText(this).apply {
+            hint = "Максимальный большой блайнд, $"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            savedTableLimits?.let { setText(moneyInDollars(it.maxBigBlindCents)) }
+        }
+        advanced.addView(maxBigBlindEntry)
+        val maxBuyinEntry = EditText(this).apply {
+            hint = "Максимальный бай-ин, $"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            savedTableLimits?.let { setText(moneyInDollars(it.maxBuyInCents)) }
+        }
+        advanced.addView(maxBuyinEntry)
+        button("1WIN — СОХРАНИТЬ ЛИМИТЫ СТОЛОВ") {
+            if (OnDeviceCashLobbySelection.scanning() ||
+                OnDeviceOneWinPreSeatScanner.active()) {
+                status.text = "Во время поиска стола или бай-ина лимиты нельзя изменять"
+                return@button
+            }
+            val big = OneWinCashLobbyLimitsStore.parseDollars(maxBigBlindEntry.text.toString())
+            val buyin = OneWinCashLobbyLimitsStore.parseDollars(maxBuyinEntry.text.toString())
+            status.text = if (big != null && buyin != null &&
+                OneWinCashLobbyLimitsStore.save(this, big, buyin))
+                "Лимиты выбора столов сохранены. Большой блайнд не выше " +
+                    moneyInDollars(big) + " $, бай-ин не выше " + moneyInDollars(buyin) +
+                    " $. Автоматический минимальный бай-ин выполняется только " +
+                        "после включения посадки."
+            else "Неверные суммы. Укажите положительные доллары с точностью до центов."
+        }
+        button("1WIN — АВТОВЫБОР СТОЛА ПО ЛИМИТАМ") {
+            val started = OnDeviceCashLobbySelection.start(this@MainActivity)
+            status.text = if (started)
+                "Автовыбор включён. Откройте «Кэш-Игры» в 1win: " +
+                    "ИИ распознает русское меню, установит «Ставки по возрастанию», " +
+                    "при необходимости пролистает таблицу (до 18 свайпов) и откроет " +
+                    "подходящий стол в заданных лимитах. После посадки выбирает " +
+                        "только минимальный бай-ин и подтверждает «ОК» один раз."
+            else "Не удалось запустить выбор стола: нужны сохранённые лимиты, " +
+                "активный захват, ARM, разрешение касаний и отсутствие другого игрового действия."
+        }
+        // T052: passive diagnostic with no auto-selection or touch actions.
+        button("1WIN — ТОЛЬКО OCR СТОЛОВ (БЕЗ НАЖАТИЙ)") {
+            val started = OnDeviceCashLobbyReadOnlyProbe.start(this@MainActivity)
+            status.text = if (started)
+                "Только OCR включён. Перейдите в 1win на экран Кэш-Игры, " +
+                    "после чтения вернитесь и нажмите РЕЗУЛЬТАТ OCR."
+            else OnDeviceCashLobbyReadOnlyProbe.summary()
+        }
+        button("1WIN — РЕЗУЛЬТАТ OCR СТОЛОВ") {
+            status.text = OnDeviceCashLobbyReadOnlyProbe.summary()
+        }
+        button("1WIN — ОСТАНОВИТЬ OCR СТОЛОВ") {
+            OnDeviceCashLobbyReadOnlyProbe.stop()
+            status.text = OnDeviceCashLobbyReadOnlyProbe.summary()
+        }
+        button("1WIN — СТАТУС И РЕКОМЕНДАЦИЯ СТОЛА") {
+            val state = OnDeviceCashLobbySelection.status()
+            val lobby = OnDeviceOneWinCashLobby.latest()
+            status.text = "Автовыбор: ${state.phase}. ${state.message}. " +
+                "Распознано видимых столов: ${lobby?.tables?.size ?: 0}. " +
+                "Русский OCR: ${OnDeviceCashLobbyTextRecognition.lastStatus}. " +
+                "Пассивный OCR: ${OnDeviceCashLobbyReadOnlyProbe.summary()}. " +
+                (state.recommended?.let {
+                    "Выбор: ${it.table.label}, занято ${it.table.occupiedSeats}/${it.table.totalSeats}; " +
+                    "блайнды ${moneyInDollars(it.table.smallBlindCents)} / ${moneyInDollars(it.table.bigBlindCents)} $, " +
+                    "вход ${moneyInDollars(it.table.minBuyInCents)}–${moneyInDollars(it.table.maxBuyInCents)} $, " +
+                    "разрешённый потолок бай-ина ${moneyInDollars(it.permittedBuyInCapCents)} $."
+                } ?: "Подтверждённой рекомендации пока нет")
+        }
+        label("ТЗ №044 — ПОСАДКА ЗА СТОЛ. До посадки ищем ВСЕ " +
+            "стрелки свободных мест. После выбора места отдельно распознаём " +
+            "окно «Бай-Ин», минимальную/максимальную сумму, баланс и «Ок». " +
+            "Нижняя позиция пока не считается подтверждённым игроком. " +
+            "После автоматического перехода из лобби ИИ выбирает стрелку. " +
+            "Для условных фишек проверяет минимум, при необходимости нажимает " +
+            "«Мин», заново проверяет сумму и подтверждает «ОК» один раз. " +
+            "Авто-ребай не включает.")
+        button("1WIN — ПРОВЕРИТЬ СВОБОДНЫЕ МЕСТА И БАЙ-ИН") {
+            val started = OnDeviceOneWinPreSeatScanner.start(this@MainActivity)
+            status.text = if (started)
+                "Диагностика посадки активна. Откройте стол 1win: распознаём " +
+                    "одну или несколько стрелок, затем окно бай-ина. " +
+                    "Касания и подтверждение суммы пока отключены."
+            else "Диагностика не запущена: нужен активный захват, " +
+                "разрешённое окно приложения и выключенный STOP."
+        }
+        button("1WIN — ОДНОКРАТНО ВЫБРАТЬ СВОБОДНОЕ МЕСТО") {
+            val armed = OnDeviceOneWinPreSeatScanner.armSeatNavigation(this@MainActivity)
+            status.text = if (armed)
+                "Выбор места включён: после двух совпадающих кадров " +
+                    "нажмём одну стрелку свободного места. После двух проверок " +
+                    "выберем минимальный бай-ин и подтвердим «ОК» один раз."
+            else "Выбор места не включён: проверьте STOP, разрешения, " +
+                "захват и то, что первое касание ещё не было отправлено."
+        }
+        button("1WIN — АВТОМИНИМУМ И ОК В ОТКРЫТОМ БАЙ-ИНЕ") {
+            val enabled = OnDeviceOneWinPreSeatScanner.armMinimumBuyIn(this@MainActivity)
+            status.text = if (enabled)
+                "Автоматический минимальный вход разрешён для этого окна: " +
+                    "если текущая сумма больше минимума — нажмём «Мин», " +
+                    "заново проверим сумму и нажмём «ОК» один раз."
+            else "Автоминимум не включён: сначала запустите диагностику " +
+                "и откройте «Бай-Ин»; проверьте STOP и разрешения."
+        }
+        button("1WIN — СТАТУС ПОСАДКИ И БАЙ-ИНА") {
+            val step = OnDeviceOneWinPreSeatScanner.current()
+            val buy = step.buyIn
+            status.text = "Посадка: " + step.phase + ". " + step.description +
+                "; стрелок: " + step.vacancies.size +
+                "; выбранное место: " + (step.selectedSlot?.name ?: "пока нет") +
+                "; навигация: " + step.gesture.name +
+                (buy?.let {
+                    "; окно: " + it.status +
+                        "; блайнды: " + (it.smallBlindCents?.let(::moneyInDollars) ?: "?") +
+                        "/" + (it.bigBlindCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; списание: " + (it.debitCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; доступно: " + (it.availableCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; мин: " + (it.minimumCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; макс: " + (it.maximumCents?.let(::moneyInDollars) ?: "?") + " $" +
+                        "; в лимитах: " + step.withinConfiguredLimits
+                } ?: "")
+        }
+        button("1WIN — ОСТАНОВИТЬ ДИАГНОСТИКУ ПОСАДКИ") {
+            OnDeviceOneWinPreSeatScanner.stop("Остановлено оператором")
+            status.text = "Наблюдение и автоматический бай-ин остановлены. " +
+                "Новые касания не выполняются."
+        }
+        label("1WIN — ВЫХОД, КОГДА ЗА СТОЛОМ ОСТАЛОСЬ 3 ИЛИ МЕНЬШЕ ИГРОКОВ " +
+            "(ВКЛЮЧАЯ ВАШЕ МЕСТО). Выход возможен только между раздачами, " +
+            "после подтверждения каждого занятого/свободного места. " +
+            "Нужны SEAT_ACTION + SEAT_STACK для всех мест в JSON-калибровке " +
+            "и независимое подтверждение завершения раздачи.")
+        val heroSeatEntry = EditText(this).apply {
+            hint = "Свое место: авто (нижнее); при необходимости индекс 0–9"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        }
+        advanced.addView(heroSeatEntry)
+        button("1WIN — ВКЛЮЧИТЬ АВТОВЫХОД ПРИ 3 ИГРОКАХ") {
+            val bottom = OneWinPortraitHeroSeat.inferBottomSeat(
+                OnDeviceRealFrameRegions.activeProfile())
+            val userOverride = heroSeatEntry.text.toString().trim()
+            // Video evidence: HERO always sits at screen bottom; real seat
+            // number rotates. A manual override may not contradict the
+            // independently measured bottom slot.
+            val hero = if (userOverride.isBlank()) bottom
+                else userOverride.toIntOrNull()?.takeIf { it == bottom }
+            val enabled = hero != null &&
+                OnDeviceOneWinTableAutoExit.arm(this@MainActivity, hero)
+            status.text = if (enabled)
+                "Автовыход включён. Учитываем вашего игрока и только явно " +
+                    "распознанные свободные места. При 3 или менее игроках " +
+                    "после подтверждённой раздачи: меню → Покинуть игру → " +
+                    "вопрос о закрытии стола → Да → подтверждение лобби."
+            else "Автовыход не включён: нужны захват, ARM, доступ к касаниям, " +
+                "полная калибровка мест, нижняя позиция героя и правильная привязка экрана."
+        }
+        button("1WIN — ОСТАНОВИТЬ АВТОВЫХОД") {
+            OnDeviceOneWinTableAutoExit.stop("Выключено оператором")
+            status.text = "Автовыход выключен. Новые переходы не выполняются."
+        }
+        button("1WIN — ПРОВЕРИТЬ СОСТОЯНИЕ АВТОВЫХОДА") {
+            val exit = OnDeviceOneWinTableAutoExit.status()
+            val hand = OnDeviceHandState.snapshot(SystemClock.elapsedRealtime())
+            status.text = "Автовыход: " + exit.phase + "; " + exit.message +
+                "; занято: " + (exit.occupied?.toString() ?: "не подтверждено") +
+                "; раздача: " + hand.stage +
+                "; проверена: " + hand.trustworthyNow
+        }
+        label("ТЗ №045 — ПОСЛЕ ПОСАДКИ. После подтверждённого HERO внизу " +
+            "приложение само начинает безопасный обход остальных аватаров. " +
+            "Статистика окна запоминается для текущего стола и передаётся " +
+            "ChatGPT как непроверенный OCR-контекст, без никнеймов. " +
+            "Долговременные VPIP/PFR обновляются только из проверенных раздач.")
+        button("1WIN — ПРОВЕРИТЬ ИЗУЧЕНИЕ СОПЕРНИКОВ И ПАМЯТЬ") {
+            val study = OnDeviceOneWinPostSeatStudy.status()
+            val sweep = OnDeviceOpponentProfileSweep.status()
+            val memory = OnDeviceOneWinPostSeatStudy.localSeatMemory()
+            // Nicknames are displayed only on this phone, never sent
+            // to the ChatGPT plan context or treated as stable identities.
+            val stats = memory.joinToString("\n") { opponent ->
+                "Место " + opponent.seat + " / " +
+                    opponent.sessionAlias + " / " +
+                    (opponent.nickname ?: "личность неизвестна") +
+                    " / " + opponent.participation +
+                    (if (opponent.ambiguousIdentity) " (имя неоднозначно)" else "") +
+                    ": " + opponent.popupStatistics.joinToString {
+                        it.metric.label + "=" + it.amount
+                    }
+            }
+            val verifiedEvents = memory.count {
+                it.participation in setOf(
+                    T046HandParticipation.ACTIVE_CONFIRMED,
+                    T046HandParticipation.FOLDED_CONFIRMED,
+                    T046HandParticipation.LEFT_TABLE_CONFIRMED)
+            }
+            val ocrCues = FrameStore.lastSeatVisual?.stableCues
+                ?.joinToString { "seat_" + it.seatIndex + ":" + it.action.name }
+                ?.ifBlank { "нет" } ?: "ещё нет"
+            status.text = "Изучение после посадки: " + study.phase +
+                ". " + study.description +
+                "\nПрофили текущего стола: " + study.observedProfiles +
+                ", HERO: " + (study.identifiedHeroSeat ?: "не определён") +
+                "; обход: " + sweep.phase +
+                "\n" + stats.ifBlank { "Память текущего стола пока пуста." } +
+                "\nПодтверждённых статусов участия: " + verifiedEvents +
+                "; OCR-подсказки у мест: " + ocrCues +
+                " (не доказательство фолда/выхода)" +
+                "\nДля T047 требуется отдельно проверенное место игрока " +
+                "и подтверждённое действие. Без них ChatGPT видит НЕИЗВЕСТНО."
+        }
+        button("1WIN — ПРОВЕРИТЬ ПЕРЕДАЧУ СТАТИСТИКИ ЧЕРЕЗ CHATGPT") {
+            val study = OnDeviceOneWinPostSeatStudy.status()
+            val transferred = OnDeviceOneWinPostSeatStudy.transferToChatGpt(this@MainActivity)
+            status.text = if (transferred)
+                "Данные числовых показателей соперников отправляются через вход ChatGPT. " +
+                    "Используется разрешённый лимит подписки, без отдельного API-ключа. " +
+                    "Этот диагностический запрос не совершает игровых действий."
+            else "Передача не началась: нужны подтверждённые профили текущего стола, " +
+                    "согласие на расход лимита ChatGPT и свободный облачный канал. " +
+                    OnDeviceOneWinPostSeatStudy.transferStatus() +
+                    " (состояние изучения: " + study.phase + ")"
+        }
+        button("1WIN — СТАТУС ПЕРЕДАЧИ ДАННЫХ CHATGPT") {
+            status.text = OnDeviceOneWinPostSeatStudy.transferStatus() +
+                "\n" + OnDeviceVerifiedGptTurnRequests.status() +
+                "\n" + ChatGptCloudBridge.connectionLabel(this@MainActivity)
+        }
+        button("1WIN — АВТОМАТИЧЕСКИ ПРОЧИТАТЬ ПРОФИЛИ СОПЕРНИКОВ") {
+            val started = OnDeviceOpponentProfileSweep.start(this@MainActivity)
+            val current = OnDeviceOpponentProfileSweep.status()
+            status.text = if (started) current.description +
+                ". Перейдите к игровому столу; программа обойдёт измеренные аватары " +
+                "и закроет панели касанием безопасной зоны стола."
+            else "Обход не запущен: требуется активный захват, разрешение касаний, " +
+                "калибровка SEAT_AVATAR + PROFILE_DISMISS и отсутствие активного CHECK/хода."
+        }
+        button("1WIN — ПОКАЗАТЬ ПРОЧИТАННУЮ СТАТИСТИКУ") {
+            val scan = OnDeviceOpponentProfileSweep.status()
+            val profile = OnDeviceOpponentPopupOcr.latest()
+            val observed = scan.results.joinToString("\n") { item ->
+                "Место ${item.seatIndex}: ${item.displayedNickname ?: "имя неизвестно"}; " +
+                    item.metrics.joinToString { "${it.metric.label}=${it.amount}" }
+            }
+            val popup = profile?.let {
+                "Открытая панель: ${it.displayedNickname ?: "неизвестный игрок"}, " +
+                    it.metrics.joinToString { metric -> "${metric.metric.label}=${metric.amount}" }
+            } ?: "Нет двух совпадающих кадров окна статистики"
+            status.text = "Обход: ${scan.phase} — ${scan.description}. " +
+                "Результаты только диагностические, не связаны с постоянным ID.\\n" +
+                observed.ifBlank { "Профили пока не собраны" } + "\n" + popup
+        }
+        button("1WIN — РЕЖИМ СТОЛА И ПАНЕЛЬ СТАВКИ (ВИДЕО-ДИАГНОСТИКА)") {
+            val ui = OnDeviceOneWinRecordedTableUi.current(SystemClock.elapsedRealtime())
+            val visible = ui?.reading
+            status.text = if (visible == null)
+                "Интерфейс стола ещё не подтверждён двумя кадрами. " +
+                    OnDeviceOneWinRecordedTableUi.lastStatus
+            else "Видео-распознавание: " + visible.panel +
+                "; кнопки: " + visible.actions.joinToString { it.action.name +
+                    (it.amountCents?.let { amount ->
+                        " " + moneyInDollars(amount) + " $"
+                    } ?: "") } +
+                "; предложенная ставка: " +
+                (visible.proposedStakeCents?.let { moneyInDollars(it) + " $" }
+                    ?: "не показана") +
+                ". Только чтение экрана; касания не выполняются."
+        }
+        button("1WIN — БЫСТРЫЕ ПЛАШКИ ПО МЕСТАМ (300 МС)") {
+            val pulse = FrameStore.lastTransientSeatBadges
+            status.text = "Быстрые плашки: " +
+                (pulse.joinToString { "seat_" + it.seat + ":" + it.tone.name }
+                    .ifBlank { "сейчас новых нет" }) +
+                "\n" + OnDeviceRawSeatBadgeDiagnostics.lastStatus +
+                "\nЭто цветовые кандидаты, а НЕ прочитанный текст, " +
+                "НЕ доказанный рейз/фолд и НЕ разрешение касания. " +
+                "Для действия нужны OCR и независимое подтверждение."
+        }
+        button("1WIN — ФИШКИ, РУБАШКИ КАРТ И ВРЕМЕННЫЕ ДЕЙСТВИЯ") {
+            val report = FrameStore.lastSeatRound
+            val profile = OnDeviceRealFrameRegions.activeProfile()
+            val backZones = profile?.zones?.count {
+                it.role == RealFieldRole.SEAT_CARD_BACK
+            } ?: 0
+            status.text = if (report == null)
+                "Совместное распознавание ещё не готово. Нужна точная " +
+                    "калибровка SEAT_ACTION, SEAT_CONTRIBUTION и " +
+                    "SEAT_CARD_BACK на исходном кадре текущего разрешения. " +
+                    "Зон рубашек карт: " + backZones
+            else {
+                val contributions = report.seatContributionsMinor.entries
+                    .sortedBy { it.key }.joinToString { (seat, cents) ->
+                        "seat_" + seat + "=" + cents / 100.0
+                    }
+                val cards = report.seatCardBacks.entries
+                    .sortedBy { it.key }.joinToString { (seat, present) ->
+                        "seat_" + seat + "=" +
+                            (if (present) "рубашки видны" else "рубашек нет")
+                    }
+                val labels = report.actionBadges.entries
+                    .sortedBy { it.key }.joinToString { (seat, action) ->
+                        "seat_" + seat + "=" + action.name
+                    }
+                val composite = report.combined.joinToString("\n") { event ->
+                    event.kind.name + " у seat_" + (event.seat ?: -1) +
+                        ": " + (event.amountBeforeMinor ?: "?") +
+                        " -> " + (event.amountAfterMinor ?: "?")
+                }
+                "ТЗ №048: " + report.status +
+                    ". Фишки перед игроками: " +
+                    contributions.ifBlank { "не прочитаны" } +
+                    "; банк по центральной надписи: " +
+                    (report.potMinor?.div(100.0) ?: "не прочитан") +
+                    "; сумма видимых вкладов у мест: " +
+                    (report.visibleSeatWagersTotalMinor?.div(100.0)
+                        ?: "неполная/неизвестная") +
+                    "; совпадение: " +
+                    (report.centralPotEqualsVisibleWagers
+                        ?: "недостаточно данных") +
+                    "; синие карты: " + cards.ifBlank { "нет калибровки/наблюдений" } +
+                    "; надписи: " + labels.ifBlank { "временно отсутствуют" } +
+                    "\nСовпадения признаков: " +
+                    composite.ifBlank { "пока не обнаружены" } +
+                    "\nЭто только наблюдение: не доказательство фолда, " +
+                    "не сумма денег для вызова и НЕ разрешение касания. " +
+                    "Банк и лежащие возле мест фишки не складываются автоматически."
+            }
         }
         button("ДИАГНОСТИКА МЕСТ ИГРОКОВ") {
             status.text = FrameStore.lastSeatVisual?.summary()
@@ -270,7 +661,7 @@ class MainActivity : Activity() {
                     ". Это независимые UI-кнопки, но ещё НЕ подтверждение раздачи."
             else "Android не дал пригодных подтверждённых кнопок из дерева UI. " +
                 "Возможно, интерфейс нарисован Canvas/WebGL."
-            status.text = native + "\\n" +
+            status.text = native + "\n" +
                 (FrameStore.lastActionStrip?.summary()
                     ?: "Согласованных OCR-кнопок пока нет.") +
                 "\\nНикаких касаний без подтверждённого хода."
@@ -288,7 +679,7 @@ class MainActivity : Activity() {
             } else {
                 refreshHandState()
                 status.text = PlayerEngineeringReport.brief(this@MainActivity) +
-                    "\\n" + PlayerVisionJournal.summary(this@MainActivity)
+                    "\n" + PlayerVisionJournal.summary(this@MainActivity)
             }
         }
         button("ИИ-ИГРОК — ПОКАЗАТЬ ГОТОВУЮ КОМБИНАЦИЮ") {
@@ -384,8 +775,6 @@ class MainActivity : Activity() {
         button("ПРОВЕРИТЬ ГОТОВНОСТЬ АВТО-РЕЖИМА") {
             val state = OnDeviceAutonomousRuntime.status()
             status.text = "AUTO: ${state.state} — ${state.explanation}. " +
-                "Реальные пробные CHECK: ${LocalPlayerCheckPilot.status().checkCount}; " +
-                "состояние: ${LocalPlayerCheckPilot.status().state}. " +
                 "Готовность: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
         }
         button("ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)") {

@@ -108,6 +108,8 @@ object OnDeviceAuthorizedPlayerCycle {
         val proof = requireNotNull(result.sourceProof)
         val status = OnDeviceAutonomousRuntime.acceptVerifiedObservation(
             context, observation, proof)
+        if (status.state == AutoLoopState.WAITING_FOR_DECISION)
+            OnDeviceVerifiedGptTurnRequests.schedule(context, observation, frame.playerCardsAtCapture)
         // A packet admitted by the joiner may still be WAITING_FOR_PROOF in
         // VerifiedTurnBinding until TWO independent proofs match.
         activeTableId = observation.tableId

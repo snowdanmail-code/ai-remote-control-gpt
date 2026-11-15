@@ -34,6 +34,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
     // Purely informational, transparent labels above the user's cards.
     // It cannot intercept touches or grant control privileges.
     private val cardOverlay by lazy { VisibleCardOverlayController(this) }
+    private val diagnosticOverlay by lazy { OperatorLiveOverlayController(this) }
     // Root identity is sampled periodically, not inferred from AccessibilityEvent.packageName.
     private val rootSampler = object : Runnable {
         override fun run() {
@@ -72,6 +73,12 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 val dm = resources.displayMetrics
                 cardOverlay.show(visible, dm.widthPixels, dm.heightPixels)
             } else cardOverlay.hide()
+            // Opt-in visual feedback; no touch interception or game authority.
+            if (screenTrusted && OnDeviceOperatorLiveTrace.overlayEnabled(applicationContext)) {
+                val dm = resources.displayMetrics
+                val summary = OnDeviceOperatorLiveTrace.snapshot(applicationContext, 3)
+                diagnosticOverlay.show(summary.compact, dm.widthPixels, dm.heightPixels)
+            } else diagnosticOverlay.hide()
             main.postDelayed(this, 350L)
         }
     }
@@ -245,6 +252,46 @@ class LiveGestureAccessibilityService : AccessibilityService() {
         main.post { dispatchScopedLocalCheck(ticket) }
     }
 
+    /**
+     * T051 isolated laboratory gesture. NEVER accepts a model or game-action
+     * ticket: it can touch only the fresh CHECK test control inside the
+     * non-exported own Activity, with global STOP ON and capture OFF.
+     */
+    internal fun dispatchT051LabGesture(
+        ticket: Long, x: Int, y: Int, result: (Boolean) -> Unit
+    ) {
+        main.post {
+            val refusal = T051LabSession.denyReason(
+                applicationContext, ticket, x, y,
+                rootInActiveWindow?.packageName?.toString())
+            if (refusal != null) {
+                T051LabSession.machine.reject(ticket, refusal)
+                return@post
+            }
+            // The persistent STOP overlay must not intercept the lab target.
+            val stopArea = params
+            if (stopOverlay != null && stopArea != null &&
+                x in stopArea.x until (stopArea.x + stopArea.width) &&
+                y in stopArea.y until (stopArea.y + stopArea.height)) {
+                T051LabSession.machine.reject(ticket, "INVALID_TARGET")
+                return@post
+            }
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 75L)).build()
+            val accepted = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    result(true) // Test button still must produce its own receipt.
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    result(false)
+                }
+            }, main)
+            if (!accepted)
+                T051LabSession.machine.reject(ticket, "DISPATCH_RETURNED_FALSE")
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         LiveForegroundProbe.attach(this)
@@ -267,6 +314,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         cardOverlay.hide()
+        diagnosticOverlay.hide()
         main.removeCallbacks(rootSampler)
         OnDevicePlayerNativeControls.clear()
         // An interrupted accessibility source must never retain armed gestures.
@@ -292,6 +340,9 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 area.centerX >= overlay.x && area.centerX < overlay.x + overlay.width &&
                 area.centerY >= overlay.y && area.centerY < overlay.y + overlay.height
             if (dispatchCheck != LiveDispatchCheck.VALID ||
+                // A table with an unseated player must never be promoted to
+                // gameplay merely because lower controls are visible.
+                OnDeviceOneWinPreSeatScanner.active() ||
                 area.windowGeneration != command.expectedWindowGeneration ||
                 area.windowGeneration < 0L || stopOccludesTarget) {
                 OnDeviceLiveActionControl.stop()
@@ -355,6 +406,592 @@ class LiveGestureAccessibilityService : AccessibilityService() {
                 command.captureEpoch, command.basedOnFrame, action = command.action.name)
             onAccepted(submitted)
             if (!submitted) OnDeviceLiveActionControl.guard.stop()
+        }
+    }
+
+    /**
+     * Bounded non-betting UI navigation for a measured opponent avatar or
+     * an empty TABLE region used to dismiss its statistics panel.
+     *
+     * This path intentionally cannot accept arbitrary coordinates, card
+     * actions, a model proposal, or a claimed game result.
+     */
+    internal fun offerOpponentProfileNavigationTap(
+        ticket: OpponentProfileTapTicket, onSubmitted: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { onSubmitted(false) }
+            val now = SystemClock.elapsedRealtime()
+            val profile = OnDeviceRealFrameRegions.activeProfile() ?: run { reject(); return@post }
+            val role = if (ticket.purpose == OpponentProfileNavPurpose.OPEN_AVATAR)
+                RealFieldRole.SEAT_AVATAR else RealFieldRole.PROFILE_DISMISS
+            val exact = profile.zones.singleOrNull { zone ->
+                zone.role == role &&
+                    (role != RealFieldRole.SEAT_AVATAR || zone.seatIndex == ticket.seatIndex)
+            }
+            if (!profile.valid() || exact?.box != ticket.area ||
+                profile.expectedPackage != ticket.expectedPackage ||
+                profile.frameWidth != ticket.frameWidth ||
+                profile.frameHeight != ticket.frameHeight ||
+                now < ticket.capturedAtMs || now - ticket.capturedAtMs > 900L ||
+                ticket.captureEpoch != FrameStore.captureEpoch ||
+                !FrameStore.isCapturing ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.expectedPackage ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT) {
+                reject(); return@post
+            }
+            val rootPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(rootPackage, now)
+            val foreground = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (rootPackage != ticket.expectedPackage ||
+                origin?.observedPackage != ticket.expectedPackage ||
+                origin.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                foreground?.packageName != ticket.expectedPackage ||
+                origin.windowGeneration != ticket.windowGeneration ||
+                foreground.windowGeneration != ticket.windowGeneration ||
+                now - foreground.atMs > 700L) {
+                reject(); return@post
+            }
+            val box = ticket.area
+            val xN = box.centerX()
+            val yN = box.centerY()
+            val surfaceBound = OnDeviceOpponentProfileSweep.navigationSurfaceMatches(ticket, now)
+            val safeRegion = surfaceBound && when (ticket.purpose) {
+                OpponentProfileNavPurpose.OPEN_AVATAR ->
+                    xN in 35..950 && yN in 100..820 &&
+                        FrameStore.turnConsensus.current(now)?.state in
+                            setOf(TurnDisplayState.WAITING, TurnDisplayState.PREACTION)
+                OpponentProfileNavPurpose.DISMISS_ON_TABLE ->
+                    xN in 30..285 && yN in 170..820
+            }
+            val metrics = resources.displayMetrics
+            if (!safeRegion || metrics.widthPixels != ticket.frameWidth ||
+                metrics.heightPixels != ticket.frameHeight) {
+                reject(); return@post
+            }
+            val x = (xN.toLong() * metrics.widthPixels / 1000L).toInt()
+            val y = (yN.toLong() * metrics.heightPixels / 1000L).toInt()
+            val stop = params
+            if (stop != null && stopOverlay != null &&
+                x >= stop.x && x < stop.x + stop.width &&
+                y >= stop.y && y < stop.y + stop.height) {
+                reject(); return@post
+            }
+            // Recheck STOP immediately before the one-shot Android gesture.
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                rootInActiveWindow?.packageName?.toString() != ticket.expectedPackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch) {
+                reject(); return@post
+            }
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 65L)).build()
+            val submitted = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    // Never resubmit blindly after a canceled/ambiguous gesture.
+                    OnDeviceOpponentProfileSweep.reset("Навигационный жест отменён Android")
+                }
+            }, main)
+            onSubmitted(submitted)
+        }
+    }
+
+    /**
+     * One navigation-only touch on the *observed* cash-game lobby BUY-IN row.
+     * The OCR text anchor must still be confirmed by two matching frames,
+     * independent Android root/package, current epoch, per-session upper
+     * financial limits and operator ARM. Never confirms the actual buy-in.
+     */
+    /**
+     * One guarded non-wager lobby gesture. The screen has already been
+     * identified through two OCR frames. Opening the menu uses the relative
+     * toolbar position visible in the user's supplied 1win screenshots;
+     * choosing a sort option uses its ACTUAL recognized text rectangle.
+     *
+     * Only scrolls the lobby list; never the table during an active hand.
+     */
+    /**
+     * Navigation ONLY: open measured hamburger, choose twice-verified
+     * 'Покинуть игру', then twice-verify the exact confirmation dialog
+     * before tapping the recognized right-side 'Да'. No blind retry.
+     */
+    internal fun offerOneWinTableExitNavigation(
+        ticket: OneWinTableExitTicket, finished: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { finished(false) }
+            val now = SystemClock.elapsedRealtime()
+            if (!OnDeviceOneWinTableAutoExit.ticketMatches(ticket, now) ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                !FrameStore.isCapturing || CaptureObservationMode.isSpectator() ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT ||
+                FrameStore.captureEpoch != ticket.epoch) {
+                reject(); return@post
+            }
+            val rootPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(rootPackage, now)
+            val root = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (rootPackage != ticket.sourcePackage ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.window ||
+                now - root.atMs !in 0..700L ||
+                origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.windowGeneration != ticket.window ||
+                origin.captureEpoch != ticket.epoch) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (m.widthPixels !in 320..5000 || m.heightPixels !in 640..9000 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            // User's 354x768 original: menu icon approx (16,54), or (45,70) / 1000.
+            // No guesswork for the second touch: it uses actual OCR bounds.
+            val target = when (ticket.action) {
+                OneWinTableExitTap.OPEN_MENU -> NormalizedTextBox(28, 51, 63, 88)
+                OneWinTableExitTap.LEAVE_GAME ->
+                    ticket.target?.takeIf {
+                        it.valid() && it.centerX() in 35..490 &&
+                            it.centerY() in 95..280
+                    } ?: run { reject(); return@post }
+                OneWinTableExitTap.CONFIRM_YES ->
+                    ticket.target?.takeIf {
+                        // Only the text box of the right-side Yes control
+                        // from the twice-confirmed, exact exit question.
+                        it.valid() && it.centerX() in 510..940 &&
+                            it.centerY() in 525..650 &&
+                            it.right - it.left in 8..240
+                    } ?: run { reject(); return@post }
+            }
+            val x = (target.centerX().toLong() * m.widthPixels / 1000L).toInt()
+            val y = (target.centerY().toLong() * m.heightPixels / 1000L).toInt()
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x < overlay.x + overlay.width &&
+                y >= overlay.y && y < overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.epoch ||
+                !OnDeviceOneWinTableAutoExit.ticketMatches(ticket, SystemClock.elapsedRealtime())) {
+                reject(); return@post
+            }
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 70L)).build()
+            var done = false
+            fun finishOnce(ok: Boolean) {
+                if (!done) { done = true; finished(ok) }
+            }
+            val accepted = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    finishOnce(!OperatorStopStore.isStopped(applicationContext))
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    finishOnce(false)
+                }
+            }, main)
+            if (!accepted) finishOnce(false)
+        }
+    }
+
+    internal fun offerOneWinCashLobbyNavigation(
+        ticket: OneWinCashLobbyNavTicket, finished: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { finished(false) }
+            val now = SystemClock.elapsedRealtime()
+            if (!OnDeviceCashLobbySelection.latestNavigationTicketMatches(ticket, now) ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                !LiveGamePermissionGate.permitted() ||
+                CaptureObservationMode.isSpectator() ||
+                !FrameStore.isCapturing ||
+                FrameStore.captureEpoch != ticket.captureEpoch ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage) {
+                reject(); return@post
+            }
+            val actualPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(actualPackage, now)
+            val root = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (actualPackage != ticket.sourcePackage ||
+                origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.windowGeneration != ticket.windowGeneration ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.windowGeneration ||
+                now - root.atMs !in 0..700L) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (m.widthPixels < 320 || m.heightPixels < 640 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            fun pxX(x: Int) = (x.toLong() * m.widthPixels / 1000).toInt().toFloat()
+            fun pxY(y: Int) = (y.toLong() * m.heightPixels / 1000).toInt().toFloat()
+            val gesturePath = Path()
+            val duration = when (ticket.action) {
+                OneWinCashLobbyNavAction.OPEN_SORT -> {
+                    // Sort icon in the upper-left game lobby toolbar:
+                    // 354x768 screenshot, approximately 23px/96px.
+                    gesturePath.moveTo(pxX(67), pxY(125))
+                    70L
+                }
+                OneWinCashLobbyNavAction.CHOOSE_STAKES_ASC -> {
+                    val menu = OnDeviceOneWinCashLobby.latestSortMenu()
+                    val correct = menu?.options?.get(OneWinLobbySort.STAKES_ASC)
+                    if (correct == null || correct != ticket.optionBox ||
+                        !correct.valid() ||
+                        correct.centerX() !in 60..450 ||
+                        correct.centerY() !in 165..445) {
+                        reject(); return@post
+                    }
+                    gesturePath.moveTo(pxX(correct.centerX()), pxY(correct.centerY()))
+                    70L
+                }
+                OneWinCashLobbyNavAction.SWIPE_UP, OneWinCashLobbyNavAction.SWIPE_DOWN -> {
+                    // Both vertical gestures are supported. For a list,
+                    // finger UP exposes lower rows; finger DOWN returns to
+                    // earlier rows. Both avoid the blue BUY-IN controls.
+                    val upwards = ticket.action == OneWinCashLobbyNavAction.SWIPE_UP
+                    gesturePath.moveTo(pxX(545), pxY(if (upwards) 820 else 345))
+                    gesturePath.lineTo(pxX(545), pxY(if (upwards) 345 else 820))
+                    430L
+                }
+            }
+            val x = if (ticket.action == OneWinCashLobbyNavAction.OPEN_SORT) pxX(67)
+                else if (ticket.action in setOf(OneWinCashLobbyNavAction.SWIPE_UP, OneWinCashLobbyNavAction.SWIPE_DOWN)) pxX(545)
+                else pxX(requireNotNull(ticket.optionBox).centerX())
+            val y = if (ticket.action == OneWinCashLobbyNavAction.OPEN_SORT) pxY(125)
+                else if (ticket.action in setOf(OneWinCashLobbyNavAction.SWIPE_UP, OneWinCashLobbyNavAction.SWIPE_DOWN)) pxY(if (ticket.action == OneWinCashLobbyNavAction.SWIPE_UP) 820 else 345)
+                else pxY(requireNotNull(ticket.optionBox).centerY())
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x <= overlay.x + overlay.width &&
+                y >= overlay.y && y <= overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                FrameStore.captureEpoch != ticket.captureEpoch ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                !OnDeviceCashLobbySelection.latestNavigationTicketMatches(ticket,
+                    SystemClock.elapsedRealtime())) {
+                reject(); return@post
+            }
+            var completed = false
+            fun finishOnce(success: Boolean) {
+                if (!completed) {
+                    completed = true
+                    finished(success)
+                }
+            }
+            val gesture = GestureDescription.Builder().addStroke(
+                GestureDescription.StrokeDescription(gesturePath, 0L, duration)
+            ).build()
+            val sent = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    finishOnce(!OperatorStopStore.isStopped(applicationContext))
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    finishOnce(false)
+                }
+            }, main)
+            if (!sent) finishOnce(false)
+        }
+    }
+
+    /**
+     * One non-financial navigation gesture to a verified empty-seat arrow.
+     * The icon was first observed on a table-like screen in TWO capture
+     * frames and matched the geometric seat map. This tap can ONLY open
+     * the buy-in dialog. It never enters a price, presses OK or places bets.
+     */
+    /**
+     * The only two buy-in UI actions: choose table minimum, then
+     * confirm the same minimum after two fresh matching OCR frames.
+     * Never touches Max, balance, auto-rebuy/auto-buy-in or gameplay.
+     */
+    internal fun offerOneWinBuyInNavigation(
+        ticket: OneWinBuyInTapTicket, finished: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { finished(false) }
+            val now = SystemClock.elapsedRealtime()
+            if (!OnDeviceOneWinPreSeatScanner.buyInTicketMatches(ticket, now) ||
+                !FrameStore.isCapturing ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                CaptureObservationMode.isSpectator() ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state ==
+                    AutoLoopState.WAITING_FOR_RESULT) {
+                reject(); return@post
+            }
+            val rootPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(rootPackage, now)
+            val root = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (rootPackage != ticket.sourcePackage ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.windowGeneration ||
+                now - root.atMs !in 0L..700L ||
+                origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.captureEpoch != ticket.captureEpoch ||
+                origin.windowGeneration != ticket.windowGeneration) {
+                reject(); return@post
+            }
+            val box = ticket.target
+            if (!box.valid() || ticket.minimumCents <= 0L ||
+                (ticket.purpose == OneWinBuyInTapPurpose.CHOOSE_MIN &&
+                    (box.centerX() !in 30..340 || box.centerY() !in 277..389 ||
+                        box != ticket.expected.minButtonBox)) ||
+                (ticket.purpose == OneWinBuyInTapPurpose.CONFIRM_OK &&
+                    (box.centerX() !in 350..680 || box.centerY() !in 916..991 ||
+                        box != ticket.expected.okBox ||
+                        ticket.expected.minimumCents != ticket.minimumCents ||
+                        ticket.expected.debitCents != ticket.minimumCents ||
+                        ticket.expected.inputCents != ticket.minimumCents))) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (ticket.frameWidth !in 320..5000 ||
+                ticket.frameHeight !in 640..9000 ||
+                m.widthPixels !in 320..5000 || m.heightPixels !in 640..9000 ||
+                kotlin.math.abs(m.widthPixels - ticket.frameWidth) >
+                    ticket.frameWidth / 50 ||
+                kotlin.math.abs(m.heightPixels - ticket.frameHeight) >
+                    ticket.frameHeight / 50 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            val x = (box.centerX().toLong() * ticket.frameWidth / 1000L).toInt()
+            val y = (box.centerY().toLong() * ticket.frameHeight / 1000L).toInt()
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x < overlay.x + overlay.width &&
+                y >= overlay.y && y < overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                !OnDeviceOneWinPreSeatScanner.buyInTicketMatches(
+                    ticket, SystemClock.elapsedRealtime()) ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch) {
+                reject(); return@post
+            }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(
+                    Path().apply { moveTo(x.toFloat(), y.toFloat()) },
+                    0L, 75L)).build()
+            var completed = false
+            fun finishOnce(ok: Boolean) {
+                if (!completed) {
+                    completed = true
+                    finished(ok)
+                }
+            }
+            val submitted = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    finishOnce(!OperatorStopStore.isStopped(applicationContext))
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    finishOnce(false)
+                }
+            }, main)
+            if (!submitted) finishOnce(false)
+        }
+    }
+
+    internal fun offerOneWinVacantSeatEntry(
+        ticket: OneWinVacantSeatTapTicket, finished: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { finished(false) }
+            val now = SystemClock.elapsedRealtime()
+            if (!OnDeviceOneWinPreSeatScanner.seatTicketMatches(ticket, now) ||
+                !FrameStore.isCapturing ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                CaptureObservationMode.isSpectator() ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive() ||
+                OnDeviceAutonomousRuntime.status().state == AutoLoopState.WAITING_FOR_RESULT)
+            { reject(); return@post }
+
+            val actualPackage = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(actualPackage, now)
+            val root = LiveForegroundProbe.snapshot()
+            val origin = FrameStore.windowOrigin
+            if (actualPackage != ticket.sourcePackage ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.windowGeneration ||
+                now - root.atMs !in 0L..700L ||
+                origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.captureEpoch != ticket.captureEpoch ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.windowGeneration != ticket.windowGeneration) {
+                reject(); return@post
+            }
+
+            val marker = ticket.selected.marker
+            if (OneWinVacantSeatGeometry.slotFor(marker) != ticket.selected.slot ||
+                !marker.bounds.valid() ||
+                marker.bounds.right - marker.bounds.left !in 18..145 ||
+                marker.bounds.bottom - marker.bounds.top !in 18..150) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            // Screenshot coordinates must correspond to the actual display,
+            // not to a downscaled preview, letterbox or rotated viewport.
+            if (m.widthPixels !in 320..5000 || m.heightPixels !in 640..9000 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50 ||
+                ticket.frameWidth !in 320..5000 ||
+                ticket.frameHeight !in 640..9000 ||
+                abs(m.widthPixels - ticket.frameWidth) > ticket.frameWidth / 50 ||
+                abs(m.heightPixels - ticket.frameHeight) > ticket.frameHeight / 50) {
+                reject(); return@post
+            }
+            val x = (marker.bounds.centerX().toLong() * ticket.frameWidth / 1000L).toInt()
+            val y = (marker.bounds.centerY().toLong() * ticket.frameHeight / 1000L).toInt()
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x < overlay.x + overlay.width &&
+                y >= overlay.y && y < overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            // A fresh foreground snapshot and the *same* single pending
+            // ticket are mandatory at the exact moment before dispatch.
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                !OnDeviceOneWinPreSeatScanner.seatTicketMatches(
+                    ticket, SystemClock.elapsedRealtime()) ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch) {
+                reject(); return@post
+            }
+            val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val gesture = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 75L)).build()
+            var completed = false
+            fun finishOnce(result: Boolean) {
+                if (!completed) {
+                    completed = true
+                    finished(result)
+                }
+            }
+            val sent = dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(gestureDescription: GestureDescription?) {
+                    finishOnce(!OperatorStopStore.isStopped(applicationContext))
+                }
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    finishOnce(false)
+                }
+            }, main)
+            if (!sent) finishOnce(false)
+        }
+    }
+
+    internal fun offerOneWinCashLobbyEntry(
+        ticket: OneWinCashLobbyEntryTicket, onSubmitted: (Boolean) -> Unit
+    ) {
+        main.post {
+            fun reject() { onSubmitted(false) }
+            val now = SystemClock.elapsedRealtime()
+            val lobby = OnDeviceOneWinCashLobby.latest()
+            val limits = OneWinCashLobbyLimitsStore.read(applicationContext)
+            if (lobby == null || limits?.valid() != true ||
+                !OnDeviceCashLobbySelection.latestTicketMatches(ticket, now) ||
+                OperatorStopStore.isStopped(applicationContext) ||
+                !LiveGamePermissionGate.permitted() ||
+                LiveGamePermissionGate.packageName() != ticket.sourcePackage ||
+                CaptureObservationMode.isSpectator() ||
+                !FrameStore.isCapturing || FrameStore.captureEpoch != ticket.captureEpoch ||
+                OnDeviceLiveActionControl.guard.hasUnconfirmedAction() ||
+                LocalPlayerCheckPilot.isActive()) {
+                reject(); return@post
+            }
+            val matching = lobby.tables.singleOrNull {
+                it.stableKey() == ticket.key &&
+                    it.buyInOcrBox == ticket.anchor &&
+                    it.label == ticket.tableName
+            } ?: run { reject(); return@post }
+            if (matching.bigBlindCents > limits.maxBigBlindCents ||
+                matching.minBuyInCents > limits.maxBuyInCents ||
+                matching.occupiedSeats >= matching.totalSeats ||
+                ticket.permittedBuyInCapCents > limits.maxBuyInCents) {
+                reject(); return@post
+            }
+            val origin = FrameStore.windowOrigin
+            val actual = rootInActiveWindow?.packageName?.toString()
+            LiveForegroundProbe.recordRoot(actual, now)
+            val root = LiveForegroundProbe.snapshot()
+            if (origin?.status != WindowOriginStatus.EXTERNAL_PACKAGE_STABLE ||
+                origin.observedPackage != ticket.sourcePackage ||
+                origin.windowGeneration != ticket.windowGeneration ||
+                actual != ticket.sourcePackage ||
+                root?.packageName != ticket.sourcePackage ||
+                root.windowGeneration != ticket.windowGeneration ||
+                now - root.atMs > 700L) {
+                reject(); return@post
+            }
+            val b = ticket.anchor
+            if (!b.valid() || b.centerX() !in 690..970 ||
+                b.centerY() !in 185..945 ||
+                b.right - b.left !in 20..295 ||
+                b.bottom - b.top !in 8..90) {
+                reject(); return@post
+            }
+            val m = resources.displayMetrics
+            if (m.widthPixels < 320 || m.heightPixels < 640 ||
+                m.widthPixels.toDouble() / m.heightPixels !in 0.44..0.50) {
+                reject(); return@post
+            }
+            val x = (b.centerX().toLong() * m.widthPixels / 1000L).toInt()
+            val y = (b.centerY().toLong() * m.heightPixels / 1000L).toInt()
+            val overlay = params
+            if (overlay != null && stopOverlay != null &&
+                x >= overlay.x && x < overlay.x + overlay.width &&
+                y >= overlay.y && y < overlay.y + overlay.height) {
+                reject(); return@post
+            }
+            // Exact final STOP/root/consent check before dispatchGesture.
+            if (OperatorStopStore.isStopped(applicationContext) ||
+                !LiveGamePermissionGate.permitted() ||
+                rootInActiveWindow?.packageName?.toString() != ticket.sourcePackage ||
+                FrameStore.captureEpoch != ticket.captureEpoch) {
+                reject(); return@post
+            }
+            val gesturePath = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+            val description = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(gesturePath, 0, 65L)).build()
+            val submitted = dispatchGesture(description, object : GestureResultCallback() {
+                override fun onCancelled(gestureDescription: GestureDescription?) {
+                    // A cancellation is NOT permission for an automatic retry.
+                    OnDeviceCashLobbySelection.reset("Вход в стол отменён Android")
+                }
+            }, main)
+            onSubmitted(submitted)
         }
     }
 
@@ -431,6 +1068,7 @@ class LiveGestureAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         cardOverlay.dispose()
+        diagnosticOverlay.dispose()
         main.removeCallbacks(rootSampler)
         OnDevicePlayerNativeControls.clear()
         OnDeviceAutonomousRuntime.stop("Служба доступности отключена")
@@ -489,7 +1127,9 @@ object LiveInputCoordinator {
         acknowledgement: (Boolean) -> Unit
     ): LiveCommandStatus {
         val service = LiveForegroundProbe.activeService() ?: return LiveCommandStatus.REFUSED
-        if (!LiveGamePermissionGate.permitted() || OperatorStopStore.isStopped(context))
+        if (!LiveGamePermissionGate.permitted() ||
+            OperatorStopStore.isStopped(context) ||
+            OnDeviceOneWinPreSeatScanner.active())
             return LiveCommandStatus.REFUSED
         val evidence = LiveForegroundProbe.snapshot() ?: return LiveCommandStatus.REFUSED
         if (evidence.packageName != LiveGamePermissionGate.packageName() ||

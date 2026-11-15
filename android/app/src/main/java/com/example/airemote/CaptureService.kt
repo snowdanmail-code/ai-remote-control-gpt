@@ -58,6 +58,7 @@ class CaptureService : Service() {
             OnDeviceLiveActionControl.stop()
             FrameStore.clear()
             OnDeviceAutomaticOcr.reset()
+            OnDeviceOpponentPopupOcr.reset()
             stopSelf()
         }
     }
@@ -80,6 +81,7 @@ class CaptureService : Service() {
                 OnDeviceLiveActionControl.stop()
                 FrameStore.clear() // Clear immediately, not only in onDestroy().
                 OnDeviceAutomaticOcr.reset()
+            OnDeviceOpponentPopupOcr.reset()
                 stopSelf()
             }
             ACTION_START -> {
@@ -154,6 +156,8 @@ class CaptureService : Service() {
                             lastEncode = 0L
                             lastProfile = -1
                             lastCardInspectionAt = 0L
+                            OnDeviceSeatRoundVisualDiagnostics.reset()
+                            OnDeviceRawSeatBadgeDiagnostics.reset()
                             OnDeviceStageBridge.reset("Смена / неопределённость корневого окна")
                         }
                         val plane = image.planes[0]
@@ -168,15 +172,166 @@ class CaptureService : Service() {
                                 // Block all read-only evidence until the whole observed
                                 // surface looks like the measured layout again. A table-like
                                 // color pattern is NEVER table identity or tap permission.
+                                // Enforce a bounded wait after every UI menu or
+                                // scrolling gesture even if OCR produces no text.
+                                OnDeviceCashLobbySelection.onCaptureTick(now)
+                                // Cash-game lobby is NOT a game table. Only a
+                                // separately armed, budget-capped lobby selector
+                                // receives read-only OCR frames. Card recognition
+                                // and hero-turn logic are unchanged.
+                                val choosingLobby = OnDeviceCashLobbySelection.scanning()
+                                if ((choosingLobby || OnDeviceCashLobbyReadOnlyProbe.enabled()) &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !OperatorStopStore.isStopped(applicationContext)) {
+                                    OnDeviceOneWinCashLobby.offer(
+                                        applicationContext, screen, origin, now,
+                                        allowSelection = choosingLobby
+                                    ) {
+                                        !closing && FrameStore.isCapturing &&
+                                        FrameStore.captureEpoch == captureEpoch &&
+                                        FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                        FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                        LiveForegroundProbe.snapshot()?.let { root ->
+                                            root.packageName == origin.observedPackage &&
+                                            root.windowGeneration == origin.windowGeneration
+                                        } == true
+                                    }
+                                }
                                 val surface = RecordedSurfaceGate.inspect(width, height) { x, y ->
                                     screen.getPixel(x, y)
                                 }
+                                // The operator-opted-in exit navigator reads ONLY
+                                // the menu/lobby while a transition is pending.
+                                // It never enables card/bet recognition underneath a drawer.
+                                OnDeviceOneWinTableAutoExit.onCaptureTick(applicationContext, now)
+                                if (OnDeviceOneWinTableAutoExit.needsScreenProbe() &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !OperatorStopStore.isStopped(applicationContext) &&
+                                    AppVisibilityGate.canPublish(visibilityTicket)) {
+                                    OnDeviceOneWinTableAutoExit.offerScreen(
+                                        applicationContext, screen, origin, now
+                                    ) {
+                                        !closing && FrameStore.isCapturing &&
+                                        FrameStore.captureEpoch == captureEpoch &&
+                                        FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                        FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                        LiveForegroundProbe.snapshot()?.let { root ->
+                                            root.packageName == origin.observedPackage &&
+                                            root.windowGeneration == origin.windowGeneration
+                                        } == true
+                                    }
+                                }
+                                // T044: pre-seating is NOT an occupied HERO seat.
+                                // Detect every visible down-arrow vacancy, then read
+                                // the buy-in dialog independently. Read-only; no tap.
+                                OnDeviceOneWinPreSeatScanner.onCaptureTick(
+                                    applicationContext, now)
+                                if (OnDeviceOneWinPreSeatScanner.active() &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !CaptureObservationMode.isSpectator() &&
+                                    !OperatorStopStore.isStopped(applicationContext) &&
+                                    AppVisibilityGate.canPublish(visibilityTicket)) {
+                                    OnDeviceOneWinPreSeatScanner.offer(
+                                        applicationContext, screen, origin, now,
+                                        surface.status == RecordedSurfaceStatus.TABLE_LIKE
+                                    ) {
+                                        !closing && FrameStore.isCapturing &&
+                                        FrameStore.captureEpoch == captureEpoch &&
+                                        FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                        FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                        LiveForegroundProbe.snapshot()?.let { root ->
+                                            root.packageName == origin.observedPackage &&
+                                            root.windowGeneration == origin.windowGeneration
+                                        } == true
+                                    }
+                                }
+                                // A separate on-device Cyrillic OCR reads the
+                                // six-seat table's actual bottom controls and bet
+                                // editor from the owner's recordings. It publishes
+                                // diagnostics only; never sends wagers or taps.
+                                if (!OnDeviceOneWinPreSeatScanner.active() &&
+                                    surface.status != RecordedSurfaceStatus.PANEL_VISIBLE &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !CaptureObservationMode.isSpectator() &&
+                                    LiveGamePermissionGate.permitted() &&
+                                    LiveGamePermissionGate.packageName() == origin.observedPackage &&
+                                    !OperatorStopStore.isStopped(applicationContext) &&
+                                    AppVisibilityGate.canPublish(visibilityTicket)) {
+                                    OnDeviceOneWinRecordedTableUi.offer(
+                                        applicationContext, screen, origin, now
+                                    ) {
+                                        !closing && FrameStore.isCapturing &&
+                                        FrameStore.captureEpoch == captureEpoch &&
+                                        FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                        FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                        LiveForegroundProbe.snapshot()?.let { root ->
+                                            root.packageName == origin.observedPackage &&
+                                            root.windowGeneration == origin.windowGeneration
+                                        } == true
+                                    }
+                                }
+                                // T050/04: the native screen is already sampled near 300ms.
+                                // Test measured seat badge colors on the existing
+                                // capture bitmap. NEVER equate a pulse to FOLD/RAISE.
+                                if (surface.status == RecordedSurfaceStatus.TABLE_LIKE &&
+                                    origin.safeForLocalDiagnostics &&
+                                    !CaptureObservationMode.isSpectator() &&
+                                    LiveGamePermissionGate.permitted() &&
+                                    LiveGamePermissionGate.packageName() == origin.observedPackage &&
+                                    !OperatorStopStore.isStopped(applicationContext) &&
+                                    AppVisibilityGate.canPublish(visibilityTicket)) {
+                                    val pulses = OnDeviceRawSeatBadgeDiagnostics.inspect(
+                                        screen, origin, now, false)
+                                    if (pulses.isNotEmpty())
+                                        FrameStore.lastTransientSeatBadges = pulses
+                                    else if (FrameStore.lastTransientSeatBadges.isNotEmpty() &&
+                                        now - FrameStore.lastTransientSeatBadges.last().capturedAtMs > 1_600L)
+                                        FrameStore.lastTransientSeatBadges = emptyList()
+                                } else {
+                                    OnDeviceRawSeatBadgeDiagnostics.reset()
+                                    FrameStore.lastTransientSeatBadges = emptyList()
+                                }
+                                // Stage T045: after actual SEATED proof, start
+                                // the existing calibrated opponent avatar sweep
+                                // exactly once. Session memory is not game
+                                // authority and never opens our HERO avatar.
+                                OnDeviceOneWinPostSeatStudy.observe(
+                                    applicationContext, origin, surface.status, now)
+                                // The navigator observes only measured table/panel
+                                // transitions. It never receives hero-button taps or
+                                // invents seat/player identity from a screenshot.
+                                OnDeviceOpponentProfileSweep.observe(
+                                    applicationContext, surface.status, origin,
+                                    width, height, now)
                                 if (surface.status != RecordedSurfaceStatus.TABLE_LIKE) {
                                     FrameStore.captureError = "Кадры поступают; экран не прошёл фильтр игрового стола"
+                                    // The popup is NOT a playable table. Keep all
+                                    // gameplay observations invalid, but allow a
+                                    // separate read-only OCR of visible avatar stats.
                                     val invalidated = FrameStore.invalidateOccludedSurface(captureEpoch, origin)
                                     if (invalidated) {
                                         OnDeviceAutomaticOcr.reset()
                                         OnDeviceStageBridge.reset("Panel or unknown recorded game surface")
+                                    }
+                                    if (surface.status == RecordedSurfaceStatus.PANEL_VISIBLE &&
+                                        origin.safeForLocalDiagnostics &&
+                                        !OperatorStopStore.isStopped(applicationContext) &&
+                                        AppVisibilityGate.canPublish(visibilityTicket)) {
+                                        OnDeviceOpponentPopupOcr.offer(
+                                            applicationContext, screen, origin, now
+                                        ) {
+                                            !closing && FrameStore.isCapturing &&
+                                            FrameStore.captureEpoch == captureEpoch &&
+                                            FrameStore.windowOrigin?.captureEpoch == captureEpoch &&
+                                            FrameStore.windowOrigin?.observedPackage == origin.observedPackage &&
+                                            FrameStore.windowOrigin?.windowGeneration == origin.windowGeneration &&
+                                            LiveForegroundProbe.snapshot()?.let { root ->
+                                                root.packageName == origin.observedPackage &&
+                                                root.windowGeneration == origin.windowGeneration
+                                            } == true
+                                        }
+                                    } else {
+                                        OnDeviceOpponentPopupOcr.reset()
                                     }
                                     lastSignature = null
                                     lastEncode = 0L
@@ -184,6 +339,9 @@ class CaptureService : Service() {
                                     lastCardInspectionAt = 0L
                                     return@setOnImageAvailableListener
                                 }
+                                // Once the actual table returns, old popup OCR
+                                // values must never contaminate the next player.
+                                OnDeviceOpponentPopupOcr.reset()
                                 val sig = FrameDifference.signature(screen)
                                 val frameHealth = OnDeviceFrameHealthAnalyzer.assess(
                                     sig, now, now, OperatorStopStore.isStopped(applicationContext), true)
@@ -429,6 +587,14 @@ class CaptureService : Service() {
         worker?.quitSafely()
         FrameStore.clear()
         OnDeviceAutomaticOcr.reset()
+        OnDeviceOpponentPopupOcr.reset()
+        OnDeviceOneWinPostSeatStudy.reset("Захват завершён")
+        OnDeviceOpponentProfileSweep.reset("Захват завершён")
+        OnDeviceOneWinCashLobby.reset()
+        OnDeviceCashLobbyReadOnlyProbe.stop()
+        OnDeviceOneWinPreSeatScanner.stop("Захват завершён")
+        OnDeviceOneWinRecordedTableUi.reset()
+        OnDeviceOneWinTableAutoExit.stop("Захват завершён")
         OnDeviceHandState.reset("Захват завершён")
         OnDeviceStageBridge.reset("Захват завершён")
         OnDeviceVerifiedHandCompletion.resetTransientEvidence()

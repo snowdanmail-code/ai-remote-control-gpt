@@ -1,0 +1,308 @@
+package com.example.airemote
+
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * The ChatGPT boundary for an independently verified live turn.
+ *
+ * The model is NOT an authority for hand/turn identity, gesture geometry,
+ * amounts already selected in the UI, card provenance or permission to play.
+ * Local verified evidence supplies every binding field. No model text can
+ * authorize an Android gesture.
+ */
+object T043GptDecisionContract {
+    const val SCHEMA = "t043.gpt.decision.v1"
+    const val MAX_RESPONSE_CHARS = 1024
+    const val MAX_FRAME_AGE_MS = ModelDecisionFrameContext.FRAME_MAX_AGE_MS
+
+    /** Null means there is no sufficiently current, independently verified game state. */
+    fun buildPrompt(
+        observation: AutonomousObservation,
+        cards: StableCardReading,
+        nowMs: Long,
+        verifiedOpponentProfiles: List<OpponentLearningSummary> = emptyList(),
+        sessionPopupStatistics: String = "",
+        verifiedHandParticipation: String = "",
+        verifiedOpponentSeatRefs: Map<String, Int> = emptyMap(),
+        /** T054 optional read-only, current-frame-bound context; never a gesture grant. */
+        turnContext: T054GptTurnBoundContext? = null
+    ): String? {
+        val view = observation.view
+        if (observation.tableId.isBlank() || observation.handId.isBlank() ||
+            observation.turnId.isBlank() || observation.phase == HandStage.UNKNOWN ||
+            !observation.tableHandIndependentlyVerified ||
+            !observation.windowIndependentlyVerified || !view.foregroundVerified ||
+            !view.stageVerified || !view.turnVerified || !view.exactLabelsVerified ||
+            view.handKey != observation.handId ||
+            view.legalActions.isEmpty() ||
+            nowMs < view.capturedAtMs || nowMs - view.capturedAtMs > MAX_FRAME_AGE_MS ||
+            cards.captureEpoch != view.captureEpoch ||
+            cards.capturedAtMs > view.capturedAtMs ||
+            view.capturedAtMs - cards.capturedAtMs > 1_400L ||
+            cards.hole.size != 2 || cards.community.size !in setOf(0, 3, 4, 5))
+            return null
+        val expectedStreet = when (cards.community.size) {
+            0 -> HandStage.PREFLOP
+            3 -> HandStage.FLOP
+            4 -> HandStage.TURN
+            5 -> HandStage.RIVER
+            else -> HandStage.UNKNOWN
+        }
+        if (expectedStreet != observation.phase) return null
+        val signedCards = observation.independentlyMatchedCards
+        if (signedCards != null && signedCards != VerifiedDecisionCards(cards.hole, cards.community))
+            return null
+        // A fabricated/mismatched study envelope must never enter a model request.
+        if (turnContext != null && !turnContext.matches(observation)) return null
+        val normalizedCards = try {
+            (cards.hole + cards.community).map { PokerCard.parse(it).toString() }
+        } catch (_: IllegalArgumentException) { return null }
+        if (normalizedCards.toSet().size != normalizedCards.size) return null
+
+        // Reuse the EXISTING verified poker-math bridge. It computes the best
+        // made hand and call threshold but does not invent hidden cards or
+        // estimate an opponent range. Missing amounts remain JSON null.
+        val math = VerifiedPokerMathBridge.analyze(VerifiedPokerMathInput(
+            tableId = observation.tableId,
+            handId = observation.handId,
+            captureEpoch = view.captureEpoch,
+            frameSequence = view.frameSequence,
+            independentTableHandProof = observation.tableHandIndependentlyVerified,
+            frameIsCurrent = true,
+            phase = observation.phase,
+            heroHoleCards = normalizedCards.take(2).map(PokerCard::parse),
+            boardCards = normalizedCards.drop(2).map(PokerCard::parse),
+            potBeforeCall = observation.potChips,
+            callChips = observation.callChips
+        )) ?: return null
+        val trustedEquity = observation.equityEvidence?.takeIf { it.matches(observation) }
+        val mathJson = JSONObject()
+            .put("made_hand", math.bestHand?.category?.name ?: JSONObject.NULL)
+            .put("made_hand_kickers", math.bestHand?.let { JSONArray(it.tiebreak) } ?: JSONObject.NULL)
+            .put("pot_odds_required_equity",
+                (if (turnContext == null) math.potOddsRequiredEquity
+                 else turnContext.hand.potOddsRequiredEquity) ?: JSONObject.NULL)
+            .put("verified_pot_share_equity", trustedEquity?.potShare ?: JSONObject.NULL)
+            .put("equity_basis", trustedEquity?.provenance ?: "UNKNOWN")
+
+        val packet = JSONObject()
+            .put("schema", SCHEMA)
+            .put("mode", "RECOMMENDATION_ONLY")
+            .put("hand_id", observation.handId)
+            .put("turn_id", observation.turnId)
+            .put("capture_epoch", view.captureEpoch)
+            .put("frame_sequence", view.frameSequence)
+            .put("street", observation.phase.name)
+            .put("hole_cards", JSONArray(normalizedCards.take(2)))
+            .put("board_cards", JSONArray(normalizedCards.drop(2)))
+            .put("legal_actions", JSONArray(view.legalActions.map { it.name }.sorted()))
+            // T054 pre-action pot and call have explicit semantics. If the
+            // bound context lacks them, old generic labels cannot fill gaps.
+            .put("pot_chips", (if (turnContext == null) observation.potChips
+                else turnContext.hand.potForCallChips) ?: JSONObject.NULL)
+            .put("call_chips", (if (turnContext == null) observation.callChips
+                else turnContext.hand.costToCallChips) ?: JSONObject.NULL)
+            .put("timer_ms", observation.timerRemainingMs ?: JSONObject.NULL)
+            .put("min_bet_chips", observation.minVerifiedBetChips ?: JSONObject.NULL)
+            .put("max_bet_chips", observation.maxVerifiedBetChips ?: JSONObject.NULL)
+            .put("selected_bet_chips", observation.selectedBetChips ?: JSONObject.NULL)
+            .put("poker_math", mathJson)
+        if (turnContext != null) {
+            val h = turnContext.hand
+            fun streetCode(value: PokerStreet): String = when (value) {
+                PokerStreet.PREFLOP -> "P"
+                PokerStreet.FLOP -> "F"
+                PokerStreet.TURN -> "T"
+                PokerStreet.RIVER -> "R"
+                else -> "?"
+            }
+            // Never echo raw event IDs, nicknames, source text, or unverified
+            // bet amounts into a model prompt. Individual actions can be
+            // represented only if ALL have independent evidence. Even then,
+            // full-history completeness is NOT attested by the canonical model.
+            val eventsIndividuallyVerified = h.history.all {
+                it.evidence == PokerEvidence.INDEPENDENT
+            }
+            val events = JSONArray()
+            if (eventsIndividuallyVerified) h.history.forEach { ev ->
+                events.put(JSONArray()
+                    .put(ev.sequence)
+                    .put(streetCode(ev.street))
+                    .put(ev.actorSeat ?: JSONObject.NULL)
+                    .put(ev.action.name))
+            }
+            val opponents = JSONArray()
+            h.opponents.forEach { p ->
+                opponents.put(JSONArray()
+                    .put(p.seatIndex)
+                    .put(p.position?.name ?: JSONObject.NULL)
+                    .put(p.effectiveRemainingStackChips ?: JSONObject.NULL)
+                    .put(p.spr ?: JSONObject.NULL))
+            }
+            val study = JSONObject()
+                .put("type", "READ_ONLY_PARTIAL")
+                .put("hero_pos", h.heroPosition?.name ?: JSONObject.NULL)
+                .put("hero_bb", h.heroRemainingStackBb ?: JSONObject.NULL)
+                .put("hero_stack", h.heroRemainingStackChips ?: JSONObject.NULL)
+                .put("active", h.activeOpponents ?: JSONObject.NULL)
+                .put("min_eff_stack", h.minimumEffectiveRemainingStackChips ?: JSONObject.NULL)
+                .put("min_spr", h.minimumEffectiveRemainingSpr ?: JSONObject.NULL)
+                .put("opponents", opponents)
+                .put("event_count", h.history.size)
+                .put("events_complete", false)
+                .put("event_amounts", "UNKNOWN")
+                .put("event_evidence",
+                    if (eventsIndividuallyVerified) "INDEPENDENT_PARTIAL" else "MIXED")
+                .put("events", events)
+            packet.put("t054_read_only_hand", study)
+        }
+        // Authenticated historic statistics are useful only when independently
+        // bound to the SAME visible seat and ACTIVE participant of this hand.
+        // Ordinal "opponent_1" is NEVER a live player identity.
+        val liveSeatRefs = verifiedHandParticipation
+            .takeIf { it.startsWith("active=") && it.contains(";folded=") }
+            ?.substringAfter("active=")?.substringBefore(';')
+            ?.split(',')?.toSet() ?: emptySet()
+        val validSeats = verifiedOpponentSeatRefs.filter {
+            it.value in 0..9 && "seat_${it.value}" in liveSeatRefs
+        }.filter { (actor, seat) ->
+            verifiedOpponentSeatRefs.count { it.value == seat } == 1 &&
+                actor.length in 1..128
+        }
+        val profiles = JSONArray()
+        T050VerifiedSeatProfileBinding.eligibleProfiles(
+            verifiedOpponentProfiles, validSeats).take(3).forEach { p ->
+            if (p.observedHands >= 0 && p.vpipOpportunities >= 0 &&
+                p.pfrOpportunities >= 0 && p.facedBetOpportunities >= 0 &&
+                p.vpipSeen in 0..p.vpipOpportunities &&
+                p.pfrSeen in 0..p.pfrOpportunities &&
+                p.foldsFacingBet in 0..p.facedBetOpportunities) {
+                profiles.put(JSONObject()
+                    .put("ref", "seat_${requireNotNull(validSeats[p.opponentKey])}")
+                    .put("observed_hands", p.observedHands)
+                    .put("vpip_seen", p.vpipSeen)
+                    .put("vpip_opportunities", p.vpipOpportunities)
+                    .put("pfr_seen", p.pfrSeen)
+                    .put("pfr_opportunities", p.pfrOpportunities)
+                    .put("postflop_aggression_actions", p.aggressionActions.coerceAtLeast(0))
+                    .put("postflop_calls", p.postflopCalls.coerceAtLeast(0))
+                    .put("folds_facing_bet", p.foldsFacingBet)
+                    .put("faced_bet_opportunities", p.facedBetOpportunities)
+                    .put("showdowns_seen", p.showdownsSeen.coerceAtLeast(0))
+                    .put("showdowns_won", p.showdownsWon.coerceAtLeast(0)))
+            }
+        }
+        packet.put("verified_opponent_statistics", profiles)
+        // OCR popup values have only a screen-seat link, NOT a stable
+        // opponent identity. These never become verified-hand stats.
+        val safeSession = sessionPopupStatistics.takeIf {
+            it.length in 1..280 &&
+                Regex("""[A-Za-z0-9_:=.,;]+""").matches(it)
+        }
+        if (safeSession != null)
+            packet.put("session_popup_ocr_only", safeSession)
+        // This is an attested seat/hand summary, never inferred from a
+        // missing avatar or a bare fold label on a screenshot.
+        val safeParticipation = verifiedHandParticipation.takeIf {
+            it.length in 1..160 &&
+                it.startsWith("active=") && it.contains(";unknown=") &&
+                Regex("""[A-Za-z0-9_=,;]+""").matches(it)
+        }
+        if (safeParticipation != null)
+            packet.put("hand_participation_verified_only", safeParticipation)
+        // JSON-escape every external field. No free-text player names or OCR
+        // instructions are interpolated into the system directive.
+        // Keep the full verified player context within the 1600-char bound.
+        // The old verbose instruction repeated fields already encoded in JSON
+        // and caused valid seat-bound opponent profiles to be dropped.
+        // T056 interview synthesis (Galfond/Chidwick/Negreanu/Mateos):
+        // Reason in ranges, consider rival hypotheses and distinguish theory
+        // from evidence-backed exploitation. Research is NOT model training.
+        // The replacement is shorter than the old prefix, keeping 1600-char
+        // prompt budget and the existing response/gesture safety contract.
+        val directive = "NLHE virtual chips: reason by street, position, ranges, verified math and odds. " +
+            "Compare baseline and value/bluff lines; exploit only supported leaks with enough samples. " +
+            "Unknown facts stay UNKNOWN; OCR provisional. " +
+            "Return ONLY JSON {schema,action,amount_chips}, schema=$SCHEMA, " +
+            "action in legal_actions. BET/RAISE must use an already selected verified " +
+            "amount; otherwise null. Recommendation only, never permission to tap.\\n" +
+            if (turnContext == null) "" else
+                "T054 partial context: events=[seq,P/F/T/R street,seat,action]; " +
+                "history NOT complete; bet amounts UNKNOWN.\\n"
+        var prompt = directive + packet.toString()
+        // Nonessential unverified popup fields must be the FIRST to drop
+        // when a bounded decision prompt would exceed the transport size.
+        if (prompt.length > 1_600 && safeSession != null) {
+            packet.remove("session_popup_ocr_only")
+            prompt = directive + packet.toString()
+        }
+        while (prompt.length > 1_600 && profiles.length() > 0) {
+            profiles.remove(profiles.length() - 1)
+            prompt = directive + packet.toString()
+        }
+        // Never silently erase a verified current-hand roster to squeeze
+        // in a model request: that would remove the only evidence of
+        // who has folded / remains / is UNKNOWN. Prefer no inference.
+        if (prompt.length > 1_600 && safeParticipation != null) return null
+        return prompt.takeIf { it.length <= 1600 }
+    }
+
+    data class Review(
+        val accepted: Boolean,
+        val reason: String,
+        val proposal: PlayerModelProposal? = null
+    )
+
+    /**
+     * Bind a model recommendation to the LOCAL observation, never to echoed
+     * identifiers or timestamps from model output. The existing independent
+     * decision and dispatch gates remain mandatory.
+     */
+    fun review(
+        response: String,
+        observation: AutonomousObservation,
+        nowMs: Long,
+        allowMatchingLaterFrame: Boolean = false
+    ): Review {
+        if (response.length !in 2..MAX_RESPONSE_CHARS ||
+            response.firstOrNull() != '{' || response.lastOrNull() != '}')
+            return Review(false, "INVALID_JSON_SHAPE")
+        val json = try { JSONObject(response) }
+            catch (_: Exception) { return Review(false, "INVALID_JSON") }
+        val allowed = setOf("schema", "action", "amount_chips")
+        val keys = json.keys().asSequence().toSet()
+        if (keys != allowed || json.optString("schema") != SCHEMA)
+            return Review(false, "INVALID_SCHEMA")
+        val actionName = json.optString("action")
+        // ALL_IN needs its own verified stack/slider path; never alias it to
+        // a different button or silently guess an amount.
+        val action = LiveAction.entries.firstOrNull { it.name == actionName }
+            ?: return Review(false, "UNSUPPORTED_ACTION")
+        val amount = if (json.isNull("amount_chips")) null else {
+            val raw = json.opt("amount_chips")
+            if (raw !is Int && raw !is Long)
+                return Review(false, "INVALID_AMOUNT")
+            (raw as Number).toLong().takeIf { it > 0L }
+                ?: return Review(false, "INVALID_AMOUNT")
+        }
+        if (action in setOf(LiveAction.BET, LiveAction.RAISE) && amount == null ||
+            action !in setOf(LiveAction.BET, LiveAction.RAISE) && amount != null)
+            return Review(false, "AMOUNT_ACTION_MISMATCH")
+        // A response that arrived after the authenticated frame is stale
+        // regardless of the model's view of the remaining timer.
+        val view = observation.view
+        if (nowMs < view.capturedAtMs ||
+            nowMs - view.capturedAtMs > MAX_FRAME_AGE_MS ||
+            observation.handId.isBlank() || observation.turnId.isBlank())
+            return Review(false, "STALE_FRAME")
+        val proposal = PlayerModelProposal(action, observation.handId,
+            observation.turnId, view.captureEpoch, view.frameSequence,
+            observation.windowGeneration, nowMs, nowMs + 200L, amount,
+            if (allowMatchingLaterFrame) ModelDecisionFrameContext.from(observation) else null)
+        val outcome = PlayerModelDecisionGuard.inspect(observation, proposal, nowMs)
+        return if (outcome.status == PlayerProposalStatus.ACCEPTABLE_CANDIDATE)
+            Review(true, "ACCEPTABLE_CANDIDATE_NOT_A_GESTURE", proposal)
+        else Review(false, outcome.status.name)
+    }
+}
