@@ -6,9 +6,9 @@ command -v kotlinc >/dev/null || { echo 'kotlinc missing' >&2; exit 2; }
 command -v kotlin >/dev/null || { echo 'kotlin runner missing' >&2; exit 2; }
 mkdir -p .build-jvm
 mapfile -t sources < <(find android/app/src/main/java/com/example/airemote -maxdepth 1 -name '*.kt' -print | sort | while read -r f; do
-  # T051LabContractFixture invokes the Android org.json-backed T043 contract
+  # The Android fixtures invoke the org.json-backed T043 contract
   # even though it has no direct Android imports; exercise it via Android unit tests.
-  case "$(basename "$f")" in T043SyncCoordinator.kt|T051LabContractFixture.kt) continue ;; esac
+  case "$(basename "$f")" in T043SyncCoordinator.kt|T051LabContractFixture.kt|T055GptConnectionProbe.kt) continue ;; esac
   if ! grep -Eq '^import (android\.|androidx\.|org\.json|com\.google\.mlkit|okhttp3\.|org\.bouncycastle\.|org\.apache\.commons\.net\.)' "$f"; then echo "$f"; fi
 done)
 mapfile -t scenarios < <(find tools -maxdepth 1 -name '*Scenarios.kt' -print | sort)

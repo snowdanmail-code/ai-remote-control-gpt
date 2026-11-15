@@ -182,6 +182,12 @@ class MainActivity : Activity() {
                 runOnUiThread { cloudStatus.text = message }
             }
         }
+        button("ТЕСТ РЕШЕНИЯ CHATGPT НА УЧЕБНОЙ РАЗДАЧЕ") {
+            cloudStatus.text = "Отправляю учебную раздачу в ChatGPT…"
+            ChatGptCloudBridge.testDecisionContract(this@MainActivity) { message ->
+                runOnUiThread { cloudStatus.text = message }
+            }
+        }
         button("АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ") {
             // Only the operator can request the latest sanitized context.
             // No live control or automatic inference uses this answer.

@@ -139,6 +139,20 @@ class T055DecisionReplayTest {
         assertNull(PlayerModelDecisionGuard.inspect(later, late, 2501L).candidate)
     }
 
+    @Test fun cloudProbeUsesTheRealContractAndTheMeasuredDeadline() {
+        val probe = T055GptConnectionProbe(1500L)
+        val prompt = probe.prompt(1501L)!!
+        assertTrue(prompt.contains("diagnostic-hand"))
+        assertTrue(prompt.contains("\"pot_chips\":400"))
+        assertTrue(prompt.contains("\"call_chips\":100"))
+        assertEquals("Допустимая рекомендация · CALL", probe.report(model("CALL"), 2500L))
+        assertEquals("Ответ получен после дедлайна кадра (1000 мс)",
+            probe.report(model("CALL"), 2501L))
+        assertEquals("Ответ отклонён · NOT_LEGAL", probe.report(model("CHECK"), 2000L))
+        assertEquals("Ответ отклонён · INVALID_JSON_SHAPE", probe.report("CALL", 2000L))
+        assertNull(probe.prompt(2501L))
+    }
+
     @Test fun timelineAuditRecordsLatencyAndTurnSafetyMargins() {
         val timely = T055ReplayDeadlineAudit.assess(T055ReplayTimeline(
             1500L,1700L,1900L,7000L))

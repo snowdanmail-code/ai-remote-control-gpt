@@ -7,6 +7,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -634,7 +635,27 @@ object ChatGptCloudBridge {
             report)
     }
 
-    private data class CloudTextReply(val model: String, val text: String)
+    fun testDecisionContract(context: Context, report: (String) -> Unit) {
+        if (!planUsageAuthorized(context)) {
+            report("Разрешите использование подписки ChatGPT для тестового запроса")
+            return
+        }
+        val probe = T055GptConnectionProbe(SystemClock.elapsedRealtime())
+        val prompt = probe.prompt(SystemClock.elapsedRealtime())
+        if (prompt == null) {
+            report("Тестовая раздача не прошла проверку контракта")
+            return
+        }
+        requestModelText(context, prompt) { reply, error ->
+            if (reply == null) report("Тестовая раздача · ${error ?: "CLOUD_UNAVAILABLE"}")
+            else report("Тестовая раздача · ${reply.model} · " +
+                probe.report(reply.text, reply.receivedAtMs) + " · ${reply.timing}")
+        }
+    }
+
+    private data class CloudTextReply(
+        val model: String, val text: String, val receivedAtMs: Long, val timing: String
+    )
 
     /**
      * One existing OAuth/Responses request path for both manual advisory text
@@ -652,6 +673,7 @@ object ChatGptCloudBridge {
             return false
         }
         val generation = operations.generation()
+        val startedAt = SystemClock.elapsedRealtime()
         Thread({
             var phase = ChatGptCloudStep.SESSION
             cloudDiagnostic(generation, "CLOUD_SESSION: проверяется сеанс")
@@ -661,10 +683,12 @@ object ChatGptCloudBridge {
                     cloudDiagnostic(generation, "AUTH_REFRESH: обновление сеанса")
                 }
                 check(generation == operations.generation()) { "Session changed" }
+                val tokenReadyAt = SystemClock.elapsedRealtime()
                 phase = ChatGptCloudStep.MODELS
                 cloudDiagnostic(generation, "CLOUD_MODELS: загрузка моделей")
                 lastModelsUsedDoh = false
                 val slug = chooseModel(getJson("https://api.openai.com/v1/models", bearer))
+                val modelReadyAt = SystemClock.elapsedRealtime()
                 phase = ChatGptCloudStep.RESPONSES
                 cloudDiagnostic(generation, "CLOUD_RESPONSE: ожидается завершённый ответ")
                 val input = JSONArray().put(JSONObject().put("role", "user").put("content", prompt))
@@ -686,8 +710,13 @@ object ChatGptCloudBridge {
                     } finally { c.disconnect() }
                 }
                 if (generation == operations.generation()) {
-                    cloudDiagnostic(generation, "CLOUD_OK: подтверждён завершённый ответ модели $slug")
-                    completed(CloudTextReply(slug, answer), null)
+                    val receivedAt = SystemClock.elapsedRealtime()
+                    val timing = "всего ${receivedAt - startedAt} мс · " +
+                        "сеанс ${tokenReadyAt - startedAt} мс · " +
+                        "модель ${modelReadyAt - tokenReadyAt} мс · " +
+                        "ответ ${receivedAt - modelReadyAt} мс"
+                    cloudDiagnostic(generation, "CLOUD_OK: завершён ответ модели $slug · $timing")
+                    completed(CloudTextReply(slug, answer, receivedAt, timing), null)
                 }
             } catch (ex: Exception) {
                 if (generation == operations.generation()) {
@@ -697,8 +726,10 @@ object ChatGptCloudBridge {
                         lastLoginDiagnostic.contains("AUTH_")) lastLoginDiagnostic else null
                     val usefulMessage = if (priorAuth == null) message
                         else "$message | Последняя ошибка входа: $priorAuth"
-                    cloudDiagnostic(generation, usefulMessage)
-                    completed(null, usefulMessage)
+                    val elapsed = SystemClock.elapsedRealtime() - startedAt
+                    val diagnostic = "$usefulMessage · ${elapsed} мс"
+                    cloudDiagnostic(generation, diagnostic)
+                    completed(null, diagnostic)
                 }
             } finally {
                 operations.finishRequest()
@@ -711,7 +742,7 @@ object ChatGptCloudBridge {
     fun askPrompt(context: Context, prompt: String, report: (String) -> Unit) {
         requestModelText(context, prompt) { reply, error ->
             if (reply != null)
-                report("CLOUD_OK · модель ${reply.model} · ответ: ${reply.text.take(1500)}")
+                report("CLOUD_OK · модель ${reply.model} · ${reply.timing} · ответ: ${reply.text.take(1500)}")
             else
                 report("Проверка облачного ИИ не пройдена: ${error ?: "UNKNOWN"}")
         }
