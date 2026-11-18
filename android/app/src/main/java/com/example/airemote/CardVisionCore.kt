@@ -32,7 +32,13 @@ data class CardReading(
     val complete: Boolean,
     /** Template similarity only, not a calibrated probability. */
     val minimumSimilarity: Double,
-    val reason: String
+    val reason: String,
+    /** Display only: independently seen rank and suit; NEVER authorizes action. */
+    val holeGlyphs: List<String> = emptyList(),
+    val communityGlyphs: List<String> = emptyList(),
+    val holeMinimumSimilarity: Double = 0.0,
+    val communityMinimumSimilarity: Double = 0.0,
+    val miniRankHints: List<Char?> = emptyList()
 )
 
 data class VisionCardZones(
@@ -866,9 +872,16 @@ object CardVisionCore {
         val ranked = bySuit.entries.sortedByDescending { it.value }
         val winner = ranked.firstOrNull() ?: return null
         val second = ranked.drop(1).firstOrNull()?.value ?: 0.0
-        return if (winner.value >= 0.78 && winner.value - second >= 0.055)
-            SuitCandidate(winner.key, winner.value)
-        else null
+        val legacy = if (winner.value >= 0.78 && winner.value - second >= 0.055)
+            SuitCandidate(winner.key, winner.value) else null
+        // Independent small corner glyph templates. If the large suit and
+        // the corner disagree, refuse to publish a falsely confident card.
+        val small = VerifiedCardCornerSuitSamples.classify(r, card)
+        return when {
+            legacy != null && small != null && legacy.suit != small.suit -> null
+            legacy != null -> legacy
+            else -> small
+        }
     }
 
     /**
@@ -935,37 +948,97 @@ object CardVisionCore {
 
     fun classifyRank(r: VisionRaster, card: VisionCardBox): RankCandidate? {
         val matches = rankScores(r, card)
-        val first = matches.firstOrNull() ?: return null
+        val first = matches.firstOrNull()
         val second = matches.getOrNull(1)?.second ?: 0.0
-        return if (first.second >= 0.93 && first.second - second >= 0.045)
-            RankCandidate(first.first, first.second)
-        else null
+        // Owner-approved diagnostic threshold: 93% -> 78% (-15 points).
+        // Preserve a separate runner-up margin, verified-sample veto, and
+        // the two-frame consensus. Similarity is NOT a probability.
+        val legacy = if (first != null && first.second >= 0.78 &&
+            first.second - second >= 0.045)
+            RankCandidate(first.first, first.second) else null
+        // The second reader has a corrected glyph-only crop, and is trained
+        // ONLY from individually checked screenshots. A contradictory verdict
+        // is explicitly unknown rather than arbitrarily preferring a model.
+        val verified = VerifiedCardRankSamples.classify(r, card)
+        return when {
+            legacy != null && verified != null && legacy.rank != verified.rank -> null
+            legacy != null -> legacy
+            verified != null -> verified
+            // Owner's 9♥ crop: a right-card ROI shifted 1-4 px right trims
+            // the rank. Only rescue a VERIFIED nine supported by multiple
+            // alternative ROIs, never substitute another suit or rank.
+            else -> VerifiedCardRankSamples.recoverTrimmedNine(r, card)
+        }
+    }
+
+    /**
+     * Spectator mode: ONLY the visible community-card row. No hole-card requirement.
+     * Before the flop, absence of cards is normal and is not an OCR failure.
+     * This return value cannot feed the authoritative hero-card/gesture pipeline.
+     */
+    fun readVisibleCommunity(r: VisionRaster): VisibleCommunityReading {
+        val ratio = r.width.toDouble() / r.height
+        if (r.height < 780 || ratio !in 0.45..0.48) {
+            return VisibleCommunityReading(emptyList(), false,
+                "Неподдерживаемая геометрия кадра наблюдателя")
+        }
+        val boxes = cardRow(r, intArrayOf(65, 477, 502, 664), true)
+            ?: emptyList()
+        if (boxes.size !in 3..5) {
+            return VisibleCommunityReading(emptyList(), false,
+                "Общие карты ещё не появились (до флопа) или область стола не обнаружена")
+        }
+        if (boxes.any { it.width < 20 || it.height < 35 }) {
+            return VisibleCommunityReading(emptyList(), false,
+                "Область общих карт обрезана")
+        }
+        val observed = boxes.map { CardGlyphChain.read(r, it) }
+        val values = observed.map { it.code }
+        val previews = observed.map { it.preview }
+        val boardMin = if (observed.all { it.code != null })
+            observed.minOf { it.quality } else 0.0
+        if (values.any { it == null }) {
+            return VisibleCommunityReading(values, false,
+                "Общие карты видны, но часть номиналов или мастей не подтверждена", previews, boardMin)
+        }
+        val complete = values.filterNotNull()
+        if (complete.toSet().size != complete.size) {
+            return VisibleCommunityReading(values, false,
+                "Обнаружены повторяющиеся карты: отбрасываем результат", previews, 0.0)
+        }
+        return VisibleCommunityReading(values, true,
+            "Общие карты распознаны локально; раздача и приложение не подтверждены", previews, boardMin)
     }
 
     fun readCards(r: VisionRaster): CardReading {
         val zones = detect(r)
         if (!zones.usable) return CardReading(emptyList(), emptyList(), false, 0.0, zones.reason)
-        var minimum = 1.0
-        fun read(box: VisionCardBox): String? {
-            val rank = classifyRank(r, box) ?: return null
-            val suit = classifySuit(r, box) ?: return null
-            minimum = min(minimum, min(rank.similarity, suit.confidence))
-            return "${rank.rank}${suit.suit}"
-        }
-        val hole = zones.hole.map(::read)
-        val community = zones.community.map(::read)
+        val heroGlyphs = zones.hole.map { CardGlyphChain.read(r, it) }
+        val boardGlyphs = zones.community.map { CardGlyphChain.read(r, it) }
+        val hole = heroGlyphs.map { it.code }
+        val community = boardGlyphs.map { it.code }
+        val minimum = (heroGlyphs + boardGlyphs).minOfOrNull { it.quality } ?: 0.0
+        val heroDisplay = heroGlyphs.map { it.preview }
+        val boardDisplay = boardGlyphs.map { it.preview }
+        val heroMin = if (heroGlyphs.size == 2 && heroGlyphs.all { it.code != null })
+            heroGlyphs.minOf { it.quality } else 0.0
+        val boardMin = if (boardGlyphs.all { it.code != null })
+            boardGlyphs.minOfOrNull { it.quality } ?: 1.0 else 0.0
         if ((hole + community).any { it == null }) {
             return CardReading(hole, community, false, 0.0,
-                "Неизвестный номинал/масть: запрещено угадывать")
+                "Неизвестный номинал/масть: запрещено угадывать", heroDisplay, boardDisplay,
+                heroMin, boardMin)
         }
         val verifiedHole = hole.filterNotNull()
         val verifiedBoard = community.filterNotNull()
         if (!checkUnique(verifiedHole, verifiedBoard)) {
             return CardReading(hole, community, false, 0.0,
-                "Повтор карты или недопустимое число общих карт")
+                "Повтор карты или недопустимое число общих карт", heroDisplay, boardDisplay,
+                heroMin, 0.0)
         }
         return CardReading(hole, community, true, minimum,
-            "Шаблоны совпали; имя приложения и фаза раздачи отдельно не подтверждены")
+            "Шаблоны совпали; имя приложения и фаза раздачи отдельно не подтверждены",
+            heroDisplay, boardDisplay, heroMin, boardMin)
     }
 
     /** OCR returns a rank string for one cropped card, never a full-hand string. */

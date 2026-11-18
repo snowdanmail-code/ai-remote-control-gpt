@@ -25,13 +25,13 @@ class AtomicFramePublicationSourceTest(unittest.TestCase):
         self.assertIn('!expectedOrigin.safeForLocalDiagnostics', self.store)
 
     def test_service_uses_atomic_publication_for_cards_and_jpeg(self):
-        self.assertEqual(self.service.count('FrameStore.commitIfCurrent('), 2)
+        self.assertEqual(self.service.count('FrameStore.commitIfCurrent('), 3)  # player, spectator, JPEG: all atomic
         self.assertIn('FrameStore.observeWindow(captureEpoch, origin)', self.service)
         self.assertIn('FrameStore.latest = FrameInfo(', self.service)
         self.assertIn('FrameStore.lastCards = signal', self.service)
 
     def test_predicate_rechecks_stop_visibility_and_root(self):
-        self.assertEqual(self.service.count('windowStillMatches(origin, rootEvidence)'), 3)  # includes asynchronous OCR
+        self.assertEqual(self.service.count('windowStillMatches(origin, rootEvidence)'), 5)  # spectator board and independent spectator OCR both check root
         self.assertGreaterEqual(self.service.count('AppVisibilityGate.canPublish(visibilityTicket)'), 3)
         self.assertIn('!OperatorStopStore.isStopped(applicationContext)', self.service)
 
@@ -66,6 +66,6 @@ class AtomicFramePublicationSourceTest(unittest.TestCase):
         self.assertGreaterEqual(int(re.search(r"versionCode\s*=\s*(\d+)", gradle).group(1)), 60)
         self.assertIn('FramePublicationScenarios', runner)
         self.assertIn('workflow_dispatch:', workflow)
-        self.assertRegex(workflow, r'AI-Remote-Control-GPT-v2\.14\.\d+-[A-Z-]+-debug\.apk')
+        self.assertRegex(workflow, r'AI-Remote-Control-GPT-T042-[A-Za-z0-9-]+-Code[0-9]+\.apk')
 
 if __name__ == '__main__': unittest.main()

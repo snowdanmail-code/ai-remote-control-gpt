@@ -51,6 +51,6 @@ class OcrEvidenceIntegrationSourceTest(unittest.TestCase):
         activity = (ROOT / 'MainActivity.kt').read_text()
         self.assertGreaterEqual(int(re.search(r"versionCode\s*=\s*(\d+)", gradle).group(1)), 60)
         self.assertRegex(gradle, r'versionName = "2\.14\.\d+[^"]*"')
-        self.assertRegex(activity, r'AI Remote Control v2\.14\.\d+')
+        self.assertIn('AI Remote Control v${packageManager.getPackageInfo(packageName, 0).versionName}', activity)
 
 if __name__ == '__main__': unittest.main()

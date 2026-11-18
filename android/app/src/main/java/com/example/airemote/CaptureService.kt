@@ -37,6 +37,7 @@ class CaptureService : Service() {
     private var lastEncode = 0L
     private var lastCardInspectionAt = 0L
     private var cardInspectionSeq = 0L
+    private val preflopRankGate = PreflopRankHintGate()
     private var windowFrameSeq = 0L
     private lateinit var windowTracker: WindowOriginTracker
     private fun windowStillMatches(origin: WindowOriginAssessment,
@@ -123,9 +124,13 @@ class CaptureService : Service() {
             reader!!.setOnImageAvailableListener({ images ->
                 val image = images.acquireLatestImage() ?: return@setOnImageAvailableListener
                 try {
+                    FrameStore.noteImage(requestedEpoch)
                     val now = SystemClock.elapsedRealtime()
                     val visibilityTicket = AppVisibilityGate.acquireTicket()
                     val captureEpoch = FrameStore.captureEpoch
+                    if (visibilityTicket == null) {
+                        FrameStore.captureError = "Кадры поступают; экран оператора видим — игровая обработка приостановлена"
+                    }
                     if (!closing && visibilityTicket != null &&
                         !OperatorStopStore.isStopped(applicationContext) && now - lastCheck >= 300L) {
                         lastCheck = now
@@ -140,6 +145,9 @@ class CaptureService : Service() {
                         if (!FrameStore.observeWindow(captureEpoch, origin))
                             return@setOnImageAvailableListener
                         if (!origin.safeForLocalDiagnostics) {
+                            FrameStore.captureError = if (!LiveForegroundProbe.connected())
+                                "Кадры поступают; служба Accessibility не подключена"
+                            else "Кадры поступают; ожидаем стабильное внешнее окно"
                             // observeWindow has already erased stale visual evidence.
                             // The new external window must start with a fresh visual signature.
                             lastSignature = null
@@ -164,6 +172,7 @@ class CaptureService : Service() {
                                     screen.getPixel(x, y)
                                 }
                                 if (surface.status != RecordedSurfaceStatus.TABLE_LIKE) {
+                                    FrameStore.captureError = "Кадры поступают; экран не прошёл фильтр игрового стола"
                                     val invalidated = FrameStore.invalidateOccludedSurface(captureEpoch, origin)
                                     if (invalidated) {
                                         OnDeviceAutomaticOcr.reset()
@@ -186,9 +195,44 @@ class CaptureService : Service() {
                                     AppVisibilityGate.canPublish(visibilityTicket) &&
                                     captureEpoch == FrameStore.captureEpoch) {
                                     lastCardInspectionAt = now
+                                    if (CaptureObservationMode.isSpectator()) {
+                                        // Read ONLY exposed community cards while spectating.
+                                        // Player-card consensus, stage, hero turn and gestures
+                                        // are intentionally NOT called in this branch.
+                                        val board = OnDeviceCardReader.inspectSpectator(screen)
+                                        var publishedSequence = -1L
+                                        var publishedStable: StableSpectatorBoard? = null
+                                        val published = FrameStore.commitIfCurrent(captureEpoch, origin, {
+                                            CaptureObservationMode.isSpectator() && !closing &&
+                                                !OperatorStopStore.isStopped(applicationContext) &&
+                                                AppVisibilityGate.canPublish(visibilityTicket) &&
+                                                windowStillMatches(origin, rootEvidence)
+                                        }) {
+                                            cardInspectionSeq += 1L
+                                            val stable = FrameStore.spectatorConsensus.accept(
+                                                board, captureEpoch, cardInspectionSeq, now,
+                                                SystemClock.elapsedRealtime(), origin.observedPackage)
+                                            FrameStore.spectatorBoard = stable
+                                            if (stable != null) FrameStore.spectatorBoardForPreview = stable
+                                            publishedSequence = cardInspectionSeq
+                                            publishedStable = stable
+                                        }
+                                        // Write small, bounded training diagnostics OUTSIDE
+                                        // the capture/STOP publication lock. Never export
+                                        // screen images, player details or cloud credentials.
+                                        if (published && publishedSequence > 0L &&
+                                            captureEpoch == FrameStore.captureEpoch &&
+                                            CaptureObservationMode.isSpectator() &&
+                                            !OperatorStopStore.isStopped(applicationContext)) {
+                                            SpectatorLearningJournal.observe(applicationContext,
+                                                board, publishedStable, now, publishedSequence)
+                                        }
+                                    } else {
                                     val visual = OnDeviceCardReader.inspectAll(screen)
                                     val cards = visual.cards
-                                    FrameStore.commitIfCurrent(captureEpoch, origin, {
+                                    var playerInspectionSequence = -1L
+                                    var playerInspectionStable: StableCardReading? = null
+                                    val playerPublished = FrameStore.commitIfCurrent(captureEpoch, origin, {
                                         !closing && !OperatorStopStore.isStopped(applicationContext) &&
                                             AppVisibilityGate.canPublish(visibilityTicket) &&
                                             windowStillMatches(origin, rootEvidence)
@@ -196,9 +240,17 @@ class CaptureService : Service() {
                                         cardInspectionSeq += 1L
                                         val signal = CardVisionSignal(now, captureEpoch, cardInspectionSeq, cards)
                                         FrameStore.lastCards = signal
+                                        val allowRankText = preflopRankGate.offer(
+                                            captureEpoch, cardInspectionSeq,
+                                            visual.visibleBoardSlots, visual.miniRanks, now)
+                                        FrameStore.lastPreflopRankHint =
+                                            PreflopRankHintSnapshot(captureEpoch,
+                                                cardInspectionSeq, now, allowRankText, visual.miniRanks)
                                         val stable = FrameStore.cardConsensus.accept(
                                             signal, SystemClock.elapsedRealtime())
                                         FrameStore.confirmedCards = stable
+                                        playerInspectionSequence = cardInspectionSeq
+                                        playerInspectionStable = stable
                                         if (stable != null) FrameStore.lastConfirmedForPreview = stable
                                         // Combine observed cards with hand-stage logic on the
                                         // capture worker. Source proof is *intentionally null*:
@@ -225,10 +277,27 @@ class CaptureService : Service() {
                                             SystemClock.elapsedRealtime(),
                                             OperatorStopStore.isStopped(applicationContext))
                                     }
+                                    // Never write disk under FrameStore's STOP lock.
+                                    // The PLAYER strategy/dispatcher does not consume this journal.
+                                    if (playerPublished && playerInspectionSequence > 0L &&
+                                        captureEpoch == FrameStore.captureEpoch &&
+                                        !CaptureObservationMode.isSpectator() &&
+                                        !OperatorStopStore.isStopped(applicationContext)) {
+                                        PlayerVisionJournal.observe(applicationContext, cards,
+                                            playerInspectionStable, captureEpoch, playerInspectionSequence,
+                                            screen.width, screen.height)
+                                    }
+                                    }
                                 }
-                                val profile = CaptureOptions.profile.coerceIn(0, 2)
+                                val profile = if (CaptureObservationMode.isSpectator())
+                                    CaptureOptions.spectatorProfile.coerceIn(0, 2)
+                                else CaptureOptions.profile.coerceIn(0, 2)
                                 val refresh = (now - lastEncode >= 8000L) || profile != lastProfile
-                                if (origin.safeForLocalDiagnostics &&
+                                // New JPEG must not invalidate the in-flight ML Kit ticket
+                                // every 300 ms. Raw capture and card/turn inspection continue.
+                                val jpegCadenceReady = CapturePreviewCadence.mayReplace(
+                                    now, lastEncode, profile != lastProfile)
+                                if (origin.safeForLocalDiagnostics && jpegCadenceReady &&
                                     (refresh || FrameDifference.changed(lastSignature, sig))) {
                                     val longEdge = CaptureOptions.longEdges[profile]
                                     val scale = minOf(1.0, longEdge.toDouble() / maxOf(width, height))
@@ -250,9 +319,22 @@ class CaptureService : Service() {
                                             val seq = FrameStore.frameSequence + 1L
                                             FrameStore.lastAutomaticOcr = null
                                             FrameStore.lastActionStrip = null
-                                            FrameStore.latest = FrameInfo(jpeg, seq, w, h,
-                                                CaptureOptions.qualities[profile], profile, now,
-                                                captureEpoch, origin.observedPackage, origin.windowGeneration)
+                                            val sameRasterCards = if (CaptureObservationMode.isSpectator())
+                                                null else FrameStore.confirmedCards?.takeIf {
+                                                    it.captureEpoch == captureEpoch &&
+                                                        it.capturedAtMs in (now - 1_400L)..now
+                                                }
+                                            val atCaptureHint = FrameStore.lastPreflopRankHint?.takeIf {
+                                                 it.captureEpoch == captureEpoch &&
+                                                     now >= it.observedAtMs &&
+                                                     now - it.observedAtMs <= 1_400L
+                                             }
+                                             FrameStore.latest = FrameInfo(jpeg, seq, w, h,
+                                                 CaptureOptions.qualities[profile], profile, now,
+                                                 captureEpoch, origin.observedPackage,
+                                                 origin.windowGeneration, sameRasterCards, atCaptureHint)
+                                            FrameStore.rememberOperatorPreview(requireNotNull(FrameStore.latest))
+                                            FrameStore.captureError = ""
                                             FrameStore.localFrameHealth = frameHealth
                                             FrameStore.frameSequence = seq
                                             lastSignature = sig
@@ -260,11 +342,24 @@ class CaptureService : Service() {
                                             lastProfile = profile
                                         }) {
                                             // This read-only pipeline consumes only the committed JPEG.
-                                            FrameStore.latest?.let { committed ->
-                                                OnDeviceAutomaticOcr.offer(applicationContext,
-                                                    committed, origin) {
-                                                        !closing && windowStillMatches(origin, rootEvidence)
-                                                    }
+                                            if (!CaptureObservationMode.isSpectator()) {
+                                                // Existing player OCR is unchanged and is not
+                                                // allowed to consume spectator-only board evidence.
+                                                FrameStore.latest?.let { committed ->
+                                                    OnDeviceAutomaticOcr.offer(applicationContext,
+                                                        committed, origin) {
+                                                            !closing && windowStillMatches(origin, rootEvidence)
+                                                        }
+                                                }
+                                            } else {
+                                                // Spectator-only public numeric hints; no
+                                                // AutomaticOcr assembler and no player actions.
+                                                FrameStore.latest?.let { committed ->
+                                                    OnDeviceSpectatorOcr.offer(applicationContext,
+                                                        committed, origin) {
+                                                            !closing && windowStillMatches(origin, rootEvidence)
+                                                        }
+                                                }
                                             }
                                         } else if (jpeg.size > 650_000) {
                                             FrameStore.captureError = "Кадр превышает лимит размера"

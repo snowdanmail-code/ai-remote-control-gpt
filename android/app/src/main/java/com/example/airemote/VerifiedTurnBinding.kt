@@ -52,7 +52,9 @@ class VerifiedTurnBinding(
         activeWindowGeneration: Long?,
         visualTurn: TurnCycleReport?,
         nowMs: Long,
-        stopped: Boolean
+        stopped: Boolean,
+        /** Only after a submitted command: the button strip may be closed. */
+        awaitingAuthenticatedEffect: Boolean = false
     ): TurnBindingResult {
         fun reject(why: String): TurnBindingResult {
             reset(); return TurnBindingResult(TurnBindingStatus.REJECTED, why)
@@ -67,10 +69,12 @@ class VerifiedTurnBinding(
             proof.epoch < 0L || proof.windowGeneration < 0L || proof.frameSequence <= 0L ||
             nowMs < proof.capturedAtMs || nowMs - proof.capturedAtMs > maxAgeMs ||
             proof.expiresAtMs < nowMs || proof.expiresAtMs <= proof.capturedAtMs ||
-            !view.foregroundVerified || !view.stageVerified || !view.turnVerified ||
-            !view.exactLabelsVerified || view.legalActions.isEmpty() ||
-            visualTurn?.phase != TurnCyclePhase.VISIBLE_DIAGNOSTIC ||
-            visualTurn.latestFrame != proof.frameSequence ||
+            !view.foregroundVerified || !view.stageVerified ||
+            (!awaitingAuthenticatedEffect &&
+                (!view.turnVerified || !view.exactLabelsVerified || view.legalActions.isEmpty())) ||
+            (!awaitingAuthenticatedEffect &&
+                (visualTurn?.phase != TurnCyclePhase.VISIBLE_DIAGNOSTIC ||
+                 visualTurn.latestFrame != proof.frameSequence)) ||
             !verifier.verify(proof)) return reject("Attestation, frame or turn invalid")
         val old = prior
         if (old == null) {
@@ -105,8 +109,11 @@ data class CaptureViewport(
         contentWidth > 0 && contentHeight > 0 &&
         contentLeft.toLong() + contentWidth <= displayWidth &&
         contentTop.toLong() + contentHeight <= displayHeight &&
-        // Do not assume a crop or letterbox is identity-mapped.
-        jpegWidth.toLong() * contentHeight == jpegHeight.toLong() * contentWidth
+        // Bitmap downscaling rounds each dimension independently (e.g.
+        // 1080x2340 -> 443x960). Allow at most ONE scaled pixel of ratio
+        // quantization, never a materially cropped or letterboxed frame.
+        kotlin.math.abs(jpegWidth.toLong() * contentHeight -
+            jpegHeight.toLong() * contentWidth) <= maxOf(contentHeight, contentWidth)
 }
 
 object VerifiedScreenProjection {

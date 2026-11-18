@@ -44,9 +44,11 @@ class OAuth042PolicyTest {
     }
     @Test fun bodyOpenFailureNeverReplaysAndTraceMarksStarted() {
         var created=0;val lines=mutableListOf<String>();val f=Fake()
-        assertThrows(UnknownHostException::class.java) {
+        val error = assertThrows(java.io.IOException::class.java) {
             ChatGptCloudBridge.request("https://auth.openai.com/api/accounts/oauth/token","POST",body="synthetic".toByteArray(),connectionFactory={_,_->created++;f},traceSink={lines.add(it)})
         }
+        assertFalse(error is UnknownHostException)
+        assertTrue(error.cause is UnknownHostException)
         assertEquals(1,created);assertEquals(1,f.bodies)
         assertTrue(lines.last().contains("phase=BODY_OPEN"));assertTrue(lines.last().contains("body_started=true"))
     }

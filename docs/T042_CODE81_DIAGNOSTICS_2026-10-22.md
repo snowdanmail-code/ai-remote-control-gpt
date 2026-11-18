@@ -1,0 +1,7 @@
+# T042 Code81 diagnostics, 22 October 2026
+
+Operator-supplied JSON reports: 324/324 incomplete player card frames; 324 missing/partial hole cards; 0 stable paired card confirmations. OCR processed 241 frames; 0 accepted action, pot or call labels. Global incident journal contains 258 OCR_CONFLICT, 129 FOREGROUND_CHANGED, 1 OCR_STALE. No error/critical incident recorded. Capture and Accessibility false are an EXPORT-TIME snapshot, not evidence they were inactive throughout gameplay. Previous frames prove observation occurred.
+
+This patch adds reason codes (unsupported layout, hole ROI failure, hole rank/suit, community rank/suit, duplicates), last source dimensions, and non-sensitive OCR geometry counts (any text, action-like words inside/outside strict action strip, decorated/rejected words, pot/call words). No OCR words, JPEG, credentials or player identities are stored. Empty OCR is no longer automatically logged as OCR_CONFLICT; actual contradictory parsed candidates still are. Source and Android action gates unchanged. The Code81 export cannot tell which cause dominated because it never recorded these breakdowns; require a Code82 retest and an operator-approved, redacted image if calibration remains necessary.
+
+No authenticated provider has been connected to 1win. No independent verification of game turn or action effects; no automation privilege is granted. Do not activate blind gestures.

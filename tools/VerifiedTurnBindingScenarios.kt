@@ -32,6 +32,24 @@ object VerifiedTurnBindingScenarios {
         checkTrue(inspect(next,nextView,turn=TurnCycleReport(TurnCyclePhase.CLOSED,1,11,"no"),now=1250).status == TurnBindingStatus.REJECTED)
         checkTrue(inspect().status == TurnBindingStatus.WAITING)
         checkTrue(inspect(next,nextView,now=5000).status == TurnBindingStatus.REJECTED)
+        // After a truly dispatched action, a provider-signed NEW frame may
+        // confirm its effect even though the action strip is now closed.
+        val settledGate = VerifiedTurnBinding(
+            ExternalAttestationVerifier { it.providerId == "independent-provider" })
+        checkTrue(settledGate.inspect(proof,view,"com.vendor.test",5,visual,1100,false)
+            .status == TurnBindingStatus.WAITING)
+        checkTrue(settledGate.inspect(next,nextView,"com.vendor.test",5,
+            visual.copy(latestFrame=11),1250,false)
+            .status == TurnBindingStatus.CONSISTENT_READ_ONLY)
+        val settledProof=next.copy(proofId="c",frameSequence=12,
+            capturedAtMs=1400,expiresAtMs=2500)
+        val closedView=nextView.copy(frameSequence=12,capturedAtMs=1400,
+            turnVerified=false,exactLabelsVerified=false,legalActions=emptySet())
+        val closed=TurnCycleReport(TurnCyclePhase.CLOSED,1,12,"game advanced")
+        checkTrue(settledGate.inspect(settledProof,closedView,"com.vendor.test",5,
+            closed,1450,false,true).status == TurnBindingStatus.CONSISTENT_READ_ONLY)
+        checkTrue(settledGate.inspect(settledProof,closedView,"com.vendor.test",5,
+            closed,1451,false,false).status == TurnBindingStatus.REJECTED)
         val badGate = VerifiedTurnBinding(ExternalAttestationVerifier { false })
         checkTrue(badGate.inspect(proof,view,"com.vendor.test",5,visual,1100,false).status == TurnBindingStatus.REJECTED)
         val viewport=CaptureViewport(1080,2340,1080,2340,0,0,1080,2340)

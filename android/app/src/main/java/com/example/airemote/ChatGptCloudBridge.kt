@@ -298,8 +298,16 @@ object ChatGptCloudBridge {
             } finally { conn.disconnect() }
         } catch (e: Exception) {
             val kind = ChatGptTransportDiagnostics.problem(e)
-            if (kind == ChatGptCloudProblem.DNS_FAILURE) "DNS_FAILURE"
-            else "HTTPS_${kind.name}"
+            if (kind == ChatGptCloudProblem.DNS_FAILURE) {
+                try {
+                    // Public unauthenticated GET only: no OAuth codes, tokens or
+                    // private identifiers ever sent to a DNS provider.
+                    val reply = ChatGptDohTransport.call("https://$host$path", "GET")
+                    "DNS_OK HTTPS_REACHABLE HTTP_${reply.status} SECURE_DNS_FALLBACK"
+                } catch (_: Exception) {
+                    "DNS_FAILURE SECURE_DNS_FALLBACK_UNAVAILABLE"
+                }
+            } else "HTTPS_${kind.name}"
         }
     }
 
@@ -374,7 +382,16 @@ object ChatGptCloudBridge {
                 trace.bodyStarted = true
                 conn.outputStream.use { trace.phase = ChatGptTransportTrace.Phase.BODY_WRITE; it.write(body) }
                 emit(null)
-            } catch (ex: Exception) { emit(ex); conn.disconnect(); throw ex }
+            } catch (ex: Exception) {
+                emit(ex)
+                conn.disconnect()
+                // postForm may use DoH only for a pre-body UnknownHostException.
+                // Once outputStream was attempted, preserve the DNS cause but
+                // prevent the outer fallback from replaying this one-use grant.
+                if (ex is java.net.UnknownHostException)
+                    throw java.io.IOException("OAuth body transmission started; replay forbidden", ex)
+                throw ex
+            }
         }
         return conn
     }
@@ -394,14 +411,41 @@ object ChatGptCloudBridge {
         transportTraces[c]?.let { it.phase = phase; recordTransport(it.snapshot(error)) }
     }
 
+    @Volatile private var lastModelsUsedDoh = false
+
+    private fun dohJson(url: String, method: String, bearer: String? = null,
+                        contentType: String? = null, body: ByteArray? = null): JSONObject {
+        val result = ChatGptDohTransport.call(url, method, bearer, contentType, body)
+        if (result.status !in 200..299) {
+            throw classifiedHttpError(result.status, result.body, result.requestId)
+        }
+        lastNetworkDiagnostic = "SECURE_DNS_FALLBACK: защищённый DNS использован для ${URL(url).host}"
+        return JSONObject(result.body)
+    }
+
     private fun getJson(url: String, bearer: String? = null): JSONObject {
         val c = request(url, "GET", bearer)
-        try { return JSONObject(readBody(c)) } finally { c.disconnect() }
+        try {
+            return JSONObject(readBody(c))
+        } catch (ex: java.net.UnknownHostException) {
+            // GET is credential-safe to repeat. For model listing, select the
+            // same working DNS path BEFORE attempting inference POST.
+            val json = dohJson(url, "GET", bearer)
+            if (url == "https://api.openai.com/v1/models") lastModelsUsedDoh = true
+            return json
+        } finally { c.disconnect() }
     }
 
     private fun postForm(url: String, values: List<Pair<String, String>>): JSONObject {
         val body = ChatGptAuthProtocol.form(values).toByteArray(Charsets.UTF_8)
-        val c = request(url, "POST", contentType = "application/x-www-form-urlencoded", body = body)
+        // For auth.openai.com, request() completes TLS handshake before writing
+        // anything. UnknownHostException HERE means ZERO grant bytes were sent.
+        // DoH transport then submits the grant ONCE, never replaying a POST.
+        val c = try {
+            request(url, "POST", contentType = "application/x-www-form-urlencoded", body = body)
+        } catch (ex: java.net.UnknownHostException) {
+            return dohJson(url, "POST", contentType = "application/x-www-form-urlencoded", body = body)
+        }
         try { return JSONObject(readBody(c)) } finally { c.disconnect() }
     }
 
@@ -595,6 +639,7 @@ object ChatGptCloudBridge {
                 check(generation == operations.generation()) { "Session changed" }
                 phase = ChatGptCloudStep.MODELS
                 cloudDiagnostic(generation, "CLOUD_MODELS: загрузка моделей")
+                lastModelsUsedDoh = false
                 val slug = chooseModel(getJson("https://api.openai.com/v1/models", bearer))
                 phase = ChatGptCloudStep.RESPONSES
                 cloudDiagnostic(generation, "CLOUD_RESPONSE: ожидается завершённый ответ")
@@ -602,12 +647,21 @@ object ChatGptCloudBridge {
                     prompt))
                 val body = JSONObject().put("model", slug).put("store", false).put("stream", true).put("input", input)
                 check(generation == operations.generation()) { "Session changed" }
-                val c = request("https://api.openai.com/v1/responses", "POST", bearer,
-                    "application/json", body.toString().toByteArray(Charsets.UTF_8))
-                val answer = try {
-                    if (c.responseCode !in 200..299) throw httpError(c)
-                    c.inputStream.bufferedReader(Charsets.UTF_8).use(::readCompletedResponse)
-                } finally { c.disconnect() }
+                val answer = if (lastModelsUsedDoh) {
+                    // DNS chosen by the preceding safe GET, not after a failed POST.
+                    val response = ChatGptDohTransport.call("https://api.openai.com/v1/responses",
+                        "POST", bearer, "application/json", body.toString().toByteArray(Charsets.UTF_8))
+                    if (response.status !in 200..299)
+                        throw classifiedHttpError(response.status, response.body, response.requestId)
+                    java.io.BufferedReader(java.io.StringReader(response.body)).use(::readCompletedResponse)
+                } else {
+                    val c = request("https://api.openai.com/v1/responses", "POST", bearer,
+                        "application/json", body.toString().toByteArray(Charsets.UTF_8))
+                    try {
+                        if (c.responseCode !in 200..299) throw httpError(c)
+                        c.inputStream.bufferedReader(Charsets.UTF_8).use(::readCompletedResponse)
+                    } finally { c.disconnect() }
+                }
                 if (generation == operations.generation()) {
                     cloudDiagnostic(generation, "CLOUD_OK: подтверждён завершённый ответ модели $slug")
                     report("CLOUD_OK · модель $slug · ответ: ${answer.take(1500)}")

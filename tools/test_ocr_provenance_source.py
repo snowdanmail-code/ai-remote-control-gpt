@@ -17,7 +17,13 @@ class OcrFrameBindingSourceTest(unittest.TestCase):
         service = (ROOT / 'CaptureService.kt').read_text()
         for value in ['val captureEpoch: Long', 'val sourcePackage: String?', 'val windowGeneration: Long?']:
             self.assertIn(value, frames)
-        self.assertIn('captureEpoch, origin.observedPackage, origin.windowGeneration)', service)
+        # FrameInfo additionally carries an optional, local card snapshot, so
+        # check the epoch/package/generation order without requiring the old
+        # final-argument syntax.
+        self.assertRegex(service,
+            r'captureEpoch, origin\.observedPackage,\s*origin\.windowGeneration,?')
+        self.assertIn('val playerCardsAtCapture: StableCardReading?', frames)
+        self.assertIn('sameRasterCards', service)
 
     def test_ocr_callback_checks_ticket_not_only_package(self):
         activity = (ROOT / 'MainActivity.kt').read_text()

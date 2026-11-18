@@ -47,7 +47,7 @@ object OnDeviceAutomaticOcr {
                 try {
                     val finishedAt = SystemClock.elapsedRealtime()
                     // All mutations and final provenance checks serialize with STOP.
-                    val published = FrameStore.commitIfCurrent(ticket.captureEpoch, expectedOrigin, {
+                    val published = FrameStore.commitOcrIfCurrent(ticket, finishedAt, {
                         !OperatorStopStore.isStopped(app) && rootStillMatches() &&
                             OcrFrameProvenance.check(ticket, FrameStore.latest,
                                 FrameStore.windowOrigin, FrameStore.captureEpoch,
@@ -56,6 +56,18 @@ object OnDeviceAutomaticOcr {
                     }) {
                         response.fold(onSuccess = { snapshot ->
                             val interpretation = FrameTextEvidence.parse(snapshot.lines)
+                             // If flop opened before asynchronous OCR finishes, discard the hint.
+                             val atCapture = frame.preflopRankHintAtCapture
+                             val currentHint = FrameStore.lastPreflopRankHint
+                             val samePreflop = atCapture?.allowed == true &&
+                                 currentHint?.allowed == true &&
+                                 atCapture.captureEpoch == ticket.captureEpoch &&
+                                 currentHint.captureEpoch == ticket.captureEpoch &&
+                                 currentHint.frameSequence >= atCapture.frameSequence
+                             val ranks = PreflopBottomRankText.parse(snapshot.lines, samePreflop)
+                             FrameStore.lastBottomRankHint =
+                                 if (ranks != null && atCapture != null)
+                                     atCapture.copy(bottomTextRanks=ranks) else null
                             // A stage hint must come from fresh cards in this capture epoch.
                             val cards = FrameStore.confirmedCards
                             val stageHint = if (cards != null &&
@@ -91,10 +103,63 @@ object OnDeviceAutomaticOcr {
                         OnDeviceIncidentRecorder.record(app, IncidentCode.OCR_ENGINE_ERROR,
                             IncidentSeverity.ERROR, ticket.captureEpoch, ticket.frameSequence)
                     }
-                    if (published && FrameStore.lastAutomaticOcr?.agreement?.status ==
-                        OcrDiagnosticStatus.REJECTED) {
+                    if (published && PlayerOcrIncidentPolicy.conflictWorthLogging(
+                            FrameStore.lastAutomaticOcr)) {
                         OnDeviceIncidentRecorder.record(app, IncidentCode.OCR_CONFLICT,
                             IncidentSeverity.WARNING, ticket.captureEpoch, ticket.frameSequence)
+                    }
+                    if (published && response.isSuccess &&
+                        !CaptureObservationMode.isSpectator() &&
+                        ticket.captureEpoch == FrameStore.captureEpoch &&
+                        !OperatorStopStore.isStopped(app)) {
+                        response.getOrNull()?.let { snapshot ->
+                            PlayerVisionJournal.observeOcr(app,
+                                FrameTextEvidence.parse(snapshot.lines), ticket.captureEpoch,
+                                snapshot.lines)
+                        }
+                    }
+                    // Source validation is complete. Only a strictly zero-chip
+                    // CHECK may use the Canvas OCR+colour+cards pilot. No CALL,
+                    // FOLD, BET, RAISE, inferred hand ID or remote GPT command.
+                    if (published && response.isSuccess &&
+                        LocalPlayerCheckPilot.isActive() &&
+                        !CaptureObservationMode.isSpectator() &&
+                        LiveGamePermissionGate.permitted() &&
+                        !OperatorStopStore.isStopped(app) &&
+                        ticket.captureEpoch == FrameStore.captureEpoch) {
+                        val foreground = LiveForegroundProbe.snapshot()
+                        val origin = FrameStore.windowOrigin
+                        if (foreground != null && origin != null &&
+                            foreground.packageName == ticket.sourcePackage &&
+                            foreground.windowGeneration == ticket.windowGeneration &&
+                            origin.windowGeneration == ticket.windowGeneration &&
+                            LiveGamePermissionGate.packageName() == ticket.sourcePackage) {
+                            // Use the card consensus snapshotted alongside
+                            // THIS JPEG, not cards from an arbitrary newer raw
+                            // frame after the asynchronous ML Kit callback.
+                            val visualTicket = LocalPlayerCheckPilot.offerVisualOcr(
+                                frame.playerCardsAtCapture,
+                                FrameStore.lastAutomaticOcr, ticket.captureEpoch,
+                                finishedAt, app.resources.displayMetrics.widthPixels,
+                                app.resources.displayMetrics.heightPixels)
+                            if (visualTicket != null)
+                                LiveForegroundProbe.activeService()?.offerScopedVisualCheck(visualTicket)
+                        }
+                    }
+                    // Bind a real capture frame to its asynchronous OCR result.
+                    // Advisor input is read-only, not a game move or remote call.
+                    if (published && response.isSuccess && !CaptureObservationMode.isSpectator()) {
+                        synchronized(FrameStore) {
+                            val current = FrameStore.latest
+                            val ocr = FrameStore.lastAutomaticOcr
+                            if (current === frame && ocr?.ticket == ticket &&
+                                !OperatorStopStore.isStopped(app)) {
+                                LivePlayerModelContextAssembler.fromFrame(
+                                    frame, ocr, finishedAt, false)?.let { sample ->
+                                    OnDevicePlayerContextBuffer.memory.offer(sample)
+                                }
+                            }
+                        }
                     }
                     if (published) {
                         // Forward the read-only observation to the autonomy coordinator,

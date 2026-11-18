@@ -51,8 +51,15 @@ object OnDeviceIncidentRecorder {
             val file = File(base, name)
             if (!file.exists()) emptySequence() else file.useLines { it.toList().asSequence() }.toList().asSequence()
         }.takeLastLimited(MAX_EXPORT_EVENTS)
-        return IncidentFormat.reportJson(lines, "2.14.25", session)
+        @Suppress("DEPRECATION")
+        val version = appVersion(context)
+        return IncidentFormat.reportJson(lines, version, session)
     }
+
+    @Suppress("DEPRECATION")
+    private fun appVersion(context: Context): String = try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+    } catch (_: Exception) { "unknown" }
 
     private fun <T> Sequence<T>.takeLastLimited(size: Int): List<T> {
         val buffer = ArrayDeque<T>()

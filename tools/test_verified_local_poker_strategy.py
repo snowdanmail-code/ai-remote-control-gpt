@@ -34,7 +34,11 @@ class VerifiedLocalStrategySourceTests(unittest.TestCase):
 
     def test_local_strategy_installed_without_auto_arming(self):
         self.assertIn('ensureLocalStrategy()', self.activity)
-        self.assertIn('strategy = VerifiedLocalPokerStrategy()', self.runtime)
+        self.assertIn('strategy = ValidatedPlayerStrategy(', self.runtime)
+        self.assertIn('local = VerifiedLocalPokerStrategy()', self.runtime)
+        router = (SRC / 'ValidatedPlayerStrategy.kt').read_text()
+        self.assertIn('return localDecision', router)
+        self.assertIn('PlayerModelDecisionGuard.inspect', router)
         self.assertIn('OperatorStopStore.isStopped(context)', self.runtime)
         self.assertIn('LiveGamePermissionGate.permitted()', self.runtime)
 

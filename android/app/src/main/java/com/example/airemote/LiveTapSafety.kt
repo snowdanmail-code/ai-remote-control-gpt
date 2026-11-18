@@ -50,7 +50,7 @@ object LiveTapSafety {
             return TapSafetyResult.INVALID_GEOMETRY
         // Never touch the Android status bar, camera cutout or navigation gestures.
         if (tap.top < (tap.screenHeight * 0.07).toInt() ||
-            tap.bottom > (tap.screenHeight * 0.94).toInt() ||
+            tap.bottom > (tap.screenHeight * 0.975).toInt() ||
             tap.left < (tap.screenWidth * 0.015).toInt() ||
             tap.right > (tap.screenWidth * 0.985).toInt())
             return TapSafetyResult.SYSTEM_UI_RISK
@@ -63,7 +63,10 @@ object LiveTapSafety {
         return when (action) {
             LiveAction.FOLD -> normalized in setOf("FOLD", "СБРОС", "ПАС")
             LiveAction.CHECK -> normalized in setOf("CHECK", "ЧЕК", "ПРОПУСТИТЬ")
-            LiveAction.CALL -> normalized in setOf("CALL", "КОЛЛ", "УРАВНЯТЬ")
+            LiveAction.CALL -> normalized in setOf("CALL", "КОЛЛ", "УРАВНЯТЬ") ||
+                (Regex("[0-9][.,][0-9]").containsMatchIn(label) &&
+                    VirtualChipDisplayParser.parseLabel(label)
+                        ?.let { it.kind == NumericCandidateKind.CALL_AMOUNT } == true)
             LiveAction.BET -> normalized in setOf("BET", "СТАВКА", "ПОСТАВИТЬ")
             LiveAction.RAISE -> normalized in setOf("RAISE", "РЕЙЗ", "ПОВЫСИТЬ")
         }

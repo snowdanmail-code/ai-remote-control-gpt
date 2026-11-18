@@ -6,19 +6,67 @@ data class FrameInfo(val jpeg: ByteArray, val seq: Long, val width: Int,
                      val capturedAtMs: Long,
                      val captureEpoch: Long = -1L,
                      val sourcePackage: String? = null,
-                     val windowGeneration: Long? = null)
+                     val windowGeneration: Long? = null,
+                     /** In-memory player cards from the matching JPEG capture.
+                      * Never a table/hand identity or gesture authorization. */
+                     val playerCardsAtCapture: StableCardReading? = null,
+                     val preflopRankHintAtCapture: PreflopRankHintSnapshot? = null)
 
 object CaptureOptions {
     /** On-device capture presets: 960, 1280, 1536px. */
-    @Volatile var profile: Int = 0
+    @Volatile var profile: Int = 0 // unchanged seated-player default
+    @Volatile var spectatorProfile: Int = 2 // independent high-detail observer preset
     val longEdges = intArrayOf(960, 1280, 1536)
-    val qualities = intArrayOf(75, 88, 75)
+    val qualities = intArrayOf(75, 88, 88)
+}
+
+/**
+ * A JPEG backing a live ML Kit job must remain current long enough to finish.
+ * Raw ImageReader callbacks and card/turn inspection continue independently.
+ * OCR is bounded to 1500 ms; replacement JPEGs wait at least 1800 ms.
+ */
+object CapturePreviewCadence {
+    const val MIN_JPEG_REPLACEMENT_MS = 1_800L
+
+    fun mayReplace(nowMs: Long, lastEncodeMs: Long, profileChanged: Boolean): Boolean =
+        profileChanged || lastEncodeMs <= 0L ||
+            (nowMs >= lastEncodeMs && nowMs - lastEncodeMs >= MIN_JPEG_REPLACEMENT_MS)
 }
 
 object FrameStore {
     private val epochCounter = java.util.concurrent.atomic.AtomicLong(0L)
     val captureEpoch: Long get() = epochCounter.get()
     @Volatile var latest: FrameInfo? = null
+    // Historical operator preview only. NEVER consumed by OCR, strategy or gestures.
+    private var operatorPreview: FrameInfo? = null
+    @Volatile var receivedImages: Long = 0L
+
+    @Synchronized fun noteImage(expectedEpoch: Long) {
+        if (isCapturing && captureEpoch == expectedEpoch) receivedImages++
+    }
+
+    @Synchronized fun rememberOperatorPreview(frame: FrameInfo): Boolean {
+        if (!isCapturing || frame.captureEpoch != captureEpoch || latest !== frame) return false
+        operatorPreview = frame
+        return true
+    }
+
+    @Synchronized fun previewForOperator(nowMs: Long, stopped: Boolean): FrameInfo? {
+        val frame = operatorPreview ?: return null
+        return frame.takeIf { !stopped && isCapturing && it.captureEpoch == captureEpoch &&
+            nowMs >= it.capturedAtMs && nowMs - it.capturedAtMs <= 60_000L }
+    }
+
+    /** OCR is tied to the exact JPEG and window generation, not the allocation
+     * identity of a root assessment refreshed by the next raw image callback. */
+    @Synchronized fun commitOcrIfCurrent(
+        ticket: OcrFrameTicket, nowMs: Long, allowed: () -> Boolean, publish: () -> Unit
+    ): Boolean {
+        if (!isCapturing || OcrFrameProvenance.check(ticket, latest, windowOrigin,
+                captureEpoch, nowMs, false) != OcrFrameCheck.VALID_DIAGNOSTIC || !allowed()) return false
+        publish()
+        return true
+    }
     @Volatile var lastAutomaticOcr: AutomaticOcrEvidence? = null
     @Volatile var lastSeatVisual: SeatVisualReport? = null
     @Volatile var lastRealFrameRegions: RegionObservationReport? = null
@@ -30,7 +78,14 @@ object FrameStore {
     @Volatile var captureError: String = ""
     @Volatile var localFrameHealth: OnDeviceFrameHealth? = null
     @Volatile var lastCards: CardVisionSignal? = null
+    @Volatile var lastPreflopRankHint: PreflopRankHintSnapshot? = null
+    @Volatile var lastBottomRankHint: PreflopRankHintSnapshot? = null
     val cardConsensus = CardReadingConsistency()
+    /** Strictly read-only: separate from cardConsensus and all hero observations. */
+    val spectatorConsensus = SpectatorBoardConsensus()
+    @Volatile var spectatorBoard: StableSpectatorBoard? = null
+    @Volatile var spectatorBoardForPreview: StableSpectatorBoard? = null
+    @Volatile var spectatorNumericHint: SpectatorNumericHint? = null
     @Volatile var windowOrigin: WindowOriginAssessment? = null
     // Read-only display diagnostics; never a permission to send a tap.
     @Volatile var lastTurnVisual: TurnVisualSignal? = null
@@ -51,9 +106,14 @@ object FrameStore {
         OnDeviceSeatVisualDiagnostics.reset()
         localFrameHealth = null
         lastCards = null
+        lastPreflopRankHint = null
+        lastBottomRankHint = null
         confirmedCards = null
         lastConfirmedForPreview = null
         cardConsensus.reset()
+        spectatorBoard = null
+        spectatorNumericHint = null
+        spectatorConsensus.reset()
         lastTurnVisual = null
         confirmedTurnVisual = null
         turnConsensus.reset()
@@ -101,9 +161,14 @@ object FrameStore {
         OnDeviceSeatVisualDiagnostics.reset()
         localFrameHealth = null
         lastCards = null
+        lastPreflopRankHint = null
+        lastBottomRankHint = null
         confirmedCards = null
         lastConfirmedForPreview = null
         cardConsensus.reset()
+        spectatorBoard = null
+        spectatorNumericHint = null
+        spectatorConsensus.reset()
         lastTurnVisual = null
         confirmedTurnVisual = null
         turnConsensus.reset()
@@ -127,7 +192,11 @@ object FrameStore {
     }
 
     @Synchronized fun clear() {
+        OnDevicePlayerContextBuffer.memory.clear()
         epochCounter.incrementAndGet()
+        operatorPreview = null
+        spectatorBoardForPreview = null
+        receivedImages = 0L
         invalidateVisualEvidence()
         isCapturing = false
     }

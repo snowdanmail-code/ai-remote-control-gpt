@@ -25,6 +25,9 @@ class MainActivity : Activity() {
     private val notificationRequest = 502
     private val incidentExportRequest = 503
     private val layoutImportRequest = 504
+    private val spectatorExportRequest = 505
+    private val engineeringExportRequest = 506
+    private val playerEngineeringExportRequest = 507
     private lateinit var cloudStatus: TextView
     private val cloudControls = mutableListOf<Button>()
     private val cloudHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -35,6 +38,15 @@ class MainActivity : Activity() {
             cloudControls.forEach { it.isEnabled = !ChatGptCloudBridge.isBusy() }
             if (::cloudStatus.isInitialized && (authorizing || wasAuthorizing))
                 cloudStatus.text = ChatGptCloudBridge.statusDetail(this@MainActivity)
+            if (::status.isInitialized && status.text.toString().startsWith("Захват запускается")) {
+                status.text = if (FrameStore.isCapturing)
+                    "Захват активен. Изображений: ${FrameStore.receivedImages}. ${FrameStore.captureError}"
+                else if (FrameStore.captureError.isNotBlank())
+                    "Захват не запущен: ${FrameStore.captureError}"
+                else status.text
+            }
+            if (::preview.isInitialized && OperatorStopStore.isStopped(this@MainActivity))
+                preview.setImageDrawable(null)
             wasAuthorizing = authorizing
             cloudHandler.postDelayed(this, 400)
         }
@@ -42,6 +54,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var result: TextView
     private lateinit var preview: ImageView
+    private lateinit var qualitySpinner: Spinner
     private lateinit var arm: Button
     private lateinit var handStateText: TextView
 
@@ -109,6 +122,7 @@ class MainActivity : Activity() {
         val primaryActions = setOf(
             "ВОЙТИ ЧЕРЕЗ CHATGPT",
             "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ",
+            "АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ",
             "НАЧАТЬ ЗАХВАТ ЭКРАНА",
             "ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)"
         )
@@ -119,12 +133,13 @@ class MainActivity : Activity() {
         fun button(text: String, action: () -> Unit) {
             val target = if (text in primaryActions) content else advanced
             val control = Button(this).apply { this.text = text; setOnClickListener { action() } }
-            if (text in setOf("ВОЙТИ ЧЕРЕЗ CHATGPT", "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ", "СПРОСИТЬ ОБЛАЧНОГО ИИ — ТЕСТ")) cloudControls.add(control)
+            if (text in setOf("ВОЙТИ ЧЕРЕЗ CHATGPT", "ПРОВЕРИТЬ ПОДКЛЮЧЕНИЕ ОБЛАЧНОГО ИИ", "СПРОСИТЬ ОБЛАЧНОГО ИИ — ТЕСТ",
+                "АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ")) cloudControls.add(control)
             target.addView(control)
         }
         advanced.addView(arm, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        label("AI Remote Control v2.14.41 — Android + ChatGPT")
+        label("AI Remote Control v${packageManager.getPackageInfo(packageName, 0).versionName} — Android + ChatGPT")
         label("Захват и OCR локально. Windows-сервер и его настройки удалены. " +
             "Локальная стратегия сохранена. Подключение ChatGPT проверяется через защищённую вкладку OpenAI. " +
             "Исполнитель Android-касаний доступен после разрешения оператора, проверки игрового состояния и кнопок.")
@@ -155,6 +170,26 @@ class MainActivity : Activity() {
                 runOnUiThread { cloudStatus.text = message }
             }
         }
+        button("АНАЛИЗ ИГРЫ В CHATGPT — ТЕСТ") {
+            // Only the operator can request the latest sanitized context.
+            // No live control or automatic inference uses this answer.
+            if (OperatorStopStore.isStopped(this@MainActivity)) {
+                cloudStatus.text = "STOP: сначала разрешите новую сессию"
+            } else if (!ChatGptCloudBridge.connected(this@MainActivity)) {
+                cloudStatus.text = "Нет проверенного доступа к модели; проверьте ChatGPT."
+            } else {
+                val packet = OnDevicePlayerContextBuffer.memory.latest()
+                val prompt = packet?.advisorPrompt(SystemClock.elapsedRealtime())
+                if (prompt == null || prompt.length > 1600) {
+                    cloudStatus.text = "Нет недавнего кадра. Включите захват и откройте стол."
+                } else {
+                    cloudStatus.text = "Передаю в ИИ структурированный контекст без скриншота…"
+                    ChatGptCloudBridge.askPrompt(this@MainActivity, prompt) { message ->
+                        runOnUiThread { cloudStatus.text = message }
+                    }
+                }
+            }
+        }
         label("Тест общения: введи вопрос ИИ. Не отправляй пароли, личные данные или имена игроков.")
         val cloudQuestion = EditText(this).apply {
             hint = "Например: как оценить pot odds в Texas Hold'em?"
@@ -181,6 +216,14 @@ class MainActivity : Activity() {
             "Реальные касания в 1win не разрешаются результатом тестового запроса.")
         status = TextView(this).apply { textSize = 16f; text = "Захват выключен"; content.addView(this) }
         handStateText = TextView(this).apply { textSize = 15f; advanced.addView(this) }
+        label("Режим по умолчанию — ИГРОК. Наблюдатель считывает только общие " +
+            "карты и никогда не включает автоматические игровые касания.")
+        button("ВЫБРАТЬ РЕЖИМ НАБЛЮДАТЕЛЯ (БЕЗ КАСАНИЙ)") {
+            selectCaptureRole(CaptureRole.SPECTATOR)
+        }
+        button("ВЕРНУТЬ РЕЖИМ ИГРОКА (БЕЗ ИЗМЕНЕНИЯ СТРАТЕГИИ)") {
+            selectCaptureRole(CaptureRole.PLAYER)
+        }
         refreshHandState()
         label("Фоновое OCR обрабатывает кадры захвата локально. Данные диагностики не подтверждают стол/раздачу и не разрешают касаний.")
         label("Калибровка: только из вручную размеченного кадра оригинального приложения. " +
@@ -215,9 +258,22 @@ class MainActivity : Activity() {
                 ?: "Нет двух подтверждённых кадров для анализа границ хода."
         }
         button("ПРОВЕРКА РЕАЛЬНЫХ КНОПОК (ДВА КАДРА)") {
-            status.text = FrameStore.lastActionStrip?.summary()
-                ?: "Нужны вручную измеренные три области HERO_FOLD, HERO_CHECK_CALL, HERO_BET_RAISE, " +
-                    "свежее OCR и реальная активная панель. Это не разрешение на касание."
+            val root = LiveForegroundProbe.snapshot()
+            val seen = OnDevicePlayerNativeControls.snapshot()
+            val native = if (root != null && seen != null &&
+                PlayerNativeControlEvidence.verify(seen, root.packageName,
+                    root.windowGeneration, SystemClock.elapsedRealtime(),
+                    resources.displayMetrics.widthPixels,
+                    resources.displayMetrics.heightPixels))
+                "Android видит точные элементы: " +
+                    seen.buttons.map { it.action.name }.joinToString(", ") +
+                    ". Это независимые UI-кнопки, но ещё НЕ подтверждение раздачи."
+            else "Android не дал пригодных подтверждённых кнопок из дерева UI. " +
+                "Возможно, интерфейс нарисован Canvas/WebGL."
+            status.text = native + "\\n" +
+                (FrameStore.lastActionStrip?.summary()
+                    ?: "Согласованных OCR-кнопок пока нет.") +
+                "\\nНикаких касаний без подтверждённого хода."
         }
         button("ПОКАЗАТЬ ФОНОВОЕ OCR") {
             status.text = FrameStore.lastAutomaticOcr?.summary()
@@ -225,9 +281,89 @@ class MainActivity : Activity() {
                     "Последняя историческая диагностика, НЕ разрешение на действия: " +
                     OnDeviceAutonomousRuntime.diagnostic()
         }
-        label("AUTO: можно разрешить транспорт касаний для виртуальных фишек. " +
-            "Для реального действия всё равно обязательны достоверные стол, раздача, " +
-            "свой ход и кнопка. Неизвестные данные не дают права нажимать.")
+        button("ИИ-ИГРОК — ДИАГНОСТИКА ГОТОВНОСТИ") {
+            if (CaptureObservationMode.isSpectator()) {
+                status.text = "Выбран наблюдатель. Для проверки игрока переключите режим " +
+                    "только после STOP и остановки захвата."
+            } else {
+                refreshHandState()
+                status.text = PlayerEngineeringReport.brief(this@MainActivity) +
+                    "\\n" + PlayerVisionJournal.summary(this@MainActivity)
+            }
+        }
+        button("ИИ-ИГРОК — ПОКАЗАТЬ ГОТОВУЮ КОМБИНАЦИЮ") {
+            val now = SystemClock.elapsedRealtime()
+            val previewCards = FrameStore.cardConsensus.current(now)
+            val evaluation = if (CaptureObservationMode.isSpectator()) null
+                else PlayerHandEvaluator.inspect(previewCards)
+            status.text = if (evaluation == null) {
+                "Нет свежей, дважды согласованной комбинации собственных карт и стола."
+            } else {
+                "Локальная оценка: ${evaluation.stage}; собственные карты " +
+                    "${evaluation.hole.joinToString(" ")}; стол " +
+                    "${evaluation.board.joinToString(" ")}; " +
+                    "готовая комбинация: ${evaluation.bestMadeHand ?: "до флопа не вычисляется"}. " +
+                    "Это НЕ equity и НЕ разрешение на игровые действия."
+            }
+        }
+        button("ИИ-ИГРОК — ЭКСПОРТ ДИАГНОСТИКИ (JSON)") {
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+                putExtra(Intent.EXTRA_TITLE, "T042-player-readiness.json")
+            }
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, playerEngineeringExportRequest)
+        }
+        button("НАБЛЮДАТЕЛЬ — СТАТИСТИКА РАСПОЗНАВАНИЯ") {
+            if (!CaptureObservationMode.isSpectator()) {
+                status.text = "Статистика только для режима наблюдателя. Режим игрока не изменён."
+            } else {
+                refreshHandState()
+                status.text = SpectatorLearningJournal.summary(this@MainActivity) +
+                    "\nОблачный лимит: 10% короткого периода и 10% недели. " +
+                    "Автооблако выключено, пока нет подтверждённой телеметрии лимитов. " +
+                    "Платные кредиты не используются."
+            }
+        }
+        button("ИНЖЕНЕРНЫЙ АНАЛИЗ — КАЧЕСТВО И ПРИЧИНЫ ОШИБОК") {
+            status.text = SpectatorEngineeringReport.brief(this@MainActivity)
+        }
+        button("ЭКСПОРТ ПРОФЕССИОНАЛЬНОГО ОТЧЁТА T042 (JSON)") {
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+                putExtra(Intent.EXTRA_TITLE, "T042-engineering-report.json")
+            }
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, engineeringExportRequest)
+        }
+        label("Отчёт содержит метрики распознавания, гипотезы причин ошибок, приоритеты P1/P2, " +
+            "план проверок, события и идентификатор версии. Без кадров, OCR-текста и имён игроков. " +
+            "Автоматической отправки данных пока нет.")
+        button("НАБЛЮДАТЕЛЬ — ПОДТВЕРДИТЬ ИЛИ ИСПРАВИТЬ КАРТЫ") {
+            reviewSpectatorExample()
+        }
+        button("НАБЛЮДАТЕЛЬ — РАЗМЕТИТЬ НЕРАСПОЗНАННЫЕ КАРТЫ") {
+            labelUnrecognizedSpectatorBoard()
+        }
+        button("НАБЛЮДАТЕЛЬ — ЭКСПОРТ ПРИМЕРОВ JSON") {
+            if (!CaptureObservationMode.isSpectator()) {
+                status.text = "Сначала выберите режим наблюдателя при остановленном захвате."
+            } else {
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_TITLE, "t042-spectator-observations.json")
+                }
+                @Suppress("DEPRECATION")
+                startActivityForResult(intent, spectatorExportRequest)
+            }
+        }
+        label("AUTO: режим виртуальных фишек. Без внешнего подтверждения раздачи доступен только " +
+            "ограниченный бесплатный CHECK при точной кнопке Android и свежих картах. " +
+            "CALL, FOLD, BET, RAISE НЕ выполняются. " +
+            "Полный ИИ-игрок потребует подтверждённого источника игровых данных.")
         button("РАЗРЕШИТЬ КАСАНИЯ ДЛЯ ПОДТВЕРЖДЁННОГО ПРИЛОЖЕНИЯ") {
             requestAutomationAuthorization()
         }
@@ -248,12 +384,19 @@ class MainActivity : Activity() {
         button("ПРОВЕРИТЬ ГОТОВНОСТЬ АВТО-РЕЖИМА") {
             val state = OnDeviceAutonomousRuntime.status()
             status.text = "AUTO: ${state.state} — ${state.explanation}. " +
+                "Реальные пробные CHECK: ${LocalPlayerCheckPilot.status().checkCount}; " +
+                "состояние: ${LocalPlayerCheckPilot.status().state}. " +
                 "Готовность: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
         }
         button("ВКЛЮЧИТЬ АВТОНОМНОГО ИИ-ИГРОКА (ПРОВЕРЕННЫЕ ХОДЫ)") {
+            if (CaptureObservationMode.isSpectator()) {
+                status.text = "Режим НАБЛЮДАТЕЛЯ: AUTO заблокирован; только чтение карт."
+                return@button
+            }
             val enabled = OnDeviceAutonomousRuntime.startIfAuthorized(this@MainActivity)
-            status.text = if (enabled) "AUTO включён, ждёт подтверждённый ход и точные кнопки. STOP доступен всегда."
-                else "AUTO заблокирован: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
+            status.text = if (enabled) {
+                OnDeviceAutonomousRuntime.status().explanation + " STOP доступен всегда."
+            } else "AUTO заблокирован: ${OnDeviceAutonomousRuntime.readiness(this@MainActivity)}"
         }
         label("Диагностика ошибок: локальный журнал не содержит скриншотов, OCR-текст, имена игроков или ключи API.")
         button("ПОКАЗАТЬ СОСТОЯНИЕ ЖУРНАЛА") {
@@ -277,20 +420,26 @@ class MainActivity : Activity() {
         button("ПРОВЕРИТЬ КАЧЕСТВО КАДРА") { inspectFrameOnPhone() }
         button("РАСПОЗНАТЬ ТЕКСТ НА КАДРЕ") { recognizeTextOnPhone() }
         label("Качество изображения:")
-        Spinner(this).apply {
+        qualitySpinner = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
                 arrayOf("Баланс · 960px", "Детали · 1280px", "Точное · 1536px"))
-            setSelection(0)
+            setSelection((if (CaptureObservationMode.isSpectator())
+                CaptureOptions.spectatorProfile else CaptureOptions.profile).coerceIn(0, 2))
             onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?,
-                                            position: Int, id: Long) { CaptureOptions.profile = position }
+                                            position: Int, id: Long) {
+                    if (CaptureObservationMode.isSpectator()) CaptureOptions.spectatorProfile = position
+                    else CaptureOptions.profile = position
+                }
             }
             advanced.addView(this)
         }
         preview = ImageView(this).apply {
             adjustViewBounds = true
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 420)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                if (CaptureObservationMode.isSpectator())
+                    (resources.displayMetrics.heightPixels * 0.65f).toInt() else 420)
             scaleType = ImageView.ScaleType.FIT_CENTER
             advanced.addView(this)
         }
@@ -316,6 +465,10 @@ class MainActivity : Activity() {
      * A virtual-chip label is not itself evidence of platform permission.
      */
     private fun requestAutomationAuthorization() {
+        if (CaptureObservationMode.isSpectator()) {
+            status.text = "Наблюдатель: запрет игровых касаний. Перейдите в режим игрока только после STOP."
+            return
+        }
         val seen = LiveForegroundProbe.lastExternalPackage()
         val target = seen?.packageName ?: "не определён"
         val message = "Последнее наблюдаемое приложение: $target.\n\n" +
@@ -360,12 +513,116 @@ class MainActivity : Activity() {
             }.show()
     }
 
+    /** Human feedback is the ONLY source of ground-truth labels. */
+    private fun labelUnrecognizedSpectatorBoard() {
+        if (!CaptureObservationMode.isSpectator()) {
+            status.text = "Ручная разметка доступна только в режиме наблюдателя."
+            return
+        }
+        val now = SystemClock.elapsedRealtime()
+        val frame = FrameStore.previewForOperator(now, OperatorStopStore.isStopped(this))
+        if (frame == null || now < frame.capturedAtMs ||
+            now - frame.capturedAtMs > 60_000L) {
+            status.text = "Нет доступного кадра за последнюю минуту. " +
+                "Вернитесь к столу, дождитесь общих карт, потом откройте просмотр."
+            return
+        }
+        val entered = EditText(this).apply {
+            hint = "Пример: Ah Td 3c"
+            setSingleLine(true)
+            filters = arrayOf(android.text.InputFilter.LengthFilter(64))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Разметить общие карты последнего кадра")
+            .setMessage("Введите только карты, которые вы действительно видели на столе: " +
+                "3, 4 или 5. В формате Ah Td 3c. " +
+                "Изображение не сохраняется, стратегия игрока не меняется.")
+            .setView(entered)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить пример") { _, _ ->
+                val labels = SpectatorBoardLabels.parse(entered.text.toString())
+                status.text = if (labels == null) {
+                    "Неверный формат. Нужны 3–5 разных карт: например, Ah Td 3c."
+                } else if (SpectatorLearningJournal.operatorLabelUnrecognized(this, frame, labels)) {
+                    "Ручная разметка неопознанного кадра сохранена локально. " +
+                        "Распознаватель пока не изменён."
+                } else "Не удалось сохранить разметку: проверьте режим и захват."
+            }.show()
+    }
+
+    private fun reviewSpectatorExample() {
+        if (!CaptureObservationMode.isSpectator()) {
+            status.text = "Подтверждение открытых карт доступно только наблюдателю."
+            return
+        }
+        val sample = FrameStore.spectatorBoardForPreview
+        val now = SystemClock.elapsedRealtime()
+        if (sample == null || sample.captureEpoch != FrameStore.captureEpoch ||
+            now < sample.capturedAtMs || now - sample.capturedAtMs > 60_000L) {
+            status.text = "Нет свежего исторического результата за последнюю минуту. " +
+                "Откройте стол и дождитесь флопа, затем вернитесь сюда."
+            return
+        }
+        val observed = sample.cards.joinToString(" ")
+        AlertDialog.Builder(this)
+            .setTitle("Проверка ОБЩИХ карт наблюдателем")
+            .setMessage("Последние предполагаемые карты: $observed. " +
+                "Сравните с тем, что действительно было открыто на столе. " +
+                "Совпадение двух кадров ещё не доказывает правильность.")
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Да, верно") { _, _ ->
+                val ok = SpectatorLearningJournal.operatorFeedback(this, sample, sample.cards)
+                status.text = if (ok) "Подтверждение сохранено в локальном журнале." +
+                    " Алгоритм игрока не изменён."
+                else "Не удалось сохранить подтверждение. Проверьте режим и журнал."
+            }
+            .setNeutralButton("Исправить") { _, _ ->
+                val entered = EditText(this).apply {
+                    setSingleLine(true)
+                    hint = "Например: Ah Td 3c"
+                    setText(observed)
+                    filters = arrayOf(android.text.InputFilter.LengthFilter(64))
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("Ввести правильные общие карты")
+                    .setMessage("Используйте Ah Td 3c, например. " +
+                        "Число карт должно совпадать с исходным результатом: 3, 4 или 5. " +
+                        "Исправление хранится локально и не меняет алгоритм.")
+                    .setView(entered)
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Сохранить исправление") { _, _ ->
+                        val corrected = SpectatorBoardLabels.parse(entered.text.toString())
+                        status.text = if (corrected == null ||
+                            corrected.size != sample.cards.size) {
+                            "Не сохранено: формат Ah Td 3c, без повторов, правильное число карт."
+                        } else if (SpectatorLearningJournal.operatorFeedback(this, sample, corrected)) {
+                            "Исправленный пример сохранён только для последующего анализа."
+                        } else "Ошибка сохранения исправленного примера."
+                    }.show()
+            }.show()
+    }
+
     private fun updateArmStatus() {
         if (::arm.isInitialized) arm.isEnabled = OperatorStopStore.isStopped(this)
     }
 
     private fun refreshHandState() {
         if (!::handStateText.isInitialized) return
+        if (CaptureObservationMode.isSpectator()) {
+            val live = FrameStore.spectatorBoard
+            val observed = live ?: FrameStore.spectatorBoardForPreview
+            handStateText.text = if (observed == null) {
+                "РЕЖИМ НАБЛЮДАТЕЛЯ: ждём общие карты флопа, тёрна или ривера. " +
+                    "Две карты игрока не требуются. Игровые касания отключены."
+            } else {
+                "РЕЖИМ НАБЛЮДАТЕЛЯ: " +
+                    (if (live == null) "последние исторические карты: " else "общие карты: ") +
+                    observed.cards.joinToString(" ") +
+                    ". Подтверждено двумя кадрами; не подтверждает раздачу или игру. " +
+                    "Никакие игровые касания не разрешены."
+            }
+            return
+        }
         val now = SystemClock.elapsedRealtime()
         val state = OnDeviceHandState.snapshot(now)
         val cards = FrameStore.cardConsensus.current(now)
@@ -432,6 +689,42 @@ class MainActivity : Activity() {
             "Внешние нажатия заблокированы до проверки условий."
     }
 
+    private fun selectCaptureRole(target: CaptureRole) {
+        if (FrameStore.isCapturing || !OnDeviceCaptureLifecycle.gate.mayRequestNewCapture()) {
+            status.text = "Сначала остановите захват экрана. Режим нельзя менять посреди сеанса."
+            return
+        }
+        // Explicit transition: revoke any existing action permission BEFORE switching.
+        // The operator must separately ARM the next read-only capture.
+        OperatorStopStore.stop(this)
+        OnDeviceAutonomousRuntime.stop("Смена роли захвата: STOP")
+        OnDeviceLiveActionControl.stop()
+        LiveGamePermissionGate.revoke()
+        FrameStore.clear()
+        ocrConsensus.reset()
+        identityGuard.reset()
+        OnDeviceHandState.reset("Смена режима захвата")
+        OnDeviceStageBridge.reset("Смена режима захвата")
+        val selected = CaptureObservationMode.select(
+            target, FrameStore.isCapturing, OperatorStopStore.isStopped(this))
+        updateArmStatus()
+        refreshHandState()
+        qualitySpinner.setSelection((if (CaptureObservationMode.isSpectator())
+            CaptureOptions.spectatorProfile else CaptureOptions.profile).coerceIn(0, 2))
+        preview.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            if (CaptureObservationMode.isSpectator())
+                (resources.displayMetrics.heightPixels * 0.65f).toInt() else 420)
+        preview.setImageDrawable(null)
+        result.text = ""
+        status.text = if (selected) {
+            if (target == CaptureRole.SPECTATOR)
+                "НАБЛЮДАТЕЛЬ выбран. Только общие карты, без касаний. " +
+                    "Для захвата нажмите «Разрешить новую сессию», затем «Начать захват экрана»."
+            else "ИГРОК выбран: исходный распознаватель и стратегия сохранены. " +
+                "STOP активен, для новой сессии потребуется отдельное разрешение."
+        } else "Не удалось сменить режим: STOP или захват активен."
+    }
+
     private fun requestCapture() {
         if (!OnDeviceCaptureLifecycle.gate.mayRequestNewCapture()) {
             status.text = "Новый захват недоступен: завершите предыдущую сессию"
@@ -478,6 +771,55 @@ class MainActivity : Activity() {
                 } catch (_: Exception) {
                     OnDeviceRealFrameRegions.clear()
                     status.text = "Файл калибровки отклонён. Проверьте схему, пакет и координаты."
+                }
+            }
+            return
+        }
+        if (requestCode == playerEngineeringExportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val payload = PlayerEngineeringReport.export(this)
+                        .toByteArray(Charsets.UTF_8)
+                    contentResolver.openOutputStream(requireNotNull(data.data), "w")
+                        ?.use { it.write(payload) }
+                        ?: error("Не удалось открыть файл")
+                    status.text = "Отчёт ИИ-игрока сохранён (${payload.size} байт). " +
+                        "Он содержит причины блокировки и статистику, но не скриншоты."
+                } catch (_: Exception) {
+                    status.text = "Ошибка экспорта отчёта ИИ-игрока. Данные приложения не удалены."
+                }
+            }
+            return
+        }
+        if (requestCode == engineeringExportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val bytes = SpectatorEngineeringReport.export(this)
+                        .toByteArray(Charsets.UTF_8)
+                    contentResolver.openOutputStream(requireNotNull(data.data), "w")
+                        ?.use { it.write(bytes) }
+                        ?: error("Документ недоступен")
+                    status.text = "Инженерный пакет T042 сохранён (${bytes.size} байт). " +
+                        "Можно передать JSON для анализа проблем и задач GitHub."
+                } catch (_: Exception) {
+                    status.text = "Не удалось экспортировать инженерный отчёт. " +
+                        "Журналы на устройстве сохранены."
+                }
+            }
+            return
+        }
+        if (requestCode == spectatorExportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val payload = SpectatorLearningJournal.exportJson(this)
+                        .toByteArray(Charsets.UTF_8)
+                    contentResolver.openOutputStream(requireNotNull(data.data), "w")
+                        ?.use { it.write(payload) }
+                        ?: error("Файл для экспорта не открылся")
+                    status.text = "Примеры наблюдателя сохранены (${payload.size} байт). " +
+                        "Можно прикрепить JSON в чат для анализа ошибок распознавания."
+                } catch (_: Exception) {
+                    status.text = "Не удалось экспортировать журнал. Локальные данные сохранены."
                 }
             }
             return
@@ -561,11 +903,33 @@ class MainActivity : Activity() {
 
     private fun refreshFrame() {
         refreshHandState()
-        val frame = FrameStore.latest
-        if (frame == null) { status.text = "Нет кадра. ${FrameStore.captureError}"; return }
+        val now = SystemClock.elapsedRealtime()
+        val frame = FrameStore.previewForOperator(now, OperatorStopStore.isStopped(this))
+        if (frame == null) {
+            preview.setImageDrawable(null)
+            val reason = when {
+                OperatorStopStore.isStopped(this) -> "STOP включён: просмотр скрыт"
+                !FrameStore.isCapturing -> "Служба захвата остановлена"
+                FrameStore.receivedImages == 0L ->
+                    "MediaProjection пока не передал изображения"
+                FrameStore.latest == null ->
+                    "Изображения поступают, но текущий JPEG отклонён проверкой окна/поверхности"
+                else -> "Последний JPEG недоступен для просмотра или устарел"
+            }
+            status.text = "Нет снимка. $reason. Захват: ${FrameStore.isCapturing}; " +
+                "получено изображений: ${FrameStore.receivedImages}; " +
+                "текущий JPEG: ${FrameStore.latest?.seq ?: "нет"}. ${FrameStore.captureError}"
+            return
+        }
         preview.setImageBitmap(BitmapFactory.decodeByteArray(frame.jpeg, 0, frame.jpeg.size))
-        val age = SystemClock.elapsedRealtime() - frame.capturedAtMs
-        status.text = "Внешний кадр (приложение-источник не подтверждено). JPEG ${frame.jpeg.size / 1024} КиБ · ${frame.width}×${frame.height} · возраст ${age} мс"
+        val age = now - frame.capturedAtMs
+        status.text = "Последний снимок — ТОЛЬКО ПРОСМОТР, не текущее игровое состояние. " +
+            (if (CaptureObservationMode.isSpectator())
+                "НАБЛЮДАТЕЛЬ: JPEG просмотра ${frame.width}×${frame.height}; " +
+                    "открытые общие карты читаются отдельно из полного экрана. "
+            else "ИГРОК: ML Kit OCR получает JPEG ${frame.width}×${frame.height}; " +
+                    "карты читаются прежним алгоритмом 540×1170. ") +
+            "JPEG ${frame.jpeg.size / 1024} КиБ · возраст ${age} мс"
     }
 
     private fun inspectFrameOnPhone() {

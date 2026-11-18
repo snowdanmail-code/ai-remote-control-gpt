@@ -6,6 +6,11 @@ object AuthenticatedActionEffectsScenarios {
         fun ok(c:Boolean) {check(c);n++}
         val before=VerifiedLiveView(1,10,1000,"hand","baseline",true,true,true,true,setOf(LiveAction.CHECK))
         val cmd=LiveCommand("cmd-1","hand",LiveAction.CHECK,1,10,"baseline",1010,1000)
+        ok(!OnDeviceEffectAuthority.configured())
+        OnDeviceEffectAuthority.install(IndependentEffectVerifier { it.providerId=="trusted-test" })
+        ok(OnDeviceEffectAuthority.configured())
+        OnDeviceEffectAuthority.clear()
+        ok(!OnDeviceEffectAuthority.configured())
         val provider=AuthenticatedActionEffects(IndependentEffectVerifier { it.providerId=="trusted-test" })
         fun receipt(seq:Long=11, id:String="p1", at:Long=1200) = PostActionReceipt(
             "trusted-test",id,"cmd-1","hand",LiveAction.CHECK,1,2,seq,at,"settled-state",

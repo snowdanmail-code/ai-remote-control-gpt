@@ -26,11 +26,12 @@ object OnDeviceAutonomousRuntime {
     @Volatile private var controller: AutonomousActionLoop? = null
     private val stopGeneration = java.util.concurrent.atomic.AtomicLong(0L)
     private var strategy: AutonomousStrategy? = null
+    private val modelProposals = TurnScopedProposalMailbox()
     @Volatile private var lastStatus = AutonomousLoopResult(AutoLoopState.STOPPED, "AUTO выключен")
     @Volatile private var lastDiagnostic: String = "Фоновое OCR ещё не поступало"
     // Independent, read-only turn lifecycle: diagnostic visibility is not a legal move.
     private val turnTimeline = VerifiedTurnLifecycle()
-    private var identityBinding: VerifiedTurnBinding? = null
+    @Volatile private var identityBinding: VerifiedTurnBinding? = null
 
     /** No production verifier is installed until a genuinely independent provider exists. */
     @Synchronized fun installExternalIdentityVerifier(verifier: ExternalAttestationVerifier) {
@@ -49,6 +50,7 @@ object OnDeviceAutonomousRuntime {
         identityBinding?.reset()
         OnDeviceVerifiedDispatchAdmission.clear()
         latestTurnCycle = turnTimeline.snapshot(SystemClock.elapsedRealtime())
+        modelProposals.clear()
         strategy = verifiedSource
         lastStatus = AutonomousLoopResult(AutoLoopState.STOPPED,
             "Стратегия подключена; ожидается ARM и проверенный источник игровых данных")
@@ -56,14 +58,61 @@ object OnDeviceAutonomousRuntime {
 
     /** Install local AI once; it never disables external permission/STOP checks. */
     @Synchronized fun ensureLocalStrategy() {
-        if (strategy == null && controller == null) strategy = VerifiedLocalPokerStrategy()
+        if (strategy == null && controller == null) strategy = ValidatedPlayerStrategy(
+            local = VerifiedLocalPokerStrategy(), proposals = modelProposals,
+            nowMs = { SystemClock.elapsedRealtime() })
+    }
+
+    /** Optional structured model advice. NEVER a gesture or a replacement
+     * for an independent provider. Absence of cloud simply uses local math. */
+    fun offerFrameBoundModelAdvice(context: Context, candidate: PlayerModelProposal): Boolean {
+        if (CaptureObservationMode.isSpectator() || OperatorStopStore.isStopped(context) ||
+            !FrameStore.isCapturing || !LiveGamePermissionGate.permitted() ||
+            identityBinding == null) return false
+        return modelProposals.offer(candidate)
     }
 
     @Synchronized fun startIfAuthorized(context: Context): Boolean {
         val generationAtStart = stopGeneration.get()
-        if (OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
+        if (CaptureObservationMode.isSpectator() ||
+            OperatorStopStore.isStopped(context) || !FrameStore.isCapturing ||
             !LiveGamePermissionGate.permitted() || !LiveForegroundProbe.connected() ||
             strategy == null) return false
+        // Auth to ChatGPT and visually reading a button are NOT an
+        // authenticated 1win hand/turn source. Fail closed instead of
+        // presenting AUTO as running when every gesture would be rejected.
+        if (identityBinding == null) {
+            // Actual but strictly limited fallback using independent native
+            // Android CHECK + fresh on-device cards. Does NOT claim full
+            // autonomy or allow CALL/FOLD/BET/RAISE without attestation.
+            val started = LocalPlayerCheckPilot.start()
+            lastStatus = AutonomousLoopResult(
+                if (started) AutoLoopState.WAITING_FOR_PROOF else AutoLoopState.BLOCKED_CONTEXT,
+                if (started) "Ограниченный ИИ-игрок: только бесплатный CHECK, " +
+                    "после 2 подтверждений Android-кнопки и свежих карт; нет CALL/BET/RAISE."
+                else "Режим CHECK уже активен; для нового сеанса нужен STOP и ARM")
+            return started
+        }
+        // Full autonomy is possible ONLY through the installed provider
+        // bridge that verifies the entire state + action effect signatures.
+        // A bare identity verifier must not bypass the signed-packet gate.
+        val route = TrustedPlayerInputPolicy.route(
+            OnDeviceAuthorizedPlayerCycle.providerConnected(),
+            OnDeviceAuthorizedPlayerFeed.available())
+        if (route == TrustedPlayerInputRoute.NONE || route == TrustedPlayerInputRoute.CONFLICT) {
+            lastStatus = AutonomousLoopResult(AutoLoopState.BLOCKED_CONTEXT,
+                if (route == TrustedPlayerInputRoute.CONFLICT)
+                    "Конфликт двух источников игры; отключите их и подключите только один"
+                else "Нет проверенного источника полного состояния: карты, суммы и действия")
+            return false
+        }
+        // STOP revokes result authority. Do not arm a verified multi-action
+        // player while post-action confirmation has no authenticated verifier.
+        if (!OnDeviceEffectAuthority.configured()) {
+            lastStatus = AutonomousLoopResult(AutoLoopState.BLOCKED_CONTEXT,
+                "Нет проверенного источника подтверждения результатов; повторный ARM запрещён")
+            return false
+        }
         val app = context.applicationContext
         val loop = AutonomousActionLoop(strategy!!, VerifiedAndroidTransport(app),
             diagnosticSink = { e ->
@@ -105,6 +154,10 @@ object OnDeviceAutonomousRuntime {
     /** Called only by an independently authenticated, frame-bound game state producer. */
     @Synchronized fun acceptVerifiedObservation(context: Context, obs: AutonomousObservation?,
                                                 sourceProof: ExternalTurnAttestation? = null): AutonomousLoopResult {
+        if (CaptureObservationMode.isSpectator()) {
+            stop("Режим наблюдателя: любые игровые действия запрещены")
+            return lastStatus
+        }
         val loop = controller ?: return lastStatus
         val frame = FrameStore.latest
         val origin = FrameStore.windowOrigin
@@ -134,9 +187,11 @@ object OnDeviceAutonomousRuntime {
             obs.view.legalActions.all { action ->
                 actionStrip.stable.any { it.action.name == action.name }
             }
+        // This remains a VISUAL state only: TurnVisualSignal.sourceVerified
+        // is intentionally false for pixels. The separate authenticated
+        // provider MUST still pass VerifiedTurnBinding before any action.
         val visualState = if (turnVisual != null && obs != null &&
             turnVisual.captureEpoch == obs.view.captureEpoch &&
-            turnVisual.sourceVerified &&
             turnVisual.capturedAtMs <= obs.view.capturedAtMs &&
             obs.view.capturedAtMs - turnVisual.capturedAtMs <= 1_500L
         ) turnVisual.state else TurnDisplayState.UNKNOWN
@@ -156,14 +211,15 @@ object OnDeviceAutonomousRuntime {
                 actionLabelsConsistent = actionStrip?.status != ActionStripStatus.REJECTED
             ))
         }
+        val awaitingEffect = loop.status().state == AutoLoopState.WAITING_FOR_RESULT
         val sourceBinding = identityBinding?.inspect(sourceProof, obs?.view, foreground?.packageName,
-            foreground?.windowGeneration, latestTurnCycle, now, OperatorStopStore.isStopped(context))
+            foreground?.windowGeneration, latestTurnCycle, now,
+            OperatorStopStore.isStopped(context), awaitingEffect)
         val independentlyBound = sourceBinding?.status == TurnBindingStatus.CONSISTENT_READ_ONLY &&
             obs != null && sourceBinding.handId == obs.handId &&
             sourceBinding.tableId == obs.tableId && sourceBinding.turnId == obs.turnId
         // Observations during WAITING_FOR_RESULT verify effects after a gesture;
         // buttons may already be gone, so they do not require a fresh READY strip.
-        val awaitingEffect = loop.status().state == AutoLoopState.WAITING_FOR_RESULT
         val permittedByTurn = awaitingEffect ||
             (latestTurnCycle.phase == TurnCyclePhase.VISIBLE_DIAGNOSTIC &&
                 stableControlStrip && obs?.view?.turnVerified == true &&
@@ -191,6 +247,11 @@ object OnDeviceAutonomousRuntime {
 
     /** Nonblocking emergency cancellation: do not wait for a slow strategy. */
     fun stop(reason: String = "STOP"): AutonomousLoopResult {
+        LocalPlayerCheckPilot.stop(reason)
+        modelProposals.clear()
+        OnDevicePlayerContextBuffer.memory.clear()
+        OnDeviceAuthorizedPlayerCycle.clear(reason)
+        OnDeviceAuthorizedPlayerFeed.invalidateOnStop()
         stopGeneration.incrementAndGet()
         // The authorization is valid for ONE capture/autonomy session only;
         // do not reuse it after a crash, MediaProjection stop or interruption.
@@ -200,6 +261,7 @@ object OnDeviceAutonomousRuntime {
         lastDiagnostic = "Данные очищены после STOP/завершения захвата"
         turnTimeline.reset(reason)
         identityBinding?.reset()
+        identityBinding = null
         latestTurnCycle = TurnCycleReport(TurnCyclePhase.UNKNOWN, 0L, -1L, reason)
         controller?.requestAbort()
         controller = null
@@ -207,14 +269,36 @@ object OnDeviceAutonomousRuntime {
         return lastStatus
     }
 
+    @Synchronized fun clearExternalIdentityVerifier() {
+        stop("Проверенный источник отключён")
+        identityBinding?.reset()
+        identityBinding = null
+    }
+
+    fun verifiedSourceConfigured(): Boolean = identityBinding != null
     fun strategyInstalled(): Boolean = strategy != null
 
     fun readiness(context: Context): String = when {
+        CaptureObservationMode.isSpectator() -> "Режим наблюдателя: игровые касания отключены"
         OperatorStopStore.isStopped(context) -> "Включён STOP: нужен ARM оператора"
         !FrameStore.isCapturing -> "Нет действующего захвата MediaProjection"
         !LiveForegroundProbe.connected() -> "AccessibilityService не подключена"
         !LiveGamePermissionGate.permitted() -> "Разрешите касания для недавно открытого 1win в панели оператора"
-        strategy == null -> "Профессиональная стратегия/ChatGPT не подключена"
+        strategy == null -> "Локальная стратегия не подключена"
+        identityBinding != null &&
+            TrustedPlayerInputPolicy.route(OnDeviceAuthorizedPlayerCycle.providerConnected(),
+                OnDeviceAuthorizedPlayerFeed.available()) == TrustedPlayerInputRoute.CONFLICT ->
+            "Два конфликтующих источника данных; игровые действия заблокированы"
+        identityBinding != null &&
+            TrustedPlayerInputPolicy.route(OnDeviceAuthorizedPlayerCycle.providerConnected(),
+                OnDeviceAuthorizedPlayerFeed.available()) == TrustedPlayerInputRoute.NONE ->
+            "Не подключён подтверждённый поток полного состояния игры; действия заблокированы"
+        identityBinding != null && !OnDeviceEffectAuthority.configured() ->
+            "После STOP требуется повторно подключить доверенное подтверждение результатов"
+        identityBinding == null && LocalPlayerCheckPilot.isActive() ->
+            "Ограниченный CHECK активен: только бесплатный ход через настоящую кнопку Android, не полноценная игра"
+        identityBinding == null ->
+            "Нет удостоверенного источника раздачи; разрешён только ограниченный CHECK при новом ARM"
         else -> "Касания разрешены; автоцикл ждёт независимое подтверждение стола, раздачи, хода и точных кнопок"
     }
 

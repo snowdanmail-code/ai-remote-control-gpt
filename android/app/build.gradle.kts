@@ -64,6 +64,8 @@ dependencies {
     testImplementation("org.json:json:20240303")
     // Browser-owned sign-in within the app; never collect ChatGPT passwords or 2FA codes.
     implementation("androidx.browser:browser:1.8.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
     // Offline OCR model; no Windows or Python service.
     implementation("com.google.mlkit:text-recognition:16.0.1")
 }

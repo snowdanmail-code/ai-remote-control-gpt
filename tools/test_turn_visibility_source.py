@@ -19,7 +19,9 @@ class TurnVisibilityIntegrationChecks(unittest.TestCase):
         self.assertIn('data class OnDeviceTableReading', reader)
         self.assertIn('CardVisionCore.readCards(raster)', reader)
         self.assertIn('TurnControlsVision.read(raster)', reader)
-        self.assertEqual(reader.count('val pixels = IntArray('), 1)
+        player = reader.split('fun inspectAll(source: Bitmap): OnDeviceTableReading', 1)[1]
+        self.assertEqual(player.count('val pixels = IntArray('), 1)  # player shares one raster with turn detector
+        self.assertNotIn('readVisibleCommunity(', player)
     def test_capture_gates_and_fail_closed_source(self):
         service = (SRC / 'CaptureService.kt').read_text()
         self.assertIn('OnDeviceCardReader.inspectAll(screen)', service)
